@@ -57,21 +57,9 @@ Core settings are configured by editing the `SETTINGS` section directly within t
 
 ## Usage
 
-There are two main ways to use the script:
+There are four main ways to use the script:
 
-1.  **Drag and Drop:**
-    *   Select one or more video files or folders containing videos.
-    *   Drag them directly onto the `Anime4K-Batch.bat` file icon. Processing will start with the settings defined inside the script.
-
-    <img src="image.png" alt="Dragging files onto Anime4K-Batch.bat" width="288">
-
-2. **Open with `Anime4K-Batch.bat`:**
-    *   Right-click on a video file and select "Open with" from the context menu (not available for folders or multiple files)
-    *   The script will start with the settings defined inside the script.
-    
-    <img src="image-1.png" alt="Open with" height="288">
-
-3. **Add to Context Menu:**
+1. **Add to Context Menu:**
     1. Open PowerShell (user or admin) and set this variable:
 
     ```powershell
@@ -93,6 +81,18 @@ There are two main ways to use the script:
     ```
     
     <img src="image-2.png" alt="Open with" height="288">
+
+2.  **Drag and Drop:**
+    *   Select one or more video files or folders containing videos.
+    *   Drag them directly onto the `Anime4K-Batch.bat` file icon. Processing will start with the settings defined inside the script.
+
+    <img src="image.png" alt="Dragging files onto Anime4K-Batch.bat" width="288">
+
+3. **Open with `Anime4K-Batch.bat`:**
+    *   Right-click on a video file and select "Open with" from the context menu (not available for folders or multiple files)
+    *   The script will start with the settings defined inside the script.
+    
+    <img src="image-1.png" alt="Open with" height="288">
 
 4.  **Command Line:**
     *   Open Command Prompt (`cmd.exe`) or PowerShell.
