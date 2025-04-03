@@ -60,21 +60,21 @@ Core settings are configured by editing the `SETTINGS` section directly within t
 There are four main ways to use the script:
 
 1. **Add to Context Menu:**
-    1. Open PowerShell (user or admin) and set this variable:
+    *   Open PowerShell (user or admin) and set this variable:
 
     ```powershell
     $path = "C:\path\to\Anime4K-Batch.bat"
     ```
 
-    2. Then execute this command:
+    *   Then execute this command:
     
     ```powershell
     New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\*\shell\Transcode with Anime4K\command" -Value "$path ""%1""" -Force; New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\directory\shell\Transcode content with Anime4K\command" -Value "$path ""%1""" -Force
     ```
 
-    3. The script should now be available whenever you right-click on video files and folders.
+    *   The script should now be available whenever you right-click on video files and folders.
 
-    4. Note: I would also recommend disabling the new Windows 11 context menu:
+    *   Note: I would also recommend disabling the new Windows 11 context menu:
     
     ```powershell
     New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" -Value "" -Force

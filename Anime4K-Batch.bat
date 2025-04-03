@@ -47,7 +47,7 @@ REM   amd_av1     (av1_amf, opencl hwaccel) - Requires RX 7000+
 set ENCODER_PROFILE=nvidia_h265
 
 REM --- Constant Quantization Parameter (CQP) ---
-REM Lower value = better quality, larger file. Range (-1)-51. Recommended ~26-32. <=24 is virtually lossless for anime.
+REM Lower value = better quality, larger file. Range (-1)-51. Recommended ~26-32. 24 more or less doubles the file size from 1080p to 2160p. Less than 24 is virtually lossless for anime.
 REM Ignored by some hardware encoders (they might use different quality controls not implemented here).
 set CQP=24
 
