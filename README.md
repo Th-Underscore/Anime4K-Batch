@@ -81,7 +81,7 @@ There are two main ways to use the script:
     2. Then execute this command:
     
     ```powershell
-    New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\*\shell\Open with Anime4K-Batch\command" -Value "$path ""%1""" -Force; New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\directory\shell\Open with Anime4K-Batch\command" -Value "$path ""%1""" -Force
+    New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\*\shell\Transcode with Anime4K\command" -Value "$path ""%1""" -Force; New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\directory\shell\Transcode content with Anime4K\command" -Value "$path ""%1""" -Force
     ```
 
     3. The script should now be available whenever you right-click on video files and folders.
