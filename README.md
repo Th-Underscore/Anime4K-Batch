@@ -103,6 +103,8 @@ There are two main ways to use the script:
     C:\path\to\Anime4K-Batch.bat [options] [-no-where] [-r] [-f] "path\to\folder" "path\to\video.mkv" ...
     ```
 
+If you want recursion to be enabled by default, simply edit `set RECURSE_NEXT=0` to `set RECURSE_NEXT=1` on line 73.
+
 ### Command Line Options & Flags
 
 Options allow overriding settings defined inside the script *for that specific run*. Flags modify behavior.
@@ -112,8 +114,8 @@ Options allow overriding settings defined inside the script *for that specific r
 *   `-shader <file>`: Override shader filename (relative to shader path).
 *   `-shaderpath <path>`: Override the base path for shaders.
 *   `-cqp <value>`: Override the Constant Quantization Parameter (quality).
-*   `-r`: **(Flag)** Process folders recursively. *Must be placed immediately before the folder path it applies to.*
-*   `-f`: **(Flag)** Force overwrite if an output file with the target name already exists. *Must be placed immediately before the file/folder path it applies to.*
+*   `-r`: **(Flag)** Process folders recursively.
+*   `-f`: **(Flag)** Force overwrite if an output file with the target name already exists.
 *   `-no-where`: **(Flag)** Disable automatic searching for `ffmpeg`/`ffprobe` in the system PATH; rely solely on paths set in the script.
 
 ### Output

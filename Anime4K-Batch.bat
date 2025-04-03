@@ -69,6 +69,7 @@ set FFMPEG_PATH=
 set FFPROBE_PATH=
 set SHADER_BASE_PATH=%~dp0
 set DISABLE_WHERE_SEARCH=0
+REM Set to 1 to auto-enable recursion
 set RECURSE_NEXT=0
 set FORCE_NEXT=0
 set PROCESSED_ANY_PATH=0 REM Track if any path was processed
