@@ -2,7 +2,7 @@
 
 This batch script enhances the resolution of videos using GLSL shaders like [Anime4K](https://github.com/bloc97/Anime4K), leveraging the power of `ffmpeg` for processing. It's designed for command-line and drag-and-drop batch operations.
 
-**This script provides a command-line interface for the core upscaling logic, based on Anime4K-GUI, allowing for batch processing and customization via script editing.**
+**This script provides a command-line interface for the core upscaling logic, based on [Anime4K-GUI](https://github.com/mikigal/Anime4K-GUI), allowing for batch processing and customization via script editing.**
 
 ## Table of Contents
 
@@ -17,6 +17,7 @@ This batch script enhances the resolution of videos using GLSL shaders like [Ani
 
 *   Video upscaling using configurable GLSL shaders (e.g., Anime4K, FSRCNNX).
 *   Batch processing of multiple video files or folders (optionally recursively).
+*   Easy right-click context menu integration.
 *   Command-line interface with options for customization.
 *   Drag-and-drop support for files and folders.
 *   Support for various video encoders: H.264, H.265, AV1 (CPU and GPU).
@@ -27,19 +28,20 @@ This batch script enhances the resolution of videos using GLSL shaders like [Ani
 
 ## Requirements
 
-*   **Operating System**: Windows
-*   **ffmpeg.exe**: Required for video processing. Must be in the system PATH, the working directory, or its location specified within the script.
-*   **ffprobe.exe**: Required for video analysis. Must be in the system PATH or its location specified within the script.
+*   **Operating System**: Windows 10+
+*   [**ffmpeg.exe** and **ffprobe.exe**](https://ffmpeg.org/download.html#build-windows): Required for video processing and analysis. Must be in the system PATH, the working directory, or specified within the script.
 *   **GLSL Shaders**: Upscaling shader files (e.g., `.glsl`) are provided in this repository.
+
+ffmpeg and ffprobe binaries can be found in [Releases](https://github.com/Th-Underscore/Anime4K-Batch/releases).
 
 ## Configuration
 
-Core settings are configured by editing the `SETTINGS` section directly within the `Anime4K-Batch.bat` script file:
+Core settings are configured by editing the `--- SETTINGS ---` section directly within the `Anime4K-Batch.bat` script file:
 
 *   `TARGET_RESOLUTION_W`, `TARGET_RESOLUTION_H`: Desired output video dimensions.
 *   `SHADER_FILE`: The specific `.glsl` shader file to use (relative to `SHADER_BASE_PATH`).
 *   `SHADER_BASE_PATH`: The directory containing the shader files.
-*   `ENCODER_PROFILE`: Selects the video codec and hardware acceleration (e.g., `nvidia_h264`, `cpu_av1`, `amd_h265`), set to `nvidia_h265` by default. See script comments for options.
+*   `ENCODER_PROFILE`: Selects the video codec and hardware acceleration (e.g., `nvidia_h264`, `cpu_av1`, `amd_h265`), set to `nvidia_h265` by default. See script comments for a full list of options.
 *   `CQP`: Constant Quantization Parameter for quality control (lower value = higher quality, larger file).
 *   `OUTPUT_FORMAT`: Output video container (`mkv`, `mp4`, `avi`). MKV is recommended for subtitle compatibility.
 *   `OUTPUT_SUFFIX`: Text added to the end of the output filename (before the extension).
@@ -60,7 +62,7 @@ Core settings are configured by editing the `SETTINGS` section directly within t
 There are four main ways to use the script:
 
 1. **Add to Context Menu:**
-    *   Open PowerShell (user or admin) and set this variable:
+    *   Open PowerShell (user or admin) and set this variable to your path to the script:
 
     ```powershell
     $path = "C:\path\to\Anime4K-Batch.bat"
@@ -73,26 +75,25 @@ There are four main ways to use the script:
     ```
 
     *   The script should now be available whenever you right-click on video files and folders.
-
-    *   Note: I would also recommend disabling the new Windows 11 context menu:
+    *   _(Optional)_ I would also recommend disabling the new Windows 11 context menu:
     
     ```powershell
     New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" -Value "" -Force
     ```
-    
+
     <img src="image-1.png" alt="Custom context menu" height="288">
 
 2.  **Drag and Drop:**
     *   Select one or more video files or folders containing videos.
     *   Drag them directly onto the `Anime4K-Batch.bat` file icon. Processing will start with the settings defined inside the script.
 
-    <img src="image-2.png" alt="Dragging files onto Anime4K-Batch.bat" width="288">
+    <img src="image-2.png" alt="Dragging and dropping files" width="288">
 
 3. **Open with `Anime4K-Batch.bat`:**
     *   Right-click on a video file and select "Open with" from the context menu (not available for folders or multiple files)
     *   The script will start with the settings defined inside the script.
     
-    <img src="image-3.png" alt="Open with" height="288">
+    <img src="image-3.png" alt="Open with" height="334">
 
 4.  **Command Line:**
     *   Open Command Prompt (`cmd.exe`) or PowerShell.
@@ -122,23 +123,21 @@ Options allow overriding settings defined inside the script *for that specific r
 
 Upscaled video files are saved in the *same directory* as their corresponding input files. The filename will be the original name plus the configured `OUTPUT_SUFFIX` (default: `_upscaled`).
 
-## Utilities
+## Extra Utilities
 
 ### `Append-Shaders.ps1`
 
-This PowerShell script allows you to append multiple shaders to the `SHADER_FILE` setting within `Anime4K-Batch.bat`. It uses `mpv`'s shaderlist format.
+This PowerShell script allows you to use multiple shaders for the `SHADER_FILE` setting within `Anime4K-Batch.bat`. It uses MPV's shaderlist format.
 
 **Format:** `~~/shader1.glsl;~~/shader2.glsl;~~/shader3.glsl`
 
-**Usage:**
-
-Assuming `Anime4K-Batch.bat` is in the same directory:
+**Usage** (assuming `Anime4K-Batch.bat` is in the same directory):
 
 ```powershell
-.\Append-Shaders.ps1 -BaseDir "$env:AppData\mpv\" -FileListString "~~/shaders/Anime4K_Clamp_Highlights.glsl;~~/shaders/Anime4K_Restore_CNN_M.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl;~~/shaders/Anime4K_AutoDownscalePre_x2.glsl;~~/shaders/Anime4K_AutoDownscalePre_x4.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_S.glsl" -OutputFile "Anime4K_ModeA_A-fast.glsl"
+.\Append-Shaders.ps1 -BaseDir "$env:AppData\mpv\" -FileListString "~~/shaders/Anime4K_Clamp_Highlights.glsl;~~/shaders/Anime4K_Restore_CNN_M.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl;~~/shaders/Anime4K_AutoDownscalePre_x2.glsl;~~/shaders/Anime4K_AutoDownscalePre_x4.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_S.glsl" -OutputFile ".\Anime4K_ModeA_A-fast.glsl"
 ```
 
-This command will append the shaders into one file to be used for Anime4K-Batch, or for any other application (e.g., `mpv`).
+Running this will append the specified shaders into one file to be used for Anime4K-Batch, or for any other application (e.g., MPV Player).
 
 ## Limitations
 
