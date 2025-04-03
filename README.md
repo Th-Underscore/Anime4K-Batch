@@ -109,6 +109,8 @@ There are four main ways to use the script:
 
 If you want recursion to be enabled by default, simply edit `set RECURSE_NEXT=0` to `set RECURSE_NEXT=1` on line 73.
 
+Additionally, running the script twice in the same directory should double the worker threads/cores, without any conflict or additional overhead. From my experience (NVIDIA V100), GPU usage isn't maxed unless two processes are running at the same time.
+
 ### Command Line Options & Flags
 
 Options allow overriding settings defined inside the script *for that specific run*. Flags modify behavior.
