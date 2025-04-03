@@ -483,3 +483,6 @@ goto :eof
 echo.
 echo All arguments processed.
 endlocal
+
+:eof
+pause
