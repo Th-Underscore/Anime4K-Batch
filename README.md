@@ -80,19 +80,19 @@ There are four main ways to use the script:
     New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" -Value "" -Force
     ```
     
-    <img src="image-2.png" alt="Open with" height="288">
+    <img src="image-1.png" alt="Custom context menu" height="288">
 
 2.  **Drag and Drop:**
     *   Select one or more video files or folders containing videos.
     *   Drag them directly onto the `Anime4K-Batch.bat` file icon. Processing will start with the settings defined inside the script.
 
-    <img src="image.png" alt="Dragging files onto Anime4K-Batch.bat" width="288">
+    <img src="image-2.png" alt="Dragging files onto Anime4K-Batch.bat" width="288">
 
 3. **Open with `Anime4K-Batch.bat`:**
     *   Right-click on a video file and select "Open with" from the context menu (not available for folders or multiple files)
     *   The script will start with the settings defined inside the script.
     
-    <img src="image-1.png" alt="Open with" height="288">
+    <img src="image-3.png" alt="Open with" height="288">
 
 4.  **Command Line:**
     *   Open Command Prompt (`cmd.exe`) or PowerShell.
