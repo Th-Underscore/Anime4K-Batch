@@ -65,18 +65,37 @@ There are two main ways to use the script:
 
     <img src="image.png" alt="Dragging files onto Anime4K-Batch.bat" width="288">
 
-3. **Open with `Anime4K-Batch.bat`:**
-    *   Right-click on a video file or folder and select "Open with" from the context menu.
-
+2. **Open with `Anime4K-Batch.bat`:**
+    *   Right-click on a video file and select "Open with" from the context menu (not available for folders or multiple files)
+    *   The script will start with the settings defined inside the script.
+    
     <img src="image-1.png" alt="Open with" height="288">
 
-    *   The script will start with the settings defined inside the script.
+3. **Add to Context Menu:**
+    1. Open PowerShell (user or admin) and set this variable:
 
-4. **Add to Context Menu:**
-    *   Execute this command in elevated PowerShell: `New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\*\shell\Open with Anime4K-Batch\command" -Force; Set-ItemProperty -Path "Registry::HKEY_CURRENT_USER\Software\Classes\*\shell\Open with Anime4K-Batch\command" -Name "(Default)" -Value "C:\path\to\Anime4K-Batch.bat"` (replace with the path to the script).
-    *   The script should now be available whenever you right-click on video files and folders.
+    ```ps1
+    $path = "C:\path\to\Anime4K-Batch.bat"
+    ```
+
+    2. Then execute this command:
+    
+    ```ps1
+    New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\*\shell\Open with Anime4K-Batch\command" -Force; Set-ItemProperty -Path "Registry::HKEY_CURRENT_USER\Software\Classes\*\shell\Open with Anime4K-Batch\command" -Name "(Default)" -Value "$path ""%1"""; New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\directory\shell\Open with Anime4K-Batch\command" -Force; Set-ItemProperty -Path "Registry::HKEY_CURRENT_USER\Software\Classes\directory\shell\Open with Anime4K-Batch\command" -Name "(Default)" -Value "$path ""%1"""
+    ```
+
+    3. The script should now be available whenever you right-click on video files and folders.
     
     <img src="image-2.png" alt="Open with" height="288">
+
+4.  **Command Line:**
+    *   Open Command Prompt (`cmd.exe`) or PowerShell.
+    *   Navigate to the script's directory or use its absolute path.
+    *   Execute the script with optional flags and options, followed by paths to video files and/or folders.
+
+    ```batch
+    C:\path\to\Anime4K-Batch.bat [options] [-no-where] [-r] [-f] "path\to\folder" "path\to\video.mkv" ...
+    ```
 
 ### Command Line Options & Flags
 
@@ -94,6 +113,24 @@ Options allow overriding settings defined inside the script *for that specific r
 ### Output
 
 Upscaled video files are saved in the *same directory* as their corresponding input files. The filename will be the original name plus the configured `OUTPUT_SUFFIX` (default: `_upscaled`).
+
+## Utilities
+
+### `Append-Shaders.ps1`
+
+This PowerShell script allows you to append multiple shaders to the `SHADER_FILE` setting within `Anime4K-Batch.bat`. It uses `mpv`'s shaderlist format.
+
+**Format:** `~~/shader1.glsl;~~/shader2.glsl;~~/shader3.glsl`
+
+**Usage:**
+
+Assuming `Anime4K-Batch.bat` is in the same directory:
+
+```powershell
+.\Append-Shaders.ps1 -BaseDir "$env:AppData\mpv\shaders\" -FileListString "~~/shaders/Anime4K_Clamp_Highlights.glsl;~~/shaders/Anime4K_Restore_CNN_M.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl;~~/shaders/Anime4K_AutoDownscalePre_x2.glsl;~~/shaders/Anime4K_AutoDownscalePre_x4.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_S.glsl" -OutputFile "Anime4K_ModeA_A-fast.glsl"
+```
+
+This command will append the shaders into one file to be used for Anime4K-Batch, or for any other application (e.g., `mpv`).
 
 ## Limitations
 
