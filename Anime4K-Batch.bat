@@ -20,8 +20,8 @@ REM   -no-where : Disable auto-detection of ffmpeg/ffprobe via 'where' command
 REM --- SETTINGS ---
 
 REM --- Target Resolution ---
-REM Options based on Go code: 1024x768, 1440x1080, 1920x1440, 2880x2160 (4:3)
-REM                          1280x720, 1920x1080, 2560x1440, 3840x2160 (16:9)
+REM Recommended options: 1024x768, 1440x1080, 1920x1440, 2880x2160 (4:3)
+REM                      1280x720, 1920x1080, 2560x1440, 3840x2160 (16:9)
 set TARGET_RESOLUTION_W=3840
 set TARGET_RESOLUTION_H=2160
 
@@ -48,7 +48,7 @@ set ENCODER_PROFILE=nvidia_h265
 
 REM --- Constant Quantization Parameter (CQP) ---
 REM Lower value = better quality, larger file. Range (-1)-51. Recommended ~26-32. 24 more or less doubles the file size from 1080p to 2160p. Less than 24 is virtually lossless for anime.
-REM Ignored by some hardware encoders (they might use different quality controls not implemented here).
+REM Some hardware encoders might use different quality controls not implemented here.
 set CQP=24
 
 REM --- Output Format ---
@@ -72,7 +72,7 @@ set DISABLE_WHERE_SEARCH=0
 REM Set to 1 to auto-enable recursion
 set RECURSE_NEXT=0
 set FORCE_NEXT=0
-set PROCESSED_ANY_PATH=0 REM Track if any path was processed
+set PROCESSED_ANY_PATH=0
 
 REM Calculate length of suffix for filtering
 set OUTPUT_SUFFIX_LEN=0
@@ -287,7 +287,7 @@ REM =============================================
 :process_single_file
 REM --- Check if input argument is empty ---
 if "%~1"=="" (
-    echo No more files to process in this batch.
+    echo Processed all files in this batch.
     goto :eof
 )
 set "INPUT_FILE=%~1"
