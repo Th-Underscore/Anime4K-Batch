@@ -1,4 +1,4 @@
-# Anime4K-Batch.bat - Command-Line Batch Video Upscaler
+# Anime4K-Batch - Command-Line Batch Video Upscaler
 
 This batch script enhances the resolution of videos using GLSL shaders like [Anime4K](https://github.com/bloc97/Anime4K), leveraging the power of `ffmpeg` for processing. It's designed for command-line and drag-and-drop batch operations.
 
@@ -74,17 +74,23 @@ There are two main ways to use the script:
 3. **Add to Context Menu:**
     1. Open PowerShell (user or admin) and set this variable:
 
-    ```ps1
+    ```powershell
     $path = "C:\path\to\Anime4K-Batch.bat"
     ```
 
     2. Then execute this command:
     
-    ```ps1
-    New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\*\shell\Open with Anime4K-Batch\command" -Force; Set-ItemProperty -Path "Registry::HKEY_CURRENT_USER\Software\Classes\*\shell\Open with Anime4K-Batch\command" -Name "(Default)" -Value "$path ""%1"""; New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\directory\shell\Open with Anime4K-Batch\command" -Force; Set-ItemProperty -Path "Registry::HKEY_CURRENT_USER\Software\Classes\directory\shell\Open with Anime4K-Batch\command" -Name "(Default)" -Value "$path ""%1"""
+    ```powershell
+    New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\*\shell\Open with Anime4K-Batch\command" -Value "$path ""%1""" -Force; New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\directory\shell\Open with Anime4K-Batch\command" -Value "$path ""%1""" -Force
     ```
 
     3. The script should now be available whenever you right-click on video files and folders.
+
+    4. Note: I would also recommend disabling the new Windows 11 context menu:
+    
+    ```powershell
+    New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" -Value "" -Force
+    ```
     
     <img src="image-2.png" alt="Open with" height="288">
 
@@ -116,7 +122,7 @@ Upscaled video files are saved in the *same directory* as their corresponding in
 
 ## Utilities
 
-### `Append-Shaders.ps1`
+### `Append-Shaders.powershell`
 
 This PowerShell script allows you to append multiple shaders to the `SHADER_FILE` setting within `Anime4K-Batch.bat`. It uses `mpv`'s shaderlist format.
 
@@ -127,7 +133,7 @@ This PowerShell script allows you to append multiple shaders to the `SHADER_FILE
 Assuming `Anime4K-Batch.bat` is in the same directory:
 
 ```powershell
-.\Append-Shaders.ps1 -BaseDir "$env:AppData\mpv\shaders\" -FileListString "~~/shaders/Anime4K_Clamp_Highlights.glsl;~~/shaders/Anime4K_Restore_CNN_M.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl;~~/shaders/Anime4K_AutoDownscalePre_x2.glsl;~~/shaders/Anime4K_AutoDownscalePre_x4.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_S.glsl" -OutputFile "Anime4K_ModeA_A-fast.glsl"
+.\Append-Shaders.powershell -BaseDir "$env:AppData\mpv\shaders\" -FileListString "~~/shaders/Anime4K_Clamp_Highlights.glsl;~~/shaders/Anime4K_Restore_CNN_M.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl;~~/shaders/Anime4K_AutoDownscalePre_x2.glsl;~~/shaders/Anime4K_AutoDownscalePre_x4.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_S.glsl" -OutputFile "Anime4K_ModeA_A-fast.glsl"
 ```
 
 This command will append the shaders into one file to be used for Anime4K-Batch, or for any other application (e.g., `mpv`).
