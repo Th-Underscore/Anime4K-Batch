@@ -124,7 +124,7 @@ Upscaled video files are saved in the *same directory* as their corresponding in
 
 ## Utilities
 
-### `Append-Shaders.powershell`
+### `Append-Shaders.ps1`
 
 This PowerShell script allows you to append multiple shaders to the `SHADER_FILE` setting within `Anime4K-Batch.bat`. It uses `mpv`'s shaderlist format.
 
@@ -135,7 +135,7 @@ This PowerShell script allows you to append multiple shaders to the `SHADER_FILE
 Assuming `Anime4K-Batch.bat` is in the same directory:
 
 ```powershell
-.\Append-Shaders.powershell -BaseDir "$env:AppData\mpv\shaders\" -FileListString "~~/shaders/Anime4K_Clamp_Highlights.glsl;~~/shaders/Anime4K_Restore_CNN_M.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl;~~/shaders/Anime4K_AutoDownscalePre_x2.glsl;~~/shaders/Anime4K_AutoDownscalePre_x4.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_S.glsl" -OutputFile "Anime4K_ModeA_A-fast.glsl"
+.\Append-Shaders.ps1 -BaseDir "$env:AppData\mpv\" -FileListString "~~/shaders/Anime4K_Clamp_Highlights.glsl;~~/shaders/Anime4K_Restore_CNN_M.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl;~~/shaders/Anime4K_AutoDownscalePre_x2.glsl;~~/shaders/Anime4K_AutoDownscalePre_x4.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_S.glsl" -OutputFile "Anime4K_ModeA_A-fast.glsl"
 ```
 
 This command will append the shaders into one file to be used for Anime4K-Batch, or for any other application (e.g., `mpv`).
