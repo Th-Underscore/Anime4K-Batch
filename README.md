@@ -1,4 +1,4 @@
-# Anime4K-Batch - Command-Line Batch Video Upscaler
+# Anime4K-Batch - Batch Video Upscaler
 
 This batch script enhances the resolution of videos using GLSL shaders like [Anime4K](https://github.com/bloc97/Anime4K), leveraging the power of `ffmpeg` for processing. Once set up, the script can be called in [several ways](#usage), however you'd like.
 
