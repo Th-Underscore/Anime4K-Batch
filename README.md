@@ -1,8 +1,10 @@
 # Anime4K-Batch - Command-Line Batch Video Upscaler
 
-This batch script enhances the resolution of videos using GLSL shaders like [Anime4K](https://github.com/bloc97/Anime4K), leveraging the power of `ffmpeg` for processing. It's designed for command-line and drag-and-drop batch operations.
+This batch script enhances the resolution of videos using GLSL shaders like [Anime4K](https://github.com/bloc97/Anime4K), leveraging the power of `ffmpeg` for processing. Once set up, the script can be called in [several ways](#usage), however you'd like.
 
-**This script provides a command-line interface for the core upscaling logic, based on [Anime4K-GUI](https://github.com/mikigal/Anime4K-GUI), allowing for batch processing and customization via script editing.**
+<img src="image-1.png" alt="Custom context menu" height="279">
+
+**This script provides a purely Windows-based alternative for the core upscaling logic of [Anime4K-GUI](https://github.com/mikigal/Anime4K-GUI), allowing for batch processing and customization via script editing.**
 
 ## Table of Contents
 
@@ -10,6 +12,7 @@ This batch script enhances the resolution of videos using GLSL shaders like [Ani
 - [Requirements](#requirements)
 - [Configuration](#configuration)
 - [Usage](#usage)
+- [Extra Utilities](#extra-utilities)
 - [Limitations](#limitations)
 - [Credits](#credits)
 
@@ -81,19 +84,19 @@ There are four main ways to use the script:
     New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" -Value "" -Force
     ```
 
-    <img src="image-1.png" alt="Custom context menu" height="288">
+    <img src="image-1.png" alt="Custom context menu" height="279">
 
 2.  **Drag and Drop:**
     *   Select one or more video files or folders containing videos.
     *   Drag them directly onto the `Anime4K-Batch.bat` file icon. Processing will start with the settings defined inside the script.
 
-    <img src="image-2.png" alt="Dragging and dropping files" width="288">
+    <img src="image-2.png" alt="Dragging and dropping files" width="315">
 
 3. **Open with `Anime4K-Batch.bat`:**
     *   Right-click on a video file and select "Open with" from the context menu (not available for folders or multiple files)
     *   The script will start with the settings defined inside the script.
     
-    <img src="image-3.png" alt="Open with" height="334">
+    <img src="image-3.png" alt="Open with" height="307">
 
 4.  **Command Line:**
     *   Open Command Prompt (`cmd.exe`) or PowerShell.
