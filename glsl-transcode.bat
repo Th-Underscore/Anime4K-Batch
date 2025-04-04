@@ -431,9 +431,18 @@ REM Use single quotes around the escaped path value within libplacebo options
 set "VF_STRING=format=%PIX_FMT%,hwupload,libplacebo=w=%TARGET_RESOLUTION_W%:h=%TARGET_RESOLUTION_H%:upscaler=bilinear:custom_shader_path='!ESCAPED_SHADER_PATH!',format=%PIX_FMT%"
 set "FFMPEG_CMD=!FFMPEG_CMD! -init_hw_device vulkan -vf "%VF_STRING%""
 
-REM Stream copying and mapping (Simplified: copy all audio, copy attachments/chapters)
-set "FFMPEG_CMD=!FFMPEG_CMD! -map 0:v:0 -map 0:a? -map 0:t?"
-set "FFMPEG_CMD=!FFMPEG_CMD! -c:a copy -c:t copy"
+REM Stream copying and mapping
+REM Map and copy video (0:v:0) and all audio streams (0:a?).
+set "FFMPEG_CMD=!FFMPEG_CMD! -map 0:v:0 -map 0:a?"
+set "FFMPEG_CMD=!FFMPEG_CMD! -c:a copy"
+
+if /i not "!OUTPUT_EXT!"==".mp4" (
+    echo Mapping subtitle streams for non-MP4 output ^(!OUTPUT_EXT!^)...
+    set "FFMPEG_CMD=!FFMPEG_CMD! -map 0:s? -c:s copy"
+) else (
+    echo Skipping subtitle streams for MP4 output due to limited subtitle compatibility.
+    echo Perhaps use subtitle extraction?
+)
 
 REM CQP and Video Codec
 set "FFMPEG_CMD=!FFMPEG_CMD! -c:v %VIDEO_CODEC% -qp %CQP%"
@@ -531,6 +540,3 @@ goto :eof
 echo.
 echo All arguments processed.
 endlocal
-
-:eof
-pause

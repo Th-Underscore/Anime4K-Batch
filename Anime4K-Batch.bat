@@ -16,7 +16,7 @@
 ::   -f                 : Force overwrite existing output files
 ::   -delete            : Delete original file after successful transcode (USE WITH CAUTION! You can just delete the original files yourself, grouping by "Type" and sorting by "Date modified")
 ::   -no-where          : Disable auto-detection of ffmpeg/ffprobe via 'where' command (binaries in the same folder as this script will be used regardless)
-:: 
+::
 :: extract-subs.bat options (place BEFORE file/folder paths):
 ::   -format <string>   : Output filename format (FILE, lang, title; default: %OUTPUT_FILENAME_FORMAT% = "FILE.lang.title" for Jellyfin compatibility)
 :: extract-subs.bat flags (place BEFORE file/folder paths):
@@ -63,3 +63,5 @@
 :: Uncomment the line below (omit "::") to enable subtitle extraction. This will extract subtitles from the input files and save them in the same folder as the output files, defaulting to Jellyfin's naming convention.
 :: Common flags (i.e., -r -f -no-where) don't need to be shared between both scripts, but I would recommend it.
 ::%~dp0\extract-subs.bat -r %*   &&   %~dp0\glsl-transcode.bat %*
+
+pause
