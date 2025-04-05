@@ -28,7 +28,7 @@ This batch script enhances the resolution of videos using GLSL shaders like [Ani
 *   Preserves all audio and subtitle streams (requires MKV output for subtitles).
 *   Supports MP4, AVI, and MKV container formats for input/output.
 *   Automatic detection of `ffmpeg`/`ffprobe` via system PATH (can be disabled).
-*   Optional subtitle extraction using `extract-subs.bat` included in [the main batch script](./Anime4K-Batch.bat?plain=1#L65).
+*   Optional subtitle extraction using `extract-subs.bat`, configurable via `Anime4K-Batch.bat` or the `-extract-subs` flag in `glsl-transcode.bat`.
 
 ## Requirements
 
@@ -128,8 +128,9 @@ These options/flags override settings defined inside the script(s) *for that spe
 *   `-cqp <value>`: Override the Constant Quantization Parameter (quality, 0-51).
 *   `-container <type>`: Override output container format (`avi`, `mkv`, `mp4`).
 *   `-delete`: **(Flag)** Delete original file after successful transcode (USE WITH CAUTION!).
+*   `-extract-subs`: **(Flag)** Extract subtitles using `extract-subs.bat` before transcoding. Passes `-f`, `-no-where`, `-suffix`, and `-format` flags automatically.
 
-**`extract-subs.bat` Specific Options & Flags (only relevant if subtitle extraction is enabled):**
+**`extract-subs.bat` Specific Options & Flags (only relevant if subtitle extraction is enabled *via Anime4K-Batch.bat*):**
 
 *   `-format <string>`: Output filename format for subtitles (default: `FILE.lang.title`). Uses `FILE`, `lang`, `title` placeholders.
 
@@ -141,13 +142,13 @@ These examples demonstrate various command-line possibilities. While some are ba
     ```batch
     Anime4K-Batch.bat -w 3840 -h 2160 -shaderpath "%appdata%\mpv\shaders" -shader Anime4K_ModeA_A.glsl -r -f "C:\path\to\input\folder"
     ```
-    *(Ensure subtitle extraction is enabled in `Anime4K-Batch.bat` for the `-r -f` flags to apply to `extract-subs.bat` as well)*
+    *(Ensure subtitle extraction is enabled in `Anime4K-Batch.bat` OR use the `-extract-subs` flag if calling `glsl-transcode.bat` directly. Common flags like `-r` and `-f` are passed automatically when extraction is enabled either way.)*
 
 *   **Upscale to 1080p, use slightly lower quality (higher CQP), output as MP4, specify custom shaders, process recursively:**
     ```batch
     Anime4K-Batch.bat -w 1920 -h 1080 -cqp 28 -container mp4 -shaderpath "C:\MyCustomShaders" -r "C:\path\to\input"
     ```
-    *(Ensure subtitle extraction is enabled in `Anime4K-Batch.bat` if you want subtitles)*
+    *(Ensure subtitle extraction is enabled, e.g., in `Anime4K-Batch.bat`, if you want subtitles extracted)*
 
 *   **Only extract subtitles recursively, forcing overwrite:**
     ```batch
@@ -159,7 +160,7 @@ These examples demonstrate various command-line possibilities. While some are ba
     ```batch
     Anime4K-Batch.bat -w 3840 -h 2160 -cqp 24 -no-where "C:\path\to\video.mkv"
     ```
-    *(Ensure subtitle extraction is enabled in `Anime4K-Batch.bat`)*
+    *(Ensure subtitle extraction is enabled, e.g., in `Anime4K-Batch.bat` or via the `-extract-subs` flag if calling `glsl-transcode.bat` directly)*
 
 *   **Use default settings but process recursively:**
     ```batch
@@ -170,7 +171,7 @@ These examples demonstrate various command-line possibilities. While some are ba
     ```batch
     Anime4K-Batch.bat -r -delete "C:\path\to\folder"
     ```
-    *(Ensure subtitle extraction is enabled in `Anime4K-Batch.bat`)*
+    *(Ensure subtitle extraction is enabled, e.g., in `Anime4K-Batch.bat`)*
 
 </details>
 
@@ -209,8 +210,9 @@ In the script, place these flags *before* the file/folder paths. See [Anime4K-Ba
 *   `-cqp <value>`: Constant Quantization Parameter (quality, 0-51).
 *   `-container <type>`: Output container format (`avi`, `mkv`, `mp4`).
 *   `-delete`: **(Flag)** Delete original file after successful transcode (USE WITH CAUTION!).
+*   `-extract-subs`: **(Flag)** Extract subtitles using `extract-subs.bat` before transcoding.
 
-**Subtitle Extraction–Specific Options & Flags (only relevant if enabled):**
+**Subtitle Extraction–Specific Options & Flags (only relevant if extraction enabled *via Anime4K-Batch.bat*):**
 
 *   `-format <string>`: Output filename format for subtitles (default: `FILE.lang.title`). Uses `FILE`, `lang`, `title` placeholders.
 
@@ -244,9 +246,13 @@ Advanced settings are configured by editing the `--- SETTINGS ---` section direc
 
 ### Enabling Subtitle Extraction
 
-By default, `Anime4K-Batch.bat` only runs the upscaling script (`glsl-transcode.bat`). To also extract subtitles using `extract-subs.bat` before upscaling, edit `Anime4K-Batch.bat`:
-1.  Comment out the line: `:: %~dp0\glsl-transcode.bat %*` (add `::` at the beginning).
-2.  Uncomment the line: `%~dp0\extract-subs.bat %*   &&   %~dp0\glsl-transcode.bat %*` (remove `::` from the beginning).
+By default, `Anime4K-Batch.bat` only runs the upscaling script (`glsl-transcode.bat`). There are two ways to enable subtitle extraction using `extract-subs.bat` before upscaling:
+
+1.  **Modify `Anime4K-Batch.bat` (Recommended for consistent behavior):**
+    *   Comment out the line: `:: %~dp0\glsl-transcode.bat %*` (add `::` at the beginning).
+    *   Uncomment the line: `%~dp0\extract-subs.bat %*   &&   %~dp0\glsl-transcode.bat %*` (remove `::` from the beginning). This makes `Anime4K-Batch.bat` explicitly call `extract-subs.bat` first.
+2.  **Use the `-extract-subs` Flag:**
+    *   Pass the `-extract-subs` flag when calling `Anime4K-Batch.bat` or `glsl-transcode.bat`. This tells `glsl-transcode.bat` to trigger `extract-subs.bat` internally before it starts transcoding. This is useful for one-off extractions without modifying `Anime4K-Batch.bat`.
 
 ## Extra Utilities
 
@@ -273,9 +279,10 @@ You could then use the flag `-shader Anime4K_ComplexChain.glsl` or set `SHADER_F
 
 This batch script extracts subtitle tracks from video files using `ffprobe` and `ffmpeg`. It's designed to be run before `glsl-transcode.bat` if you want to preserve subtitles, especially when changing container formats (e.g., MKV to MP4).
 
-**How it's used with `Anime4K-Batch.bat`:**
+**How it's used:**
 
-*   Edit `Anime4K-Batch.bat` to uncomment the line that runs both `extract-subs.bat` and `glsl-transcode.bat`. See [Enabling Subtitle Extraction](#enabling-subtitle-extraction).
+*   **Via `Anime4K-Batch.bat`:** Edit `Anime4K-Batch.bat` to uncomment the line that runs both `extract-subs.bat` and `glsl-transcode.bat`. See [Enabling Subtitle Extraction](#enabling-subtitle-extraction).
+*   **Via `glsl-transcode.bat`:** Use the `-extract-subs` flag when calling `glsl-transcode.bat` (either directly or passed through `Anime4K-Batch.bat`). This flag makes `glsl-transcode.bat` call `extract-subs.bat` internally.
 
 **Standalone Usage / Command Line Options:**
 
@@ -299,7 +306,9 @@ C:\path\to\extract-subs.bat [options] [flags] "path\to\folder" "path\to\video.mk
 
 ## Limitations
 
-1.  **Subtitles:** If input files contain subtitle streams, you *must* use `mkv` as the `OUTPUT_FORMAT` in `glsl-transcode.bat` to preserve them *within the video container*. Alternatively, enable and use `extract-subs.bat` to save them as separate files (recommended if outputting to `mp4` or `avi`).
+1.  **Subtitles:** If input files contain subtitle streams, you have a few options:
+    *   Use `mkv` as the `OUTPUT_FORMAT` in `glsl-transcode.bat` to preserve them *within the video container*.
+    *   Enable subtitle extraction (either by modifying `Anime4K-Batch.bat` or using the `-extract-subs` flag in `glsl-transcode.bat`) to save them as separate files. This is recommended if outputting to `mp4` or `avi`, which have poor internal subtitle support.
 2.  **HDR:** While the script attempts basic detection, proper HDR preservation is best handled by AV1 encoders (`cpu_av1`, `nvidia_av1`, `amd_av1`). Using other encoders with HDR input may result in non-HDR output.
 3.  **Error Handling:** Basic checks are included, but complex `ffmpeg` errors might require manual inspection of the command output.
 

@@ -20,7 +20,7 @@ set DO_RECURSE=0
 set DO_FORCE=0
 set PROCESSED_ANY_PATH=0
 set OUTPUT_FILENAME_FORMAT=FILE.lang.title
-set OUTPUT_SUFFIX=_upscaled
+set OUTPUT_SUFFIX=
 REM Jellyfin format: "FILE.lang.title"
 
 REM --- END OF SETTINGS ---
@@ -251,6 +251,7 @@ for %%I in (%SUB_INDICES%) do (
     if /i "!SUB_CODEC!"=="ssa" set SUB_EXT=.ass
     if /i "!SUB_CODEC!"=="mov_text" set SUB_EXT=.srt
     if /i "!SUB_CODEC!"=="webvtt" set SUB_EXT=.vtt
+    if /i "!SUB_CODEC!"=="hdmv_pgs_subtitle" set SUB_EXT=.sup
     REM Add more mappings if needed
 
     if not defined SUB_EXT (

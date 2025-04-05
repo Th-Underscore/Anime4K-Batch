@@ -12,11 +12,13 @@ REM   -codec-prof <type> : Encoder profile (e.g., nvidia_h265, cpu_av1; default:
 REM   -cqp <value>       : Constant Quantization Parameter (0-51, lower is better; default: %CQP%) (24 is virtually lossless for double the file size)
 REM   -container <type>  : Output container format (avi, mkv, mp4; default: %OUTPUT_FORMAT%)
 REM   -suffix <string>   : Suffix to append to output filenames (default: %OUTPUT_SUFFIX%)
+REM   -sformat <string>  : Subtitle filename format for -extract-subs (default: %SUB_FORMAT%)
 REM Flags (place BEFORE file/folder paths):
 REM   -r                 : Recursive search in folders
 REM   -f                 : Force overwrite existing output
-REM   -delete            : Delete original file after successful transcode (USE WITH CAUTION! You can just delete the original files yourself, grouping by "Type" and sorting by "Date modified")
 REM   -no-where          : Disable auto-detection of ffmpeg/ffprobe via 'where' command (binaries in the same folder as this script will be used regardless)
+REM   -extract-subs      : Extract subtitles from the *output* file using extract-subs.bat
+REM   -delete            : Delete original file after successful transcode (USE WITH CAUTION! You can just delete the original files yourself, grouping by "Type" and sorting by "Date modified")
 
 REM --- SETTINGS ---
 
@@ -75,6 +77,8 @@ REM Set to 1 to auto-enable recursion
 set DO_RECURSE=0
 set DO_FORCE=0
 set DO_DELETE=0
+set DO_EXTRACT_SUBS=0
+set SUB_FORMAT=FILE.lang.title
 set PROCESSED_ANY_PATH=0
 
 REM --- END OF SETTINGS ---
@@ -237,6 +241,7 @@ if /i "%~1"=="-no-where" (
     shift
     goto :parse_args_loop
 )
+
 if /i "%~1"=="-h" (
     if "%~2"=="" ( echo ERROR: Missing value for -h flag. & goto :eof )
     set "TARGET_RESOLUTION_H=%~2"
@@ -285,6 +290,14 @@ if /i "%~1"=="-suffix" (
     shift
     goto :parse_args_loop
 )
+if /i "%~1"=="-sub-format" (
+    if "%~2"=="" ( echo ERROR: Missing value for -sub-format flag. & goto :eof )
+    set "SUB_FORMAT=%~2"
+    echo Overriding Subtitle Format: %SUB_FORMAT%
+    shift
+    shift
+    goto :parse_args_loop
+)
 if /i "%~1"=="-cqp" (
     if "%~2"=="" ( echo ERROR: Missing value for -cqp flag. & goto :eof )
     set "CQP=%~2"
@@ -302,6 +315,12 @@ if /i "%~1"=="-r" (
 if /i "%~1"=="-f" (
     set DO_FORCE=1
     echo Set to force overwrite existing output files...
+    shift
+    goto :parse_args_loop
+)
+if /i "%~1"=="-extract-subs" (
+    set DO_EXTRACT_SUBS=1
+    echo Set to extract subtitles after transcoding...
     shift
     goto :parse_args_loop
 )
@@ -477,6 +496,29 @@ if not "%THREAD_PARAM%"=="" set "FFMPEG_CMD=!FFMPEG_CMD! %THREAD_PARAM%"
 
 REM Output file
 set "FFMPEG_CMD=!FFMPEG_CMD! "%OUTPUT_FILE%""
+
+REM --- Extract Subtitles if Flag is Set ---
+if "!DO_EXTRACT_SUBS!"=="1" (
+    echo Extracting subtitles from "!INPUT_FILE!"...
+    set "EXTRACT_ARGS="
+    if "!FORCE_PROCESSING!"=="1" set "EXTRACT_ARGS=!EXTRACT_ARGS! -f"
+    if "!DISABLE_WHERE_SEARCH!"=="1" set "EXTRACT_ARGS=!EXTRACT_ARGS! -no-where"
+    REM Pass the correct suffix and format used for the transcoded file
+    set "EXTRACT_ARGS=!EXTRACT_ARGS! -suffix "!OUTPUT_SUFFIX!""
+    set "EXTRACT_ARGS=!EXTRACT_ARGS! -format "!SUB_FORMAT!""
+
+    echo !EXTRACT_ARGS!
+
+    set "EXTRACT_CMD=call "%~dp0\extract-subs.bat"!EXTRACT_ARGS! "!INPUT_FILE!""
+
+    echo Running: !EXTRACT_CMD!
+    call !EXTRACT_CMD!
+    if not errorlevel 0 (
+        echo WARNING: Subtitle extraction failed for "!INPUT_FILE!" ^(Errorlevel: %ERRORLEVEL%^).
+    ) else (
+        echo Successfully extracted subtitles for "!INPUT_FILE!".
+    )
+)
 
 REM --- Execute FFMPEG ---
 echo.
