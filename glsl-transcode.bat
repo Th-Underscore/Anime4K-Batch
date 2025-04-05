@@ -150,6 +150,10 @@ if not exist "%SHADER_BASE_PATH%%SHADER_FILE%" (
 
 echo 1
 
+set IS_CODEC_SETUP=0
+set IS_SUFFIX_PROCESSED=0
+goto :parse_args_loop
+
 REM --- Determine Encoder and HWAccel Params ---
 :codec_setup
 set VIDEO_CODEC=
@@ -201,6 +205,24 @@ if /i "%ENCODER_PROFILE%"=="cpu_h264" (
 echo Using Encoder: %VIDEO_CODEC%
 if not "%HWACCEL_PARAMS%"=="" echo Using HWAccel: %HWACCEL_PARAMS%
 
+set IS_CODEC_SETUP=1
+goto :eof
+
+REM --- Calculate length of suffix before parsing args and after overriding ---
+:process_suffix
+set OUTPUT_SUFFIX_LEN=0
+set "temp_suffix=%OUTPUT_SUFFIX%"
+:suffix_len_loop
+if defined temp_suffix (
+    set /a OUTPUT_SUFFIX_LEN+=1
+    set "temp_suffix=!temp_suffix:~1!"
+    goto :suffix_len_loop
+)
+echo Calculated Output Suffix Length: %OUTPUT_SUFFIX_LEN%
+
+set IS_SUFFIX_PROCESSED=1
+goto :eof
+
 REM --- Argument Parsing Loop ---
 :parse_args_loop
 if "%~1"=="" goto :parse_args_done
@@ -248,7 +270,7 @@ if /i "%~1"=="-codec-prof" (
     echo Overriding Encoder Profile: %ENCODER_PROFILE%
     shift
     shift
-    goto :codec_setup
+    goto :parse_args_loop
 )
 if /i "%~1"=="-container" (
     if "%~2"=="" ( echo ERROR: Missing value for -container flag. & goto :eof )
@@ -299,11 +321,15 @@ echo Processing argument: "!CURRENT_ARG!" (Recursive: %DO_RECURSE%, Force: %DO_F
 
 REM Check if argument is a directory
 if exist "!CURRENT_ARG!\" (
+    if "!IS_CODEC_SETUP!"=="0" call :codec_setup
+    if "!IS_SUFFIX_PROCESSED!"=="0" call :process_suffix
     echo Processing directory: "!CURRENT_ARG!"
     set PROCESSED_ANY_PATH=1
     call :process_directory "!CURRENT_ARG!" %DO_RECURSE% %DO_FORCE% %DO_DELETE%
 ) else if exist "!CURRENT_ARG!" (
     REM Assume argument is a file
+    if "!IS_CODEC_SETUP!"=="0" call :codec_setup
+    if "!IS_SUFFIX_PROCESSED!"=="0" call :process_suffix
     echo Processing file: "!CURRENT_ARG!"
     set PROCESSED_ANY_PATH=1
     call :process_single_file "!CURRENT_ARG!" %DO_FORCE% %DO_DELETE%
@@ -316,17 +342,6 @@ goto :parse_args_loop
 
 :parse_args_done
 echo Argument parsing complete.
-
-REM --- Calculate length of suffix AFTER parsing args ---
-set OUTPUT_SUFFIX_LEN=0
-set "temp_suffix=%OUTPUT_SUFFIX%"
-:suffix_len_loop
-if defined temp_suffix (
-    set /a OUTPUT_SUFFIX_LEN+=1
-    set "temp_suffix=!temp_suffix:~1!"
-    goto :suffix_len_loop
-)
-echo Calculated Output Suffix Length: %OUTPUT_SUFFIX_LEN%
 
 REM --- Check if any valid input path was processed ---
 if "%PROCESSED_ANY_PATH%"=="0" (
