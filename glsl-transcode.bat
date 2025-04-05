@@ -242,6 +242,14 @@ if /i "%~1"=="-shaderpath" (
     shift
     goto :parse_args_loop
 )
+if /i "%~1"=="-codec-prof" (
+    if "%~2"=="" ( echo ERROR: Missing value for -codec-prof flag. & goto :eof )
+    set "ENCODER_PROFILE=%~2"
+    echo Overriding Encoder Profile: %ENCODER_PROFILE%
+    shift
+    shift
+    goto :codec_setup
+)
 if /i "%~1"=="-container" (
     if "%~2"=="" ( echo ERROR: Missing value for -container flag. & goto :eof )
     set "OUTPUT_EXT=.%~2"
@@ -250,13 +258,13 @@ if /i "%~1"=="-container" (
     shift
     goto :parse_args_loop
 )
-if /i "%~1"=="-codec-prof" (
-    if "%~2"=="" ( echo ERROR: Missing value for -codec-prof flag. & goto :eof )
-    set "ENCODER_PROFILE=%~2"
-    echo Overriding Encoder Profile: %ENCODER_PROFILE%
+if /i "%~1"=="-suffix" (
+    if "%~2"=="" ( echo ERROR: Missing value for -suffix flag. & goto :eof )
+    set "OUTPUT_SUFFIX=%~2"
+    echo Overriding Output Suffix: %OUTPUT_SUFFIX%
     shift
     shift
-    goto :codec_setup
+    goto :parse_args_loop
 )
 if /i "%~1"=="-cqp" (
     if "%~2"=="" ( echo ERROR: Missing value for -cqp flag. & goto :eof )
@@ -281,14 +289,6 @@ if /i "%~1"=="-f" (
 if /i "%~1"=="-delete" (
     set DO_DELETE=1
     echo Set to delete original files on successful transcode...
-    shift
-    goto :parse_args_loop
-)
-if /i "%~1"=="-suffix" (
-    if "%~2"=="" ( echo ERROR: Missing value for -suffix flag. & goto :eof )
-    set "OUTPUT_SUFFIX=%~2"
-    echo Overriding Output Suffix: %OUTPUT_SUFFIX%
-    shift
     shift
     goto :parse_args_loop
 )

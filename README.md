@@ -289,10 +289,10 @@ C:\path\to\extract-subs.bat [options] [flags] "path\to\folder" "path\to\video.mk
     *   `FILE`: Original video filename (without extension).
     *   `lang`: Subtitle language code (e.g., `eng`, `jpn`).
     *   `title`: Subtitle track title, if available.
+*   `-suffix <string>`: Suffix to append after the base filename part (default: `_upscaled`).
+    *   **Note:** When running `extract-subs.bat` standalone (not via `Anime4K-Batch.bat`), if you don't want *any* suffix added, use `-suffix ""`.
 *   `-r`: **(Flag)** Process folders recursively.
 *   `-f`: **(Flag)** Force overwrite existing subtitle files.
-*   `-suffix <string>`: Suffix to append after the base filename part (default: `_upscaled`). Example: `FILE_suffix.lang.title`.
-    *   **Note:** When running `extract-subs.bat` standalone (not via `Anime4K-Batch.bat`), if you don't want *any* suffix added, use `-suffix ""`.
 *   `-no-where`: **(Flag)** Disable automatic `ffmpeg`/`ffprobe` detection via PATH.
 
 </details>

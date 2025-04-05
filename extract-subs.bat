@@ -5,10 +5,10 @@ REM --- Batch Subtitle Extractor ---
 REM Extracts subtitle streams from video files using ffmpeg.
 REM Options (place BEFORE file/folder paths):
 REM   -format <string>   : Output filename format (FILE, lang, title; default: %OUTPUT_FILENAME_FORMAT% = "FILE.lang.title" for Jellyfin compatibility)
+REM   -suffix <string>   : Suffix to append after the base filename (default: %OUTPUT_SUFFIX%)
 REM Flags (place BEFORE file/folder paths):
 REM   -r                 : Recursive search in folders
 REM   -f                 : Force overwrite existing subtitle files
-REM   -suffix <string>   : Suffix to append after the base filename (default: %OUTPUT_SUFFIX%)
 REM   -no-where          : Disable auto-detection of ffmpeg/ffprobe via 'where' command (binaries in the same folder as this script will be used regardless)
 
 REM --- Paths (relative to script location) ---
@@ -93,24 +93,6 @@ REM --- Argument Parsing Loop ---
 :parse_args_loop
 if "%~1"=="" goto :parse_args_done
 
-if /i "%~1"=="-no-where" (
-    set DISABLE_WHERE_SEARCH=1
-    echo Disabling 'where' search for executables.
-    shift
-    goto :parse_args_loop
-)
-if /i "%~1"=="-r" (
-    set DO_RECURSE=1
-    echo Recursive flag set for next path.
-    shift
-    goto :parse_args_loop
-)
-if /i "%~1"=="-f" (
-    set DO_FORCE=1
-    echo Force flag set for next path.
-    shift
-    goto :parse_args_loop
-)
 if /i "%~1"=="-format" (
     if "%~2"=="" ( echo ERROR: Missing value for -format flag. & goto :eof )
     set "OUTPUT_FILENAME_FORMAT=%~2"
@@ -131,6 +113,25 @@ if /i "%~1"=="-suffix" (
         echo Overriding Output Suffix: !OUTPUT_SUFFIX!
     )
     shift
+    shift
+    goto :parse_args_loop
+)
+
+if /i "%~1"=="-no-where" (
+    set DISABLE_WHERE_SEARCH=1
+    echo Disabling 'where' search for executables.
+    shift
+    goto :parse_args_loop
+)
+if /i "%~1"=="-r" (
+    set DO_RECURSE=1
+    echo Recursive flag set for next path.
+    shift
+    goto :parse_args_loop
+)
+if /i "%~1"=="-f" (
+    set DO_FORCE=1
+    echo Force flag set for next path.
     shift
     goto :parse_args_loop
 )
