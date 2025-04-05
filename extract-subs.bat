@@ -8,6 +8,7 @@ REM   -format <string>   : Output filename format (FILE, lang, title; default: %
 REM Flags (place BEFORE file/folder paths):
 REM   -r                 : Recursive search in folders
 REM   -f                 : Force overwrite existing subtitle files
+REM   -suffix <string>   : Suffix to append after the base filename (default: %OUTPUT_SUFFIX%)
 REM   -no-where          : Disable auto-detection of ffmpeg/ffprobe via 'where' command (binaries in the same folder as this script will be used regardless)
 
 REM --- Paths (relative to script location) ---
@@ -19,6 +20,7 @@ set DO_RECURSE=0
 set DO_FORCE=0
 set PROCESSED_ANY_PATH=0
 set OUTPUT_FILENAME_FORMAT=FILE.lang.title
+set OUTPUT_SUFFIX=_upscaled
 REM Jellyfin format: "FILE.lang.title"
 
 REM --- END OF SETTINGS ---
@@ -113,6 +115,21 @@ if /i "%~1"=="-format" (
     if "%~2"=="" ( echo ERROR: Missing value for -format flag. & goto :eof )
     set "OUTPUT_FILENAME_FORMAT=%~2"
     echo Overriding Output Filename Format: %OUTPUT_FILENAME_FORMAT%
+    shift
+    shift
+    goto :parse_args_loop
+)
+if /i "%~1"=="-suffix" (
+    if "%~2"=="" ( echo ERROR: Missing value for -suffix flag. & goto :eof )
+    set "temp_suffix=%~2"
+    REM Handle the case where the user explicitly provides "" for a blank suffix
+    if "!temp_suffix!"=="" (
+        set "OUTPUT_SUFFIX="
+        echo Setting blank Output Suffix.
+    ) else (
+        set "OUTPUT_SUFFIX=!temp_suffix!"
+        echo Overriding Output Suffix: !OUTPUT_SUFFIX!
+    )
     shift
     shift
     goto :parse_args_loop
@@ -304,7 +321,7 @@ for %%I in (%SUB_INDICES%) do (
 
     REM Construct output filename based on format string
     set "FORMATTED_NAME=%OUTPUT_FILENAME_FORMAT%"
-    set "FORMATTED_NAME=!FORMATTED_NAME:FILE=%SUB_INPUT_NAME%!"
+    set "FORMATTED_NAME=!FORMATTED_NAME:FILE=%SUB_INPUT_NAME%%OUTPUT_SUFFIX%!"
 
     REM Replace title placeholder
     set TITLE_PRESENT=0

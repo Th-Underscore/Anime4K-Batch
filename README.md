@@ -114,6 +114,7 @@ These options/flags override settings defined inside the script(s) *for that spe
 
 **Common Flags (affect both `glsl-transcode.bat` and `extract-subs.bat` if enabled):**
 
+*   `-suffix <string>`: Suffix to append to the output filename (default: `_upscaled`).
 *   `-r`: **(Flag)** Process folders recursively.
 *   `-f`: **(Flag)** Force overwrite if an output file with the target name already exists.
 *   `-no-where`: **(Flag)** Disable automatic searching for `ffmpeg`/`ffprobe` in the system PATH; rely solely on paths set in the script or binaries in the script's directory.
@@ -225,7 +226,7 @@ Advanced settings are configured by editing the `--- SETTINGS ---` section direc
 *   `ENCODER_PROFILE`: Selects the video codec and hardware acceleration (e.g., `nvidia_h264`, `cpu_av1`, `amd_h265`), set to `nvidia_h265` by default. See script comments for a full list of options.
 *   `CQP`: Constant Quantization Parameter for quality control (lower value = higher quality, larger file).
 *   `OUTPUT_FORMAT`: Output video container (`mkv`, `mp4`, `avi`). MKV is recommended for subtitle compatibility.
-*   `OUTPUT_SUFFIX`: Text added to the end of the output filename (before the extension).
+*   `OUTPUT_SUFFIX`: Text added to the end of the output filename (before the extension, default: `_upscaled`).
 *   `FFMPEG_PATH`, `FFPROBE_PATH`: Manually specify paths if automatic detection fails or is disabled.
 *   `CPU_THREADS`: Limit CPU core usage for CPU-based encoders.
 *   `RECURSE_NEXT`: Set to `1` to enable recursive folder processing by default, `0` otherwise.
@@ -290,6 +291,8 @@ C:\path\to\extract-subs.bat [options] [flags] "path\to\folder" "path\to\video.mk
     *   `title`: Subtitle track title, if available.
 *   `-r`: **(Flag)** Process folders recursively.
 *   `-f`: **(Flag)** Force overwrite existing subtitle files.
+*   `-suffix <string>`: Suffix to append after the base filename part (default: `_upscaled`). Example: `FILE_suffix.lang.title`.
+    *   **Note:** When running `extract-subs.bat` standalone (not via `Anime4K-Batch.bat`), if you don't want *any* suffix added, use `-suffix ""`.
 *   `-no-where`: **(Flag)** Disable automatic `ffmpeg`/`ffprobe` detection via PATH.
 
 </details>

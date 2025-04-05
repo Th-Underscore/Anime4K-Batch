@@ -11,6 +11,7 @@ REM   -shaderpath <path> : Path to shaders folder (default: %SHADER_BASE_PATH%)
 REM   -codec-prof <type> : Encoder profile (e.g., nvidia_h265, cpu_av1; default: %ENCODER_PROFILE%)
 REM   -cqp <value>       : Constant Quantization Parameter (0-51, lower is better; default: %CQP%) (24 is virtually lossless for double the file size)
 REM   -container <type>  : Output container format (avi, mkv, mp4; default: %OUTPUT_FORMAT%)
+REM   -suffix <string>   : Suffix to append to output filenames (default: %OUTPUT_SUFFIX%)
 REM Flags (place BEFORE file/folder paths):
 REM   -r                 : Recursive search in folders
 REM   -f                 : Force overwrite existing output
@@ -75,16 +76,6 @@ set DO_RECURSE=0
 set DO_FORCE=0
 set DO_DELETE=0
 set PROCESSED_ANY_PATH=0
-
-REM Calculate length of suffix for filtering
-set OUTPUT_SUFFIX_LEN=0
-set "temp_suffix=%OUTPUT_SUFFIX%"
-:suffix_len_loop
-if defined temp_suffix (
-    set /a OUTPUT_SUFFIX_LEN+=1
-    set "temp_suffix=!temp_suffix:~1!"
-    goto :suffix_len_loop
-)
 
 REM --- END OF SETTINGS ---
 
@@ -293,6 +284,14 @@ if /i "%~1"=="-delete" (
     shift
     goto :parse_args_loop
 )
+if /i "%~1"=="-suffix" (
+    if "%~2"=="" ( echo ERROR: Missing value for -suffix flag. & goto :eof )
+    set "OUTPUT_SUFFIX=%~2"
+    echo Overriding Output Suffix: %OUTPUT_SUFFIX%
+    shift
+    shift
+    goto :parse_args_loop
+)
 
 REM If it's not a recognized flag, assume it's a path/file
 set "CURRENT_ARG=%~1"
@@ -317,6 +316,17 @@ goto :parse_args_loop
 
 :parse_args_done
 echo Argument parsing complete.
+
+REM --- Calculate length of suffix AFTER parsing args ---
+set OUTPUT_SUFFIX_LEN=0
+set "temp_suffix=%OUTPUT_SUFFIX%"
+:suffix_len_loop
+if defined temp_suffix (
+    set /a OUTPUT_SUFFIX_LEN+=1
+    set "temp_suffix=!temp_suffix:~1!"
+    goto :suffix_len_loop
+)
+echo Calculated Output Suffix Length: %OUTPUT_SUFFIX_LEN%
 
 REM --- Check if any valid input path was processed ---
 if "%PROCESSED_ANY_PATH%"=="0" (
