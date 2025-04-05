@@ -147,9 +147,6 @@ if not exist "%SHADER_BASE_PATH%%SHADER_FILE%" (
     goto :eof
 )
 
-
-echo 1
-
 set IS_CODEC_SETUP=0
 set IS_SUFFIX_PROCESSED=0
 goto :parse_args_loop
@@ -520,7 +517,7 @@ set "IS_RECURSIVE=%2"
 set "FORCE_OVERWRITE_FILES=%3"
 set "DELETE_ORIGINAL_FILES=%4"
 
-echo Searching for %INPUT_EXT% files in "%DIR_PATH%" ^(Recursive: %IS_RECURSIVE%, Force: %FORCE_OVERWRITE_FILES%, Delete: %DELETE_ORIGINAL_FILES%^)...
+echo Searching for video files in "%DIR_PATH%" ^(Recursive: %IS_RECURSIVE%, Force: %FORCE_OVERWRITE_FILES%, Delete: %DELETE_ORIGINAL_FILES%^)...
 
 if "%IS_RECURSIVE%"=="1" (
     for /r "%DIR_PATH%" %%F in (*.mkv *.mp4 *.avi) do (

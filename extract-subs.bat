@@ -185,11 +185,6 @@ if "%~1"=="" (
 set "INPUT_FILE=%~1"
 set "FORCE_PROCESSING=%2"
 
-echo.
-echo -----------------------------------------------------
-echo Processing for subtitle extraction: %INPUT_FILE%
-echo -----------------------------------------------------
-
 call :extract_subtitles_logic "%INPUT_FILE%" %FORCE_PROCESSING%
 
 goto :eof
@@ -204,8 +199,6 @@ set "SUB_INPUT_FILE=%~1"
 set "SUB_INPUT_PATH=%~dp1"
 set "SUB_INPUT_NAME=%~n1"
 set "FORCE_PROCESSING=%2"
-
-echo Extracting Subtitles for: %SUB_INPUT_FILE%
 
 REM --- Get subtitle stream indices using temp file ---
 set SUB_INDICES=
