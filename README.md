@@ -43,7 +43,7 @@ Supported ffmpeg and ffprobe binaries can be found in [Releases](https://github.
 There are four main ways to use the `Anime4K-Batch.bat` script:
 
 <details>
-<summary><b>1. Add to Context Menu</b></summary>
+<summary><b>1. Add to Context Menu (Recommended)</b></summary>
 
 *   Open PowerShell (user or admin) and set this variable to your path to the script:
 
@@ -248,11 +248,11 @@ Advanced settings are configured by editing the `--- SETTINGS ---` section direc
 
 By default, `Anime4K-Batch.bat` only runs the upscaling script (`glsl-transcode.bat`). There are two ways to enable subtitle extraction using `extract-subs.bat` before upscaling:
 
-1.  **Modify `Anime4K-Batch.bat` (Recommended for consistent behavior):**
-    *   Comment out the line: `:: %~dp0\glsl-transcode.bat %*` (add `::` at the beginning).
-    *   Uncomment the line: `%~dp0\extract-subs.bat %*   &&   %~dp0\glsl-transcode.bat %*` (remove `::` from the beginning). This makes `Anime4K-Batch.bat` explicitly call `extract-subs.bat` first.
-2.  **Use the `-extract-subs` Flag:**
+1.  **Use the `-extract-subs` Flag (Recommended):**
     *   Pass the `-extract-subs` flag when calling `Anime4K-Batch.bat` or `glsl-transcode.bat`. This tells `glsl-transcode.bat` to trigger `extract-subs.bat` internally before it starts transcoding. This is useful for one-off extractions without modifying `Anime4K-Batch.bat`.
+2.  **Modify `Anime4K-Batch.bat`:**
+    *   Comment out the line: `:: %~dp0\glsl-transcode.bat %*` (add `::` at the beginning).
+    *   Create a new line: `%~dp0\extract-subs.bat %*   &&   %~dp0\glsl-transcode.bat %*`. This makes `Anime4K-Batch.bat` explicitly call `extract-subs.bat` first.
 
 ## Extra Utilities
 
@@ -263,11 +263,11 @@ This PowerShell script allows you to combine multiple GLSL shaders into a single
 
 **MPV Shaderlist Format:** `~~/shader1.glsl;~~/shader2.glsl;~~/shader3.glsl`
 
-**Usage Example** (assuming the script is in the same directory as `Anime4K-Batch.bat`):
+**Standalone Usage / Command Line Options:**
 
 ```powershell
 # Combine several Anime4K shaders from MPV's config folder into one file
-.\Append-Shaders.ps1 -BaseDir "$env:AppData\mpv\" -FileListString "~~/shaders/Anime4K_Clamp_Highlights.glsl;~~/shaders/Anime4K_Restore_CNN_M.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl;~~/shaders/Anime4K_AutoDownscalePre_x2.glsl;~~/shaders/Anime4K_AutoDownscalePre_x4.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_S.glsl" -OutputFile ".\shaders\Anime4K_ComplexChain.glsl"
+C:\path\to\Append-Shaders.ps1 -BaseDir "$env:AppData\mpv\" -FileListString "~~/shaders/Anime4K_Clamp_Highlights.glsl;~~/shaders/Anime4K_Restore_CNN_M.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl;~~/shaders/Anime4K_AutoDownscalePre_x2.glsl;~~/shaders/Anime4K_AutoDownscalePre_x4.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_S.glsl" -OutputFile ".\shaders\Anime4K_ComplexChain.glsl"
 ```
 
 You could then use the flag `-shader Anime4K_ComplexChain.glsl` or set `SHADER_FILE=Anime4K_ComplexChain.glsl` in `glsl-transcode.bat`.
@@ -300,6 +300,24 @@ C:\path\to\extract-subs.bat [options] [flags] "path\to\folder" "path\to\video.mk
     *   **Note:** When running `extract-subs.bat` standalone (not via `Anime4K-Batch.bat`), if you don't want *any* suffix added, use `-suffix ""`.
 *   `-r`: **(Flag)** Process folders recursively.
 *   `-f`: **(Flag)** Force overwrite existing subtitle files.
+*   `-no-where`: **(Flag)** Disable automatic `ffmpeg`/`ffprobe` detection via PATH.
+
+</details>
+
+<details>
+<summary><b><code>remux.bat</code></b></summary>
+
+This batch script remuxes video files into a different container format (e.g., MKV to MP4) while copying compatible streams (video, audio, subtitles, attachments, data) based on the target container's capabilities. It does *not* re-encode the video or audio, making it an extremely fast operation.
+
+**Standalone Usage / Command Line Options:**
+
+```batch
+C:\path\to\remux.bat [options] [flags] "path\to\folder" "path\to\video.mkv" ...
+```
+
+*   `-container <string>`: Output container extension (default: `mp4`).
+*   `-r`: **(Flag)** Process folders recursively.
+*   `-f`: **(Flag)** Force overwrite existing output files.
 *   `-no-where`: **(Flag)** Disable automatic `ffmpeg`/`ffprobe` detection via PATH.
 
 </details>
