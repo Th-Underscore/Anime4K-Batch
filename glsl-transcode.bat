@@ -224,6 +224,9 @@ echo Calculated Output Suffix Length: %OUTPUT_SUFFIX_LEN%
 set IS_SUFFIX_PROCESSED=1
 goto :eof
 
+REM Save the original script name for later use
+set "SCRIPT_NAME=%~nx0"
+
 REM --- Argument Parsing Loop ---
 :parse_args_loop
 if "%~1"=="" goto :parse_args_done
@@ -341,6 +344,7 @@ if exist "!CURRENT_ARG!\" (
     if "!IS_SUFFIX_PROCESSED!"=="0" call :process_suffix
     echo Processing directory: "!CURRENT_ARG!"
     set PROCESSED_ANY_PATH=1
+    shift
     call :process_directory "!CURRENT_ARG!" %DO_RECURSE% %DO_FORCE% %DO_DELETE%
 ) else if exist "!CURRENT_ARG!" (
     REM Assume argument is a file
@@ -348,6 +352,7 @@ if exist "!CURRENT_ARG!\" (
     if "!IS_SUFFIX_PROCESSED!"=="0" call :process_suffix
     echo Processing file: "!CURRENT_ARG!"
     set PROCESSED_ANY_PATH=1
+    shift
     call :process_single_file "!CURRENT_ARG!" %DO_FORCE% %DO_DELETE%
 ) else (
     echo WARNING: Argument "!CURRENT_ARG!" is not a recognized flag, file, or directory. Skipping.
@@ -363,12 +368,10 @@ REM --- Check if any valid input path was processed ---
 if "%PROCESSED_ANY_PATH%"=="0" (
     echo ERROR: No valid input files or folders were provided or found.
     echo Usage: Drag and drop video files onto this script or run from cmd:
-    echo %~nx0 [options] [-no-where] [-r] [-f] "path\to\folder" "path\to\video1.mkv" ...
-    goto :eof
+    echo %SCRIPT_NAME% [options] [-no-where] [-r] [-f] "path\to\folder" "path\to\video1.mkv" ...
 )
-REM --- Input processing is now handled in :parse_args_loop ---
-set STOP_PROCESSING=0
 
+goto :eof
 
 REM =============================================
 REM == Subroutine to process a single file ==
@@ -386,16 +389,16 @@ set "INPUT_PATH=%~dp1"
 set "INPUT_NAME=%~n1"
 set "INPUT_EXT=%~x1"
 
-REM --- Construct Potential Output Path EARLY for check (Upscaling Mode) ---
-set "OUTPUT_FILE_CHECK=%INPUT_PATH%%INPUT_NAME%%OUTPUT_SUFFIX%%OUTPUT_EXT%"
+REM --- Construct Potential Output Path EARLY for check ---
+set "OUTPUT_FILE=%INPUT_PATH%%INPUT_NAME%%OUTPUT_SUFFIX%%OUTPUT_EXT%"
 
 REM --- Check if Output File Exists and if Force flag is NOT set ---
-if exist "%OUTPUT_FILE_CHECK%" (
+if exist "%OUTPUT_FILE%" (
     if not "%FORCE_PROCESSING%"=="1" (
-        echo Skipping "%INPUT_FILE%" because output "%OUTPUT_FILE_CHECK%" already exists. Use -f to force.
+        echo Skipping "%INPUT_FILE%" because output "%OUTPUT_FILE%" already exists. Use -f to force.
         goto :eof
     ) else (
-        echo Forcing processing for "%INPUT_FILE%" despite existing output "%OUTPUT_FILE_CHECK%".
+        echo Forcing processing for "%INPUT_FILE%" despite existing output "%OUTPUT_FILE%".
     )
 )
 
@@ -447,8 +450,6 @@ if /i not "%VIDEO_CODEC%"=="libsvtav1" if /i not "%VIDEO_CODEC%"=="av1_nvenc" if
 )
 
 
-REM --- Construct Output Path ---
-set "OUTPUT_FILE=%INPUT_PATH%%INPUT_NAME%%OUTPUT_SUFFIX%%OUTPUT_EXT%"
 echo Output file will be: %OUTPUT_FILE%
 
 REM --- Construct FFMPEG Command ---
@@ -531,6 +532,7 @@ call !FFMPEG_CMD!
 if not errorlevel 0 (
     echo ERROR: ffmpeg process failed or was interrupted ^(Errorlevel: %ERRORLEVEL%^) while processing "!INPUT_FILE!".
     set STOP_PROCESSING=1
+    if exist "%OUTPUT_FILE%" del "%OUTPUT_FILE%"
     goto :eof
 )
 

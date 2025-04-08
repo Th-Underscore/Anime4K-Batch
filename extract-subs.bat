@@ -89,6 +89,9 @@ if not exist "%FFPROBE_PATH%" (
     goto :eof
 )
 
+REM Save the original script name for later use
+set "SCRIPT_NAME=%~nx0"
+
 REM --- Argument Parsing Loop ---
 :parse_args_loop
 if "%~1"=="" goto :parse_args_done
@@ -154,9 +157,6 @@ if exist "!CURRENT_ARG!\" (
     echo WARNING: Argument "!CURRENT_ARG!" is not a recognized flag, file, or directory. Skipping.
 )
 
-REM Reset flags for the *next* argument
-set DO_RECURSE=0
-set DO_FORCE=0
 shift
 goto :parse_args_loop
 
@@ -167,11 +167,10 @@ REM --- Check if any valid input path was processed ---
 if "%PROCESSED_ANY_PATH%"=="0" (
     echo ERROR: No valid input files or folders were provided or found.
     echo Usage: Drag and drop video files onto this script or run from cmd:
-    echo %~nx0 [-no-where] [-r] [-f] "path\to\folder" "path\to\video1.mkv" ...
-    goto :eof
+    echo %SCRIPT_NAME% [options] [-no-where] [-r] [-f] [-delete] "path\to\folder" "path\to\video1.mkv" ...
 )
-set STOP_PROCESSING=0
 
+goto :eof
 
 REM =============================================
 REM == Subroutine to process a single file ==
@@ -370,8 +369,9 @@ for %%I in (%SUB_INDICES%) do (
     REM Execute ffmpeg extraction command
     if "!DO_EXTRACT!"=="1" (
         set "EXTRACT_CMD=!EXTRACT_CMD! -map 0:!SUB_INDEX! -c copy "!OUTPUT_SUB_FILE!""
-        if errorlevel 1 (
+        if not errorlevel 0 (
             echo ERROR: ffmpeg failed to extract subtitle stream !SUB_INDEX!. Errorlevel: %ERRORLEVEL%
+            if exist "!OUTPUT_SUB_FILE!" del "!OUTPUT_SUB_FILE!"
             REM Decide whether to stop or continue with other streams/files? Currently continues.
         ) else (
             echo Successfully collected stream !SUB_INDEX!.
