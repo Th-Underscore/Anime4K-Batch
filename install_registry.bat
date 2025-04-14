@@ -7,7 +7,7 @@ if not "%1"=="am_admin" (
 )
 
 REM Get the directory where this script resides, removing the trailing backslash
-for %%A in ("%~dp0.") do set SCRIPT_DIR=%%~dpA
+set SCRIPT_DIR=%~dp0
 if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 
 REM Define root paths
