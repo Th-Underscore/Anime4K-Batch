@@ -59,6 +59,7 @@ REM Options: mkv, mp4, avi
 REM MKV is recommended, especially if input has subtitles. MP4 is more compatible and performant for some players but has limitations on audio tracks and subtitles.
 set OUTPUT_FORMAT=mkv
 set OUTPUT_EXT=.%OUTPUT_FORMAT%
+set SUB_FORMAT=FILE.lang.title
 
 REM --- CPU Threads (for CPU encoders only) ---
 REM Set the number of threads for libx264, libx265, libsvtav1.
@@ -72,16 +73,20 @@ REM --- Paths (relative to script location) ---
 set FFMPEG_PATH=
 set FFPROBE_PATH=
 set "SHADER_BASE_PATH=%~dp0\shaders\"
+
+REM --- Flags ---
 set DISABLE_WHERE_SEARCH=0
-REM Set to 1 to auto-enable recursion
 set DO_RECURSE=0
 set DO_FORCE=0
 set DO_DELETE=0
 set DO_EXTRACT_SUBS=0
-set SUB_FORMAT=FILE.lang.title
-set PROCESSED_ANY_PATH=0
 
 REM --- END OF SETTINGS ---
+
+REM Save the script name for later use
+set "SCRIPT_NAME=%~nx0"
+
+set PROCESSED_ANY_PATH=0
 
 REM --- Locate FFMPEG and FFPROBE ---
 REM Priority: 1. Executable in script directory (%~dp0)
@@ -223,9 +228,6 @@ echo Calculated Output Suffix Length: %OUTPUT_SUFFIX_LEN%
 
 set IS_SUFFIX_PROCESSED=1
 goto :eof
-
-REM Save the original script name for later use
-set "SCRIPT_NAME=%~nx0"
 
 REM --- Argument Parsing Loop ---
 :parse_args_loop
@@ -374,7 +376,7 @@ if "%PROCESSED_ANY_PATH%"=="0" (
 goto :eof
 
 REM =============================================
-REM == Subroutine to process a single file ==
+REM == Subroutine to process a single file     ==
 REM =============================================
 :process_single_file
 REM --- Check if input argument is empty ---
@@ -408,10 +410,15 @@ echo Processing: %INPUT_FILE%
 echo -----------------------------------------------------
 
 REM --- Input Format Check ---
-set SUPPORTED=false
-if /i "%INPUT_EXT%"==".mp4" set SUPPORTED=true
-if /i "%INPUT_EXT%"==".avi" set SUPPORTED=true
-if /i "%INPUT_EXT%"==".mkv" set SUPPORTED=true
+if "%FORCE_PROCESSING%"=="1" (
+    set SUPPORTED=true
+) else (
+    set SUPPORTED=false
+    if /i "%INPUT_EXT%"==".mkv" set SUPPORTED=true
+    if /i "%INPUT_EXT%"==".mp4" set SUPPORTED=true
+    if /i "%INPUT_EXT%"==".avi" set SUPPORTED=true
+    if /i "%INPUT_EXT%"==".gif" set SUPPORTED=true
+)
 
 if "%SUPPORTED%"=="false" (
     echo WARNING: Input format %INPUT_EXT% may not be fully supported. Skipping.
@@ -459,44 +466,16 @@ set "ESCAPED_SHADER_PATH=%SHADER_BASE_PATH%%SHADER_FILE%"
 set "ESCAPED_SHADER_PATH=!ESCAPED_SHADER_PATH:\=\\!"
 set "ESCAPED_SHADER_PATH=!ESCAPED_SHADER_PATH::=\:!"
 
-REM Base options
-set "FFMPEG_CMD="%FFMPEG_PATH%" -hide_banner -y"
+REM --- Prepare Conditional Arguments ---
 
-REM Hardware acceleration (if selected)
-if not "%HWACCEL_PARAMS%"=="" set "FFMPEG_CMD=!FFMPEG_CMD! %HWACCEL_PARAMS%"
+set .gif_conds=no_audio no_subs
+set .mp4_conds=no_subs
 
-REM Input file
-set "FFMPEG_CMD=!FFMPEG_CMD! -i "%INPUT_FILE%""
-
-REM Vulkan initialization and libplacebo filter using the ESCAPED path
-REM Use single quotes around the escaped path value within libplacebo options
-set "VF_STRING=format=%PIX_FMT%,hwupload,libplacebo=w=%TARGET_RESOLUTION_W%:h=%TARGET_RESOLUTION_H%:upscaler=bilinear:custom_shader_path='!ESCAPED_SHADER_PATH!',format=%PIX_FMT%"
-set "FFMPEG_CMD=!FFMPEG_CMD! -init_hw_device vulkan -vf "%VF_STRING%""
-
-REM Stream copying and mapping
-REM Map and copy video (0:v:0) and all audio streams (0:a?).
-set "FFMPEG_CMD=!FFMPEG_CMD! -map 0:v:0 -map 0:a?"
-set "FFMPEG_CMD=!FFMPEG_CMD! -c:a copy"
-
-if /i not "!OUTPUT_EXT!"==".mp4" (
-    echo Mapping subtitle streams for non-MP4 output ^(!OUTPUT_EXT!^)...
-    set "FFMPEG_CMD=!FFMPEG_CMD! -map 0:s? -c:s copy"
-) else (
-    echo Skipping subtitle streams for MP4 output due to limited subtitle compatibility.
-    echo Perhaps use subtitle extraction?
+call :collect_stream_args !INPUT_FILE! !OUTPUT_FILE!
+if not defined MAP_ARGS (
+    echo ERROR: No valid stream arguments found for "!INPUT_FILE!". Skipping.
+    goto :eof
 )
-
-REM CQP and Video Codec
-set "FFMPEG_CMD=!FFMPEG_CMD! -c:v %VIDEO_CODEC% -qp %CQP%"
-
-REM Preset (if applicable)
-if not "%PRESET_PARAM%"=="" set "FFMPEG_CMD=!FFMPEG_CMD! %PRESET_PARAM%"
-
-REM Threads (if applicable)
-if not "%THREAD_PARAM%"=="" set "FFMPEG_CMD=!FFMPEG_CMD! %THREAD_PARAM%"
-
-REM Output file
-set "FFMPEG_CMD=!FFMPEG_CMD! "%OUTPUT_FILE%""
 
 REM --- Extract Subtitles if Flag is Set ---
 if "!DO_EXTRACT_SUBS!"=="1" (
@@ -510,9 +489,9 @@ if "!DO_EXTRACT_SUBS!"=="1" (
 
     echo !EXTRACT_ARGS!
 
-    set "EXTRACT_CMD=call "%~dp0\extract-subs.bat"!EXTRACT_ARGS! "!INPUT_FILE!""
+    set "EXTRACT_CMD="%~dp0\extract-subs.bat"!EXTRACT_ARGS! "!INPUT_FILE!""
 
-    echo Running: !EXTRACT_CMD!
+    echo Running extract command: !EXTRACT_CMD!
     call !EXTRACT_CMD!
     if not errorlevel 0 (
         echo WARNING: Subtitle extraction failed for "!INPUT_FILE!" ^(Errorlevel: %ERRORLEVEL%^).
@@ -524,10 +503,26 @@ if "!DO_EXTRACT_SUBS!"=="1" (
 REM --- Execute FFMPEG ---
 echo.
 echo Starting ffmpeg command:
-echo !FFMPEG_CMD!
+echo "!FFMPEG_PATH!" -hide_banner -y ^
+    %HWACCEL_PARAMS% ^
+    -i "!INPUT_FILE!" ^
+    -init_hw_device vulkan -vf "format=%PIX_FMT%,hwupload,libplacebo=w=%TARGET_RESOLUTION_W%:h=%TARGET_RESOLUTION_H%:upscaler=bilinear:custom_shader_path='!ESCAPED_SHADER_PATH!',format=%PIX_FMT%" ^
+    !MAP_ARGS! ^
+    -c:v %VIDEO_CODEC% -qp %CQP% ^
+    %PRESET_PARAM% ^
+    %THREAD_PARAM% ^
+    "!OUTPUT_FILE!"
 echo.
 
-call !FFMPEG_CMD!
+call "!FFMPEG_PATH!" -hide_banner -y ^
+    %HWACCEL_PARAMS% ^
+    -i "!INPUT_FILE!" ^
+    -init_hw_device vulkan -vf "format=%PIX_FMT%,hwupload,libplacebo=w=%TARGET_RESOLUTION_W%:h=%TARGET_RESOLUTION_H%:upscaler=bilinear:custom_shader_path='!ESCAPED_SHADER_PATH!',format=%PIX_FMT%" ^
+    !MAP_ARGS! ^
+    -c:v %VIDEO_CODEC% -qp %CQP% ^
+    %PRESET_PARAM% ^
+    %THREAD_PARAM% ^
+    "!OUTPUT_FILE!"
 
 if not errorlevel 0 (
     echo ERROR: ffmpeg process failed or was interrupted ^(Errorlevel: %ERRORLEVEL%^) while processing "!INPUT_FILE!".
@@ -551,9 +546,45 @@ if "%DELETE_ORIGINAL_FLAG%"=="1" if exist "%OUTPUT_FILE%" (
 
 goto :eof
 
+REM =============================================
+REM == Subroutine to collect stream arguments  ==
+REM =============================================
+:collect_stream_args
+set "INPUT_EXT=%~x1"
+set "OUTPUT_EXT=%~x2"
+echo Mapping video streams for supported output ^(%OUTPUT_EXT%^)...
+set MAP_ARGS=-map 0:v:0
+set output_conds=x
+set input_conds=x
+if defined %OUTPUT_EXT%_conds set output_conds=!%OUTPUT_EXT%_conds!
+if defined %INPUT_EXT%_conds set input_conds=!%INPUT_EXT%_conds!
+
+REM Check input and output containers for each specific stream condition
+if "x!output_conds:no_audio=!!input_conds:no_audio=!"=="x!output_conds!!input_conds!" (
+    echo Mapping audio streams for supported output ^(%OUTPUT_EXT%^)...
+    set MAP_ARGS=%MAP_ARGS% -map 0:a? -c:a copy
+) else (
+    echo Skipping audio streams for "%INPUT_EXT%" to "%OUTPUT_EXT%" output due to limited audio compatibility.
+    echo Perhaps extract audio manually?
+)
+
+if "x!output_conds:no_subs=!!input_conds:no_subs=!"=="x!output_conds!!input_conds!" (
+    echo Mapping subtitle streams for supported output ^(%OUTPUT_EXT%^)...
+    set MAP_ARGS=%MAP_ARGS% -map 0:s? -c:s copy
+) else (
+    echo Skipping subtitle streams for "%INPUT_EXT%" to "%OUTPUT_EXT%" output due to limited subtitle compatibility.
+    if "%DO_EXTRACT_SUBS%"=="1" (
+        echo Will extract subtitles from the output file due to -extract-subs flag.
+    ) else (
+        echo Perhaps extract subtitles manually?
+    )
+)
+
+goto :eof
+
 
 REM =============================================
-REM == Subroutine to process a directory ==
+REM == Subroutine to process a directory       ==
 REM =============================================
 :process_directory
 set "DIR_PATH=%~1"

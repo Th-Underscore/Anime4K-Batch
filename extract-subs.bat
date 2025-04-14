@@ -11,19 +11,28 @@ REM   -r                 : Recursive search in folders
 REM   -f                 : Force overwrite existing subtitle files
 REM   -no-where          : Disable auto-detection of ffmpeg/ffprobe via 'where' command (binaries in the same folder as this script will be used regardless)
 
-REM --- Paths (relative to script location) ---
-set FFMPEG_PATH=
-set FFPROBE_PATH=
-set DISABLE_WHERE_SEARCH=0
-REM Set to 1 to auto-enable recursion
-set DO_RECURSE=0
-set DO_FORCE=0
-set PROCESSED_ANY_PATH=0
+REM --- SETTINGS ---
+
+REM --- Output Format ---
 set OUTPUT_FILENAME_FORMAT=FILE.lang.title
 set OUTPUT_SUFFIX=
 REM Jellyfin format: "FILE.lang.title"
 
+REM --- Paths (relative to script location) ---
+set FFMPEG_PATH=
+set FFPROBE_PATH=
+
+REM --- Flags ---
+set DISABLE_WHERE_SEARCH=0
+set DO_RECURSE=0
+set DO_FORCE=0
+
 REM --- END OF SETTINGS ---
+
+REM Save the script name for later use
+set "SCRIPT_NAME=%~nx0"
+
+set PROCESSED_ANY_PATH=0
 
 REM --- Locate FFMPEG and FFPROBE ---
 REM Priority: 1. Executable in script directory (%~dp0)
@@ -88,9 +97,6 @@ if not exist "%FFPROBE_PATH%" (
     echo ERROR: Cannot find ffprobe.exe at %FFPROBE_PATH%
     goto :eof
 )
-
-REM Save the original script name for later use
-set "SCRIPT_NAME=%~nx0"
 
 REM --- Argument Parsing Loop ---
 :parse_args_loop
@@ -223,8 +229,8 @@ if not defined SUB_INDICES (
 
 echo Found subtitle stream indices:%SUB_INDICES%
 
-set "EXTRACT_CMD="%FFMPEG_PATH%" -hide_banner -y -i "%SUB_INPUT_FILE%""
-set "temp_cmd=!EXTRACT_CMD!"
+set "EXTRACT_ARGS="
+set DO_EXTRACTION=0
 REM --- Collect data for each stream ---
 for %%I in (%SUB_INDICES%) do (
     set SUB_INDEX=%%I
@@ -352,38 +358,38 @@ for %%I in (%SUB_INDICES%) do (
     if "!FORMATTED_NAME:~-1!"=="." set "FORMATTED_NAME=!FORMATTED_NAME:~0,-1!"
 
     REM Final output path
-    set "OUTPUT_SUB_FILE=!SUB_INPUT_PATH!!FORMATTED_NAME!!SUB_EXT!"
-    echo Outputting to: "!OUTPUT_SUB_FILE!"
+    set "SUB_OUTPUT_FILE=!SUB_INPUT_PATH!!FORMATTED_NAME!!SUB_EXT!"
+    echo Outputting to: "!SUB_OUTPUT_FILE!"
 
     REM Check if output exists (respect -f flag)
     set DO_EXTRACT=1
-    if exist "!OUTPUT_SUB_FILE!" (
+    if exist "!SUB_OUTPUT_FILE!" (
         if not "%FORCE_PROCESSING%"=="1" (
-            echo Skipping extraction, output file "!OUTPUT_SUB_FILE!" already exists. Use -f to force.
+            echo Skipping extraction, output file "!SUB_OUTPUT_FILE!" already exists. Use -f to force.
             set DO_EXTRACT=0
         ) else (
-            echo Forcing extraction, queueing to overwrite existing file "!OUTPUT_SUB_FILE!".
+            echo Forcing extraction, queueing to overwrite existing file "!SUB_OUTPUT_FILE!".
         )
     )
 
     REM Execute ffmpeg extraction command
     if "!DO_EXTRACT!"=="1" (
-        set "EXTRACT_CMD=!EXTRACT_CMD! -map 0:!SUB_INDEX! -c copy "!OUTPUT_SUB_FILE!""
-        if not errorlevel 0 (
-            echo ERROR: ffmpeg failed to extract subtitle stream !SUB_INDEX!. Errorlevel: %ERRORLEVEL%
-            if exist "!OUTPUT_SUB_FILE!" del "!OUTPUT_SUB_FILE!"
-            REM Decide whether to stop or continue with other streams/files? Currently continues.
-        ) else (
-            echo Successfully collected stream !SUB_INDEX!.
-        )
+        set "EXTRACT_ARGS=!EXTRACT_ARGS! -map 0:!SUB_INDEX! -c copy "!SUB_OUTPUT_FILE!""
+        echo Successfully collected stream !SUB_INDEX!.
     )
 )
 
-if not "!EXTRACT_CMD!"=="!temp_cmd!" (
-    echo Executing: !EXTRACT_CMD!
-    call !EXTRACT_CMD!
-) else (
+if "%DO_EXTRACTION%"=="0" (
     echo No valid subtitle streams found to extract.
+    goto :eof
+)
+
+echo Executing: "%FFMPEG_PATH%" -hide_banner -y -i "%SUB_INPUT_FILE%" !EXTRACT_ARGS!
+call "%FFMPEG_PATH%" -hide_banner -y -i "%SUB_INPUT_FILE%" !EXTRACT_ARGS!
+
+if not errorlevel 0 (
+    echo ERROR: ffmpeg failed to extract subtitles. Errorlevel: %ERRORLEVEL%
+    echo Output files may be incomplete or corrupted.
     goto :eof
 )
 

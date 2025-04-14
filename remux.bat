@@ -11,21 +11,34 @@ REM   -f                  : Force overwrite existing output files
 REM   -no-where           : Disable auto-detection of ffmpeg/ffprobe via 'where' command
 REM   -delete             : Delete original file after successful remux (USE WITH CAUTION!)
 
-REM --- Paths (relative to script location) ---
-set FFMPEG_PATH=
-set FFPROBE_PATH=
-set DISABLE_WHERE_SEARCH=0
-REM Set to 1 to auto-enable recursion
-set DO_RECURSE=0
-set DO_FORCE=0
-set DO_DELETE=0
-set PROCESSED_ANY_PATH=0
+REM --- SETTINGS ---
+
+REM --- Output Format ---
 set OUTPUT_FORMAT=mp4
 set OUTPUT_EXT=.%OUTPUT_FORMAT%
 
+REM --- Paths (relative to script location) ---
+set FFMPEG_PATH=
+set FFPROBE_PATH=
+
+REM --- Flags ---
+set DISABLE_WHERE_SEARCH=0
+set DO_RECURSE=0
+set DO_FORCE=0
+set DO_DELETE=0
+
 REM --- END OF SETTINGS ---
 
+REM Save the script name for later use
+set "SCRIPT_NAME=%~nx0"
+
+set PROCESSED_ANY_PATH=0
+
 REM --- Locate FFMPEG and FFPROBE ---
+REM Priority: 1. Executable in script directory (%~dp0)
+REM           2. Path found via 'where' command (unless -no-where is used)
+REM           3. Empty path (will cause error later if not found)
+
 REM Check for local executables first
 if exist "%~dp0\ffmpeg.exe" (
     echo Found ffmpeg.exe in script directory.
@@ -85,9 +98,6 @@ if not exist "%FFPROBE_PATH%" (
     echo WARNING: Cannot find ffprobe.exe at %FFPROBE_PATH%. Path detection might be limited.
 )
 
-REM Save the original script name for later use
-set "SCRIPT_NAME=%~nx0"
-
 REM --- Argument Parsing Loop ---
 :parse_args_loop
 if "%~1"=="" goto :parse_args_done
@@ -95,7 +105,7 @@ if "%~1"=="" goto :parse_args_done
 if /i "%~1"=="-container" (
     if "%~2"=="" ( echo ERROR: Missing value for -ext flag. & goto :eof )
     set "OUTPUT_EXT=.%~2"
-    echo Setting Output Extension: !OUTPUT_EXT!
+    echo Setting Output Extension: %OUTPUT_EXT%
     shift
     shift
     goto :parse_args_loop
@@ -160,7 +170,7 @@ if "%PROCESSED_ANY_PATH%"=="0" (
 goto :eof
 
 REM =============================================
-REM == Subroutine to process a single file ==
+REM == Subroutine to process a single file     ==
 REM =============================================
 :process_single_file
 REM --- Check if input argument is empty ---
@@ -172,15 +182,15 @@ set "INPUT_FILE=%~1"
 set "FORCE_PROCESSING=%2"
 set "DELETE_ORIGINAL_FLAG=%3"
 
-call :remux_file_logic "!INPUT_FILE!" %FORCE_PROCESSING% %DELETE_ORIGINAL_FLAG%
+call :remux_single_file "!INPUT_FILE!" %FORCE_PROCESSING% %DELETE_ORIGINAL_FLAG%
 
 goto :eof
 
 
 REM =============================================
-REM == Subroutine Logic to remux a file ==
+REM == Subroutine Logic to remux a file        ==
 REM =============================================
-:remux_file_logic
+:remux_single_file
 REM Parameters: %1 = Input File Path, %2 = Force Flag (0 or 1), %3 = Delete Flag (0 or 1)
 set "INPUT_FILE=%~1"
 set "INPUT_PATH=%~dp1"
@@ -207,30 +217,21 @@ if exist "!OUTPUT_FILE!" (
     )
 )
 
-REM Determine appropriate map arguments based on output container
-set "MAP_ARGS=-map 0:v? -map 0:a?"
-
-if /i "!OUTPUT_EXT!"==".mkv" (
-    set "MAP_ARGS=!MAP_ARGS! -map 0:s?"
-) else if /i "!OUTPUT_EXT!"==".mov" (
-    set "MAP_ARGS=!MAP_ARGS! -map 0:s?"
-) else if /i "!OUTPUT_EXT!"==".avi" (
-    set "MAP_ARGS=!MAP_ARGS! -map 0:s?"
-) else if /i "!OUTPUT_EXT!"==".webm" (
-    set "MAP_ARGS=!MAP_ARGS! -map 0:s?"
-) else if /i "!OUTPUT_EXT!"==".ts" (
-    set "MAP_ARGS=!MAP_ARGS! -map 0:s? -map 0:d?"
-)
-REM Add more 'else if' blocks here for other containers if needed
+REM Determine appropriate map arguments based on input and output container
+set .gif_conds=no_copy_video no_audio no_subs
+set .mp4_conds=no_subs
+REM INCOMPLETE LIST FOR MOST VIDEO CONTAINERS
 
 REM Execute ffmpeg remux command
 if "!DO_REMUX!"=="1" (
-    set "REMUX_CMD="%FFMPEG_PATH%" -hide_banner"
-    if "%FORCE_PROCESSING%"=="1" set "REMUX_CMD=!REMUX_CMD! -y"
-    set "REMUX_CMD=!REMUX_CMD! -i "!INPUT_FILE!" -c copy !MAP_ARGS! "!OUTPUT_FILE!""
+    call :collect_stream_args !INPUT_FILE! !OUTPUT_FILE!
+    if not defined MAP_ARGS (
+        echo ERROR: No valid stream arguments found for "!INPUT_FILE!". Skipping.
+        goto :eof
+    )
 
-    echo Executing: !REMUX_CMD!
-    call !REMUX_CMD!
+    echo Executing: "%FFMPEG_PATH%" -hide_banner
+    call "%FFMPEG_PATH%" -hide_banner -y -i "!INPUT_FILE!" !MAP_ARGS! "!OUTPUT_FILE!"
     if not errorlevel 0 (
         echo ERROR: ffmpeg failed to remux file "!INPUT_FILE!". Errorlevel: %ERRORLEVEL%
         if exist "!OUTPUT_FILE!" del "!OUTPUT_FILE!"
@@ -251,9 +252,48 @@ if "!DO_REMUX!"=="1" (
 
 goto :eof
 
+REM =============================================
+REM == Subroutine to collect stream arguments  ==
+REM =============================================
+:collect_stream_args
+set "INPUT_EXT=%~x1"
+set "OUTPUT_EXT=%~x2"
+set MAP_ARGS=
+set output_conds=x
+set input_conds=x
+echo %OUTPUT_EXT% -- !%OUTPUT_EXT%_conds!
+if defined %OUTPUT_EXT%_conds set output_conds=!%OUTPUT_EXT%_conds!
+if defined %INPUT_EXT%_conds set input_conds=!%INPUT_EXT%_conds!
+
+REM Check input and output containers for each specific stream condition
+if "x!output_conds:no_copy_video=!!input_conds:no_copy_video=!"=="x!output_conds!!input_conds!" (
+    echo Copying video streams for supported output ^(%OUTPUT_EXT%^)...
+    set MAP_ARGS=-map 0:v? -c:v copy
+) else (
+    echo Transcoding video streams for "%INPUT_EXT%" to "%OUTPUT_EXT%" output due to limited video compatibility.
+    set MAP_ARGS=-map 0:v:0
+)
+
+if "x!output_conds:no_audio=!!input_conds:no_audio=!"=="x!output_conds!!input_conds!" (
+    echo Mapping audio streams for supported output ^(%OUTPUT_EXT%^)...
+    set MAP_ARGS=%MAP_ARGS% -map 0:a? -c:a copy
+) else (
+    echo Skipping audio streams for "%INPUT_EXT%" to "%OUTPUT_EXT%" output due to limited audio compatibility.
+    echo Perhaps extract audio manually?
+)
+
+if "x!output_conds:no_subs=!!input_conds:no_subs=!"=="x!output_conds!!input_conds!" (
+    echo Mapping subtitle streams for supported output ^(%OUTPUT_EXT%^)...
+    set MAP_ARGS=%MAP_ARGS% -map 0:s? -c:s copy
+) else (
+    echo Skipping subtitle streams for "%INPUT_EXT%" to "%OUTPUT_EXT%" output due to limited subtitle compatibility.
+    echo Perhaps use subtitle extraction?
+)
+
+goto :eof
 
 REM =============================================
-REM == Subroutine to process a directory ==
+REM == Subroutine to process a directory       ==
 REM =============================================
 :process_directory
 set "DIR_PATH=%~1"
@@ -282,6 +322,7 @@ if "%IS_RECURSIVE%"=="1" (
 
 goto :eof
 
+goto :eof
 
 :finished
 echo.
