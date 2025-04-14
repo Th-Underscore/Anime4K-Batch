@@ -45,75 +45,41 @@ There are four main ways to use the `Anime4K-Batch.bat` script:
 <details>
 <summary><b>1. Add to Context Menu (Recommended)</b></summary>
 
-*   Open PowerShell (user or admin) and set this variable to your path to the script:
+1. **Standard**: Admin rights required.
+    *   Execute [`install_registry.bat`](#./install_registry.bat). That's it!
+    *   If you wish to remove Anime4K-Batch from the context menu, execute [`uninstall_registry.bat`](#./reg/uninstall_registry.bat).
+    *   _(Optional)_ To disable the new Windows 11 context menu for easier access, run this in Command Prompt (`cmd.exe`):
 
-    ```powershell
-    $path = "C:\path\to\Anime4K-Batch.bat"
-    ```
+        ```cmd
+        REG ADD "HKCU\Software\Classes\CLSID{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" /ve /f
+        ```
 
-*   Then execute this command:
-
-    ```powershell
-    New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\*\shell\Transcode with Anime4K\command" -Value "$path ""%1""" -Force; New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\directory\shell\Transcode content with Anime4K\command" -Value "$path ""%1""" -Force
-    ```
-
-*   The script should now be available whenever you right-click on video files and folders.
-*   If you wish to remove it from the context menu, run the following command:
-
-    ```powershell
-    Remove-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\*\shell\Transcode with Anime4K" -Force; Remove-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\directory\shell\Transcode content with Anime4K" -Force
-    ```
-
-*   _(Optional)_ To disable the new Windows 11 context menu for easier access:
-
-    ```powershell
-    New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" -Value "" -Force
-    ```
-
-    <details><summary><b>Advanced: Context Menu Group</b></summary>
-
-    *   Open PowerShell **elevated** and set `$path`:
+2. **Basic**: No admin rights required.
+    *   Open PowerShell and set this variable to your path to the script:
 
         ```powershell
         $path = "C:\path\to\Anime4K-Batch.bat"
         ```
 
-    *   Then execute this snippet (Ctrl+V, not right-click):
-        ```ps1
-        $path = (Split-Path -Path $path -Parent -Resolve)
-        $root = "Registry::HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Explorer\CommandStore\Shell"
-        New-Item -Path "$root\Ani4K.Transcode\command" -Value "$path\Anime4K-Batch.bat ""%1""" -Force
-        New-Item -Path "$root\Ani4K.Remux\command" -Value "$path\remux.bat ""%1""" -Force
-        New-Item -Path "$root\Ani4K.Extract\command" -Value "$path\extract-subs.bat ""%1""" -Force
-        New-ItemProperty -Path "$root\Ani4K.Transcode" -Name "MUIVerb" -Value "Apply GLSL shaders" -Force
-        New-ItemProperty -Path "$root\Ani4K.Transcode" -Name "CommandFlags" -Value 0x40 -PropertyType DWord -Force  # ECF_SEPARATORAFTER
-        New-ItemProperty -Path "$root\Ani4K.Transcode" -Name "Icon" -Value "$path\assets\icons\Transcode_32.ico" -Force
-        New-ItemProperty -Path "$root\Ani4K.Extract" -Name "MUIVerb" -Value "Extract subtitles" -Force
-        New-ItemProperty -Path "$root\Ani4K.Extract" -Name "Icon" -Value "$path\assets\icons\Extract_32.ico" -Force
-        New-ItemProperty -Path "$root\Ani4K.Remux" -Name "MUIVerb" -Value "Remux" -Force
-        New-ItemProperty -Path "$root\Ani4K.Remux" -Name "Icon" -Value "$path\assets\icons\Remux_32.ico" -Force
+    *   Then execute this command:
 
-        try{Remove-Item -Path "$root\Ani4K.TranscodeDir" -Recurse -Force
-        Remove-Item -Path "$root\Ani4K.ExtractDir" -Recurse -Force
-        Remove-Item -Path "$root\Ani4K.RemuxDir" -Recurse -Force}catch{}
-        Copy-Item -Path "$root\Ani4K.Transcode" -Destination "$root\Ani4K.TranscodeDir" -Recurse -Force
-        Copy-Item -Path "$root\Ani4K.Extract" -Destination "$root\Ani4K.ExtractDir" -Recurse -Force
-        Copy-Item -Path "$root\Ani4K.Remux" -Destination "$root\Ani4K.RemuxDir" -Recurse -Force
-        New-ItemProperty -Path "$root\Ani4K.TranscodeDir" -Name "Icon" -Value "$path\assets\icons\TranscodeDir_32.ico" -Force
-        New-ItemProperty -Path "$root\Ani4K.ExtractDir" -Name "Icon" -Value "$path\assets\icons\ExtractDir_32.ico" -Force
-        New-ItemProperty -Path "$root\Ani4K.RemuxDir" -Name "Icon" -Value "$path\assets\icons\RemuxDir_32.ico" -Force
-
-        $croot = "Registry::HKEY_CURRENT_USER\Software\Classes"
-        New-Item -Path "$croot\*\shell\Anime4K-Batch" -Force
-        New-ItemProperty -Path "$croot\*\shell\Anime4K-Batch" -Name "MUIVerb" -Value "Anime4K-Batch" -Force
-        New-ItemProperty -Path "$croot\*\shell\Anime4K-Batch" -Name "SubCommands" -Value "Ani4K.Transcode;Ani4K.Extract;Ani4K.Remux" -Force
-        New-ItemProperty -Path "$croot\*\shell\Anime4K-Batch" -Name "Icon" -Value "$path\assets\icons\cmd_16.ico" -Force
-        New-Item -Path "$croot\Directory\shell\Anime4K-Batch" -Force
-        New-ItemProperty -Path "$croot\Directory\shell\Anime4K-Batch" -Name "MUIVerb" -Value "Anime4K-Batch" -Force
-        New-ItemProperty -Path "$croot\Directory\shell\Anime4K-Batch" -Name "SubCommands" -Value "Ani4K.TranscodeDir;Ani4K.ExtractDir;Ani4K.RemuxDir" -Force
-        New-ItemProperty -Path "$croot\Directory\shell\Anime4K-Batch" -Name "Icon" -Value "$path\assets\icons\cmdDir_32.ico" -Force
+        ```powershell
+        New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\*\shell\Transcode with Anime4K\command" -Value "$path ""%1""" -Force; New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\directory\shell\Transcode content with Anime4K\command" -Value "$path ""%1""" -Force
         ```
-    *   There should be three errors on the first run. Any more means you need to troubleshoot. 
+
+    *   The script should now be available whenever you right-click on video files and folders.
+    *   If you wish to remove Anime4K-Batch from the context menu, run the following command:
+
+        ```powershell
+        Remove-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\*\shell\Transcode with Anime4K" -Force; Remove-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\directory\shell\Transcode content with Anime4K" -Force
+        ```
+
+    *   _(Optional)_ To disable the new Windows 11 context menu for easier access:
+
+        ```powershell
+        New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" -Value "" -Force
+        ```
+
     </details>
 
 </details>
