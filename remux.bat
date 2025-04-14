@@ -224,7 +224,7 @@ REM INCOMPLETE LIST FOR MOST VIDEO CONTAINERS
 
 REM Execute ffmpeg remux command
 if "!DO_REMUX!"=="1" (
-    call :collect_stream_args !INPUT_FILE! !OUTPUT_FILE!
+    call :collect_stream_args "!INPUT_FILE!" "!OUTPUT_FILE!"
     if not defined MAP_ARGS (
         echo ERROR: No valid stream arguments found for "!INPUT_FILE!". Skipping.
         goto :eof

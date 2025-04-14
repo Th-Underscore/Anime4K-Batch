@@ -375,6 +375,7 @@ for %%I in (%SUB_INDICES%) do (
     REM Execute ffmpeg extraction command
     if "!DO_EXTRACT!"=="1" (
         set "EXTRACT_ARGS=!EXTRACT_ARGS! -map 0:!SUB_INDEX! -c copy "!SUB_OUTPUT_FILE!""
+        set DO_EXTRACTION=1
         echo Successfully collected stream !SUB_INDEX!.
     )
 )

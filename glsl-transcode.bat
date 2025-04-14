@@ -471,7 +471,7 @@ REM --- Prepare Conditional Arguments ---
 set .gif_conds=no_audio no_subs
 set .mp4_conds=no_subs
 
-call :collect_stream_args !INPUT_FILE! !OUTPUT_FILE!
+call :collect_stream_args "!INPUT_FILE!" "!OUTPUT_FILE!"
 if not defined MAP_ARGS (
     echo ERROR: No valid stream arguments found for "!INPUT_FILE!". Skipping.
     goto :eof
@@ -550,9 +550,10 @@ REM =============================================
 REM == Subroutine to collect stream arguments  ==
 REM =============================================
 :collect_stream_args
+echo %~1 --- %~2
 set "INPUT_EXT=%~x1"
 set "OUTPUT_EXT=%~x2"
-echo Mapping video streams for supported output ^(%OUTPUT_EXT%^)...
+echo Mapping video stream for supported output ^(%OUTPUT_EXT%^)...
 set MAP_ARGS=-map 0:v:0
 set output_conds=x
 set input_conds=x
