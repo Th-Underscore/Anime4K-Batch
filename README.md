@@ -2,7 +2,7 @@
 
 This batch script enhances the resolution of videos using GLSL shaders like [Anime4K](https://github.com/bloc97/Anime4K), leveraging the power of `ffmpeg` for processing. Once set up, the script can be called in [several ways](#usage), however you'd like.
 
-<img src="image-1.png" alt="Custom context menu" height="279">
+<img src="assets\image-1.png" alt="Custom context menu" height="279">
 
 **This script provides a purely Windows-based alternative for the core upscaling logic of [Anime4K-GUI](https://github.com/mikigal/Anime4K-GUI), allowing for batch processing and customization via script editing.**
 
@@ -48,7 +48,7 @@ There are four main ways to use the `Anime4K-Batch.bat` script:
 *   Open PowerShell (user or admin) and set this variable to your path to the script:
 
     ```powershell
-    $path = "C:\path\to\Anime4K-Batch.bat"
+    $path = "C:\path\to"
     ```
 
 *   Then execute this command:
@@ -70,9 +70,55 @@ There are four main ways to use the `Anime4K-Batch.bat` script:
     New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" -Value "" -Force
     ```
 
+    <details><summary><b>Advanced: Custom Context Menu</b></summary>
+
+    *   Open PowerShell **elevated** and set `$path`:
+
+        ```powershell
+        $path = "C:\path\to\Anime4K-Batch.bat"
+        ```
+
+    *   Then execute this snippet (Ctrl+V, not right-click):
+        ```ps1
+        $path = (Split-Path -Path $path -Parent -Resolve)
+        $root = "Registry::HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Explorer\CommandStore\Shell"
+        New-Item -Path "$root\Ani4K.Transcode\command" -Value "$path\Anime4K-Batch.bat ""%1""" -Force
+        New-Item -Path "$root\Ani4K.Remux\command" -Value "$path\remux.bat ""%1""" -Force
+        New-Item -Path "$root\Ani4K.Extract\command" -Value "$path\extract-subs.bat ""%1""" -Force
+        New-ItemProperty -Path "$root\Ani4K.Transcode" -Name "MUIVerb" -Value "Apply GLSL shaders" -Force
+        New-ItemProperty -Path "$root\Ani4K.Transcode" -Name "CommandFlags" -Value 0x40 -PropertyType DWord -Force  # ECF_SEPARATORAFTER
+        New-ItemProperty -Path "$root\Ani4K.Transcode" -Name "Icon" -Value "$path\assets\icons\Transcode_32.ico" -Force
+        New-ItemProperty -Path "$root\Ani4K.Extract" -Name "MUIVerb" -Value "Extract subtitles" -Force
+        New-ItemProperty -Path "$root\Ani4K.Extract" -Name "Icon" -Value "$path\assets\icons\Extract_32.ico" -Force
+        New-ItemProperty -Path "$root\Ani4K.Remux" -Name "MUIVerb" -Value "Remux" -Force
+        New-ItemProperty -Path "$root\Ani4K.Remux" -Name "Icon" -Value "$path\assets\icons\Remux_32.ico" -Force
+
+        try{Remove-Item -Path "$root\Ani4K.TranscodeDir" -Recurse -Force
+        Remove-Item -Path "$root\Ani4K.ExtractDir" -Recurse -Force
+        Remove-Item -Path "$root\Ani4K.RemuxDir" -Recurse -Force}catch{}
+        Copy-Item -Path "$root\Ani4K.Transcode" -Destination "$root\Ani4K.TranscodeDir" -Recurse -Force
+        Copy-Item -Path "$root\Ani4K.Extract" -Destination "$root\Ani4K.ExtractDir" -Recurse -Force
+        Copy-Item -Path "$root\Ani4K.Remux" -Destination "$root\Ani4K.RemuxDir" -Recurse -Force
+        New-ItemProperty -Path "$root\Ani4K.TranscodeDir" -Name "Icon" -Value "$path\assets\icons\TranscodeDir_32.ico" -Force
+        New-ItemProperty -Path "$root\Ani4K.ExtractDir" -Name "Icon" -Value "$path\assets\icons\ExtractDir_32.ico" -Force
+        New-ItemProperty -Path "$root\Ani4K.RemuxDir" -Name "Icon" -Value "$path\assets\icons\RemuxDir_32.ico" -Force
+
+        $croot = "Registry::HKEY_CURRENT_USER\Software\Classes"
+        New-Item -Path "$croot\*\shell\Anime4K-Batch" -Force
+        New-ItemProperty -Path "$croot\*\shell\Anime4K-Batch" -Name "MUIVerb" -Value "Anime4K-Batch" -Force
+        New-ItemProperty -Path "$croot\*\shell\Anime4K-Batch" -Name "SubCommands" -Value "Ani4K.Transcode;Ani4K.Extract;Ani4K.Remux" -Force
+        New-ItemProperty -Path "$croot\*\shell\Anime4K-Batch" -Name "Icon" -Value "$path\assets\icons\cmd_16.ico" -Force
+        New-Item -Path "$croot\Directory\shell\Anime4K-Batch" -Force
+        New-ItemProperty -Path "$croot\Directory\shell\Anime4K-Batch" -Name "MUIVerb" -Value "Anime4K-Batch" -Force
+        New-ItemProperty -Path "$croot\Directory\shell\Anime4K-Batch" -Name "SubCommands" -Value "Ani4K.TranscodeDir;Ani4K.ExtractDir;Ani4K.RemuxDir" -Force
+        New-ItemProperty -Path "$croot\Directory\shell\Anime4K-Batch" -Name "Icon" -Value "$path\assets\icons\cmdDir_32.ico" -Force
+        ```
+    *   There should be three errors on the first run. Any more means you need to troubleshoot. 
+    </details>
+
 </details>
 
-<img src="image-1.png" alt="Custom context menu" height="279">
+<img src="assets\image-1.png" alt="Custom context menu" height="279">
 
 <details>
 <summary><b>2. Drag and Drop</b></summary>
@@ -82,7 +128,7 @@ There are four main ways to use the `Anime4K-Batch.bat` script:
 
 </details>
 
-<img src="image-2.png" alt="Dragging and dropping files" width="315">
+<img src="assets\image-2.png" alt="Dragging and dropping files" width="315">
 
 <details>
 <summary><b>3. Open with <code>Anime4K-Batch.bat</code></b></summary>
@@ -94,7 +140,7 @@ There are four main ways to use the `Anime4K-Batch.bat` script:
 
 </details>
 
-<img src="image-3.png" alt="Open with" height="308">
+<img src="assets\image-3.png" alt="Open with" height="308">
 
 <details>
 <summary><b>4. Command Line</b></summary>
@@ -114,7 +160,7 @@ These options/flags override settings defined inside the script(s) *for that spe
 
 **Common Flags (affect both `glsl-transcode.bat` and `extract-subs.bat` if enabled):**
 
-*   `-suffix <string>`: Suffix to append to the output filename (default: `_upscaled`).
+*   `-suffix <string>`: Suffix to append after the base filename part (default: `_upscaled`).
 *   `-r`: **(Flag)** Process folders recursively.
 *   `-f`: **(Flag)** Force overwrite if an output file with the target name already exists.
 *   `-no-where`: **(Flag)** Disable automatic searching for `ffmpeg`/`ffprobe` in the system PATH; rely solely on paths set in the script or binaries in the script's directory.
@@ -125,10 +171,12 @@ These options/flags override settings defined inside the script(s) *for that spe
 *   `-h <height>`: Override target height.
 *   `-shader <file>`: Override shader filename (relative to shader path).
 *   `-shaderpath <path>`: Override the base path for shaders.
+*   `-codec-prof <type>`: Override encoder profile (e.g., nvidia_h265, cpu_av1).
 *   `-cqp <value>`: Override the Constant Quantization Parameter (quality, 0-51).
 *   `-container <type>`: Override output container format (`avi`, `mkv`, `mp4`).
+*   `-sformat <string>`: Alias of `-format` option for `extract-subs.bat`.
 *   `-delete`: **(Flag)** Delete original file after successful transcode (USE WITH CAUTION!).
-*   `-extract-subs`: **(Flag)** Extract subtitles using `extract-subs.bat` before transcoding. Passes `-f`, `-no-where`, `-suffix`, and `-format` flags automatically.
+*   `-extract-subs`: **(Flag)** Extract subtitles using `extract-subs.bat` before transcoding. Passes `-f`, `-no-where`, `-suffix`, and `-format` (`-sformat`) flags automatically.
 
 **`extract-subs.bat` Specific Options & Flags (only relevant if subtitle extraction is enabled *via Anime4K-Batch.bat*):**
 
@@ -196,6 +244,7 @@ In the script, place these flags *before* the file/folder paths. See [Anime4K-Ba
 
 **Common Flags (affect both `glsl-transcode.bat` and `extract-subs.bat` if enabled):**
 
+*   `-suffix <string>`: Suffix to append after the base filename part.
 *   `-r`: **(Flag)** Process folders recursively.
 *   `-f`: **(Flag)** Force overwrite if an output file with the target name already exists.
 *   `-no-where`: **(Flag)** Disable automatic searching for `ffmpeg`/`ffprobe` in the system PATH; rely solely on paths set in the script or binaries in the script's directory.
@@ -209,10 +258,11 @@ In the script, place these flags *before* the file/folder paths. See [Anime4K-Ba
 *   `-codec-prof <type>`: Encoder profile (e.g., nvidia_h265, cpu_av1).
 *   `-cqp <value>`: Constant Quantization Parameter (quality, 0-51).
 *   `-container <type>`: Output container format (`avi`, `mkv`, `mp4`).
+*   `-sformat <string>`: Alias of `-format` option for `extract-subs.bat`.
 *   `-delete`: **(Flag)** Delete original file after successful transcode (USE WITH CAUTION!).
 *   `-extract-subs`: **(Flag)** Extract subtitles using `extract-subs.bat` before transcoding.
 
-**Subtitle Extraction–Specific Options & Flags (only relevant if extraction enabled *via Anime4K-Batch.bat*):**
+**Subtitle Extraction–Specific Options & Flags (only relevant if subtitle extraction enabled *via Anime4K-Batch.bat*):**
 
 *   `-format <string>`: Output filename format for subtitles (default: `FILE.lang.title`). Uses `FILE`, `lang`, `title` placeholders.
 
@@ -225,9 +275,9 @@ Advanced settings are configured by editing the `--- SETTINGS ---` section direc
 *   `TARGET_RESOLUTION_W`, `TARGET_RESOLUTION_H`: Desired output video dimensions.
 *   `SHADER_FILE`: The specific `.glsl` shader file to use (relative to `SHADER_BASE_PATH`).
 *   `SHADER_BASE_PATH`: The directory containing the shader files.
-*   `ENCODER_PROFILE`: Selects the video codec and hardware acceleration (e.g., `nvidia_h264`, `cpu_av1`, `amd_h265`), set to `nvidia_h265` by default. See script comments for a full list of options.
+*   `ENCODER_PROFILE`: Selects the video codec and hardware acceleration (e.g., `nvidia_h264`, `cpu_av1`, `amd_h265`, default: `nvidia_h265`). See script comments for a full list of options.
 *   `CQP`: Constant Quantization Parameter for quality control (lower value = higher quality, larger file).
-*   `OUTPUT_FORMAT`: Output video container (`mkv`, `mp4`, `avi`). MKV is recommended for subtitle compatibility.
+*   `OUTPUT_FORMAT`: Output video container (`mkv`, `mp4`, `avi`). MKV is recommended for maximum compatibility.
 *   `OUTPUT_SUFFIX`: Text added to the end of the output filename (before the extension, default: `_upscaled`).
 *   `FFMPEG_PATH`, `FFPROBE_PATH`: Manually specify paths if automatic detection fails or is disabled.
 *   `CPU_THREADS`: Limit CPU core usage for CPU-based encoders.
@@ -249,7 +299,7 @@ Advanced settings are configured by editing the `--- SETTINGS ---` section direc
 By default, `Anime4K-Batch.bat` only runs the upscaling script (`glsl-transcode.bat`). There are two ways to enable subtitle extraction using `extract-subs.bat` before upscaling:
 
 1.  **Use the `-extract-subs` Flag (Recommended):**
-    *   Pass the `-extract-subs` flag when calling `Anime4K-Batch.bat` or `glsl-transcode.bat`. This tells `glsl-transcode.bat` to trigger `extract-subs.bat` internally before it starts transcoding. This is useful for one-off extractions without modifying `Anime4K-Batch.bat`.
+    *   Pass the `-extract-subs` flag when calling `Anime4K-Batch.bat` or `glsl-transcode.bat`. This tells `glsl-transcode.bat` to trigger `extract-subs.bat` internally before it starts transcoding. This is useful for one-off extractions without extensively modifying `Anime4K-Batch.bat`.
 2.  **Modify `Anime4K-Batch.bat`:**
     *   Comment out the line: `:: %~dp0\glsl-transcode.bat %*` (add `::` at the beginning).
     *   Create a new line: `%~dp0\extract-subs.bat %*   &&   %~dp0\glsl-transcode.bat %*`. This makes `Anime4K-Batch.bat` explicitly call `extract-subs.bat` first.
@@ -336,3 +386,4 @@ C:\path\to\remux.bat [options] [flags] "path\to\folder" "path\to\video.mkv" ...
 *   Utilizes [Anime4K](https://github.com/bloc97/Anime4K) GLSL shaders (or other compatible shaders provided by the user).
 *   Relies heavily on the [FFmpeg](https://ffmpeg.org) project.
 *   [Google](https://gemini.google.com) for Gemini, which was helpful in creating _this_ README :D
+*   **Assets**: "Transcode" from [icon-icons](https://icon-icons.com/icon/recovery-convert/241031), "Extract" from [Veryicon](https://www.veryicon.com/icons/education-technology/edit-job-operator/extract-2.html), "Remux" from [The Noun Project](https://thenounproject.com/icon/remix-5641961/)
