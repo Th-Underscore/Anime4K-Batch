@@ -48,7 +48,7 @@ There are four main ways to use the `Anime4K-Batch.bat` script:
 *   Open PowerShell (user or admin) and set this variable to your path to the script:
 
     ```powershell
-    $path = "C:\path\to"
+    $path = "C:\path\to\Anime4K-Batch.bat"
     ```
 
 *   Then execute this command:
@@ -70,7 +70,7 @@ There are four main ways to use the `Anime4K-Batch.bat` script:
     New-Item -Path "Registry::HKEY_CURRENT_USER\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" -Value "" -Force
     ```
 
-    <details><summary><b>Advanced: Custom Context Menu</b></summary>
+    <details><summary><b>Advanced: Context Menu Group</b></summary>
 
     *   Open PowerShell **elevated** and set `$path`:
 
