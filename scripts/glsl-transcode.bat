@@ -13,10 +13,12 @@ REM   -cqp <value>       : Constant Quantization Parameter (0-51, lower is bette
 REM   -container <type>  : Output container format (avi, mkv, mp4; default: %OUTPUT_FORMAT%)
 REM   -suffix <string>   : Suffix to append to output filenames (default: %OUTPUT_SUFFIX%)
 REM   -sformat <string>  : Subtitle filename format for -extract-subs (default: %SUB_FORMAT%)
+REM   -alang <list>      : Comma-separated audio language priority list for -set-audio-priority (default: %AUDIO_LANG_PRIORITY%). MUST be quoted if contains commas.
 REM Flags (place BEFORE file/folder paths):
 REM   -r                 : Recursive search in folders
 REM   -f                 : Force overwrite existing output
-REM   -extract-subs      : Extract subtitles from the *output* file using extract-subs.bat
+REM   -extract-subs      : Extract subtitles from the *input* file using extract-subs.bat
+REM   -set-audio-priority : Set default audio track on the *output* file using set-audio-priority.bat
 REM   -delete            : Delete original file after successful transcode (USE WITH CAUTION! You can just delete the original files yourself, grouping by "Type" and sorting by "Date modified")
 
 REM --- Base Directory (do not touch) ---
@@ -85,6 +87,9 @@ set DO_RECURSE=0
 set DO_FORCE=0
 set DO_DELETE=0
 set DO_EXTRACT_SUBS=0
+set DO_SET_DEFAULT_AUDIO=0
+
+set AUDIO_LANG_PRIORITY=
 
 REM --- END OF SETTINGS ---
 
@@ -235,12 +240,7 @@ REM --- Argument Parsing Loop ---
 :parse_args_loop
 if "%~1"=="" goto :parse_args_done
 
-if /i "%~1"=="-no-where" (
-    set DISABLE_WHERE_SEARCH=1
-    echo Disabling 'where' search for executables.
-    shift
-    goto :parse_args_loop
-) else if /i "%~1"=="-w" (
+if /i "%~1"=="-w" (
     if "%~2"=="" ( echo ERROR: Missing value for -w flag. & goto :eof )
     set "TARGET_RESOLUTION_W=%~2"
     echo Overriding Target Width: %TARGET_RESOLUTION_W%
@@ -305,6 +305,14 @@ if /i "%~1"=="-sub-format" (
     shift
     goto :parse_args_loop
 )
+if /i "%~1"=="-alang" (
+    if "%~2"=="" ( echo ERROR: Missing value for -alang flag. & goto :eof )
+    set "AUDIO_LANG_PRIORITY=%~2"
+    echo Overriding Audio Language Priority: !AUDIO_LANG_PRIORITY!
+    shift
+    shift
+    goto :parse_args_loop
+)
 if /i "%~1"=="-cqp" (
     if "%~2"=="" ( echo ERROR: Missing value for -cqp flag. & goto :eof )
     set "CQP=%~2"
@@ -327,7 +335,13 @@ if /i "%~1"=="-f" (
 )
 if /i "%~1"=="-extract-subs" (
     set DO_EXTRACT_SUBS=1
-    echo Set to extract subtitles after transcoding...
+    echo Set to extract subtitles before transcoding...
+    shift
+    goto :parse_args_loop
+)
+if /i "%~1"=="-set-audio-priority" (
+    set DO_SET_DEFAULT_AUDIO=1
+    echo Set to set default audio after transcoding...
     shift
     goto :parse_args_loop
 )
@@ -340,6 +354,21 @@ if /i "%~1"=="-delete" (
 
 REM If it's not a recognized flag, assume it's a path/file
 set "CURRENT_ARG=%~1"
+echo.
+
+REM Basic checks
+if not exist "%FFMPEG_PATH%" (
+    echo ERROR: Cannot find ffmpeg.exe at %FFMPEG_PATH%
+    goto :eof
+)
+if not exist "%FFPROBE_PATH%" (
+    echo ERROR: Cannot find ffprobe.exe at %FFPROBE_PATH%
+    goto :eof
+)
+if not exist "%SHADER_BASE_PATH%%SHADER_FILE%" (
+    echo ERROR: Cannot find shader file: !SHADER_BASE_PATH!!SHADER_FILE!
+    goto :eof
+)
 echo.
 
 REM Check if argument is a directory
@@ -371,7 +400,8 @@ REM --- Check if any valid input path was processed ---
 if "%PROCESSED_ANY_PATH%"=="0" (
     echo ERROR: No valid input files or folders were provided or found.
     echo Usage: Drag and drop video files onto this script or run from cmd:
-    echo %SCRIPT_NAME% [options] [-no-where] [-r] [-f] "path\to\folder" "path\to\video1.mkv" ...
+    echo %SCRIPT_NAME% [options] [-r] [-f] "path\to\folder" "path\to\video1.mkv" ...
+    goto :eof
 )
 
 echo Argument parsing complete.
@@ -414,6 +444,7 @@ echo -----------------------------------------------------
 echo.
 
 REM --- Input Format Check ---
+REM Currently redundant, may change later
 if "%FORCE_PROCESSING%"=="1" (
     set SUPPORTED=true
 ) else (
@@ -483,22 +514,22 @@ if not defined MAP_ARGS (
 
 REM --- Extract Subtitles if Flag is Set ---
 if "!DO_EXTRACT_SUBS!"=="1" (
-    echo   Extracting subtitles from "!INPUT_FILE!"...
     set "EXTRACT_ARGS="
     if "!FORCE_PROCESSING!"=="1" set "EXTRACT_ARGS=!EXTRACT_ARGS! -f"
-    if "!DISABLE_WHERE_SEARCH!"=="1" set "EXTRACT_ARGS=!EXTRACT_ARGS! -no-where"
     REM Pass the correct suffix and format used for the transcoded file
     set "EXTRACT_ARGS=!EXTRACT_ARGS! -suffix "!OUTPUT_SUFFIX!""
     set "EXTRACT_ARGS=!EXTRACT_ARGS! -format "!SUB_FORMAT!""
 
     set "EXTRACT_CMD="%BASE_DIR%\scripts\extract-subs.bat"!EXTRACT_ARGS! "!INPUT_FILE!""
 
-    echo   Running extract command: !EXTRACT_CMD!
+    echo.
+    echo Extracting subtitles with command: !EXTRACT_CMD!
     call !EXTRACT_CMD! >nul 2>&1
     if not !ERRORLEVEL!==0 (
-        echo   WARNING: Subtitle extraction failed for "!INPUT_FILE!" ^(Errorlevel: !ERRORLEVEL!^).
+        echo.
+        echo WARNING: Subtitle extraction failed for "!INPUT_FILE!" ^(Errorlevel: !ERRORLEVEL!^).
     ) else (
-        echo   Successfully extracted subtitles for "!INPUT_FILE!".
+        echo Successfully extracted subtitles for "!INPUT_FILE!".
     )
 )
 
@@ -513,7 +544,7 @@ if exist "%OUTPUT_FILE%" (
 REM --- Execute FFMPEG ---
 echo.
 echo Starting ffmpeg command:
-echo "%FFMPEG_PATH%" -hide_banner -y ^
+echo "%FFMPEG_PATH%" -v warning -stats -y ^
     %HWACCEL_PARAMS% ^
     -i "!INPUT_FILE!" ^
     -init_hw_device vulkan -vf "format=%PIX_FMT%,hwupload,libplacebo=w=%TARGET_RESOLUTION_W%:h=%TARGET_RESOLUTION_H%:upscaler=bilinear:custom_shader_path='!ESCAPED_SHADER_PATH!',format=%PIX_FMT%" ^
@@ -522,9 +553,8 @@ echo "%FFMPEG_PATH%" -hide_banner -y ^
     %PRESET_PARAM% ^
     %THREAD_PARAM% ^
     "!OUTPUT_FILE!"
-echo.
 
-call "%FFMPEG_PATH%" -hide_banner -y ^
+call "%FFMPEG_PATH%" -v warning -stats -y ^
     %HWACCEL_PARAMS% ^
     -i "!INPUT_FILE!" ^
     -init_hw_device vulkan -vf "format=%PIX_FMT%,hwupload,libplacebo=w=%TARGET_RESOLUTION_W%:h=%TARGET_RESOLUTION_H%:upscaler=bilinear:custom_shader_path='!ESCAPED_SHADER_PATH!',format=%PIX_FMT%" ^
@@ -538,16 +568,38 @@ echo.
 if not !ERRORLEVEL!==0 (
     echo ERROR: ffmpeg process failed or was interrupted ^(Errorlevel: !ERRORLEVEL!^) while processing "!INPUT_FILE!".
     set STOP_PROCESSING=1
-    if not !ERRORLEVEL!==255 REM Normal interrupt Ctrl+C
-    if not !ERRORLEVEL!==123 REM Force Ctrl+C
-    if not !ERRORLEVEL!==-1073741510 (
+    if not !ERRORLEVEL!==255 (         REM Normal interrupt Ctrl+C
+    if not !ERRORLEVEL!==123 (         REM Hard interrupt Ctrl+C
+    if not !ERRORLEVEL!==-1073741510 ( REM Idk some kinda interrupt Ctrl+C
         echo Cleaning up output file...
-        if exist "%OUTPUT_FILE%" del "%OUTPUT_FILE%"
-    )
+    )))
     goto :eof
 )
 
 echo Successfully processed "!INPUT_FILE!"
+
+REM --- Set Default Audio if Flag is Set ---
+if "!DO_SET_DEFAULT_AUDIO!"=="1" if exist "%OUTPUT_FILE%" (
+    set "SETAUDIO_ARGS="
+    if "!FORCE_PROCESSING!"=="1" set "SETAUDIO_ARGS=!SETAUDIO_ARGS! -f"
+    REM Use -replace to modify the output file in place
+    set "SETAUDIO_ARGS=!SETAUDIO_ARGS! -replace"
+    REM Pass language priority if specified via -alang
+    if defined AUDIO_LANG_PRIORITY (
+        set "SETAUDIO_ARGS=!SETAUDIO_ARGS! -lang "!AUDIO_LANG_PRIORITY!""
+    )
+
+    set "SETAUDIO_CMD="%BASE_DIR%\scripts\set-audio-priority.bat"!SETAUDIO_ARGS! "!OUTPUT_FILE!""
+
+    echo.
+    echo Setting default audio track with command: !SETAUDIO_CMD!
+    call !SETAUDIO_CMD! >nul 2>&1
+    if not !ERRORLEVEL!==0 (
+        echo WARNING: Setting default audio track failed for "!OUTPUT_FILE!" ^(Errorlevel: !ERRORLEVEL!^).
+    ) else (
+        echo Successfully set default audio track for "!OUTPUT_FILE!".
+    )
+)
 
 REM --- Delete Original File if Flag is Set ---
 if "%DELETE_ORIGINAL_FLAG%"=="1" if exist "%OUTPUT_FILE%" (
