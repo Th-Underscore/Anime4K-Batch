@@ -267,8 +267,8 @@ By default, `Anime4K-Batch.bat` only runs the upscaling script (`glsl-transcode.
 1.  **Use the `-extract-subs` Flag (Recommended):**
     *   Pass the `-extract-subs` flag when calling `Anime4K-Batch.bat` or `glsl-transcode.bat`. This tells `glsl-transcode.bat` to trigger `extract-subs.bat` internally before it starts transcoding. This is useful for one-off extractions without extensively modifying `Anime4K-Batch.bat`.
 2.  **Modify `Anime4K-Batch.bat`:**
-    *   Comment out the line: `:: %~dp0\glsl-transcode.bat %*` (add `::` at the beginning).
-    *   Create a new line: `%~dp0\extract-subs.bat %*   &&   %~dp0\glsl-transcode.bat %*`. This makes `Anime4K-Batch.bat` explicitly call `extract-subs.bat` first.
+    *   Comment out the line: `:: call %~dp0\glsl-transcode.bat %*` (add `::` at the beginning).
+    *   Create a new line: `call %~dp0\extract-subs.bat %*   &&   call %~dp0\glsl-transcode.bat %*`. This makes `Anime4K-Batch.bat` explicitly call `extract-subs.bat` first.
 
 ## Extra Utilities
 
