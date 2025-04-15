@@ -9,8 +9,6 @@ if not "%1"=="am_admin" (
 REM Get base directory, removing the trailing backslash
 set "BASE_DIR=%~dp0"
 if "%BASE_DIR:~-1%"=="\" set "BASE_DIR=%BASE_DIR:~0,-1%"
-for %%A in ("%BASE_DIR%") do set "BASE_DIR=%%~dpA"
-if "%BASE_DIR:~-1%"=="\" set "BASE_DIR=%BASE_DIR:~0,-1%"
 
 REM Define root paths
 set "ROOT_STORE=HKLM\Software\Microsoft\Windows\CurrentVersion\Explorer\CommandStore\Shell"
