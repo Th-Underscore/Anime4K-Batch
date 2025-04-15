@@ -235,16 +235,24 @@ In the script, place these flags *before* the file/folder paths. See [`Anime4K-B
 
 Advanced settings are configured by editing the `--- SETTINGS ---` section directly within the [`scripts/glsl-transcode.bat`](./scripts/glsl-transcode.bat) script file:
 
-*   `TARGET_RESOLUTION_W`, `TARGET_RESOLUTION_H`: Desired output video dimensions.
+*   `TARGET_RESOLUTION_W`, `TARGET_RESOLUTION_H`: Desired output video dimensions (width and height).
 *   `SHADER_FILE`: The specific `.glsl` shader file to use (relative to `SHADER_BASE_PATH`).
-*   `SHADER_BASE_PATH`: The directory containing the shader files.
-*   `ENCODER_PROFILE`: Selects the video codec and hardware acceleration (e.g., `nvidia_h264`, `cpu_av1`, `amd_h265`, default: `nvidia_h265`). See script comments for a full list of options.
-*   `CQP`: Constant Quantization Parameter for quality control (lower value = higher quality, larger file).
-*   `OUTPUT_FORMAT`: Output video container (`mkv`, `mp4`, `avi`). MKV is recommended for maximum compatibility.
-*   `OUTPUT_SUFFIX`: Text added to the end of the output filename (before the extension, default: `_upscaled`).
-*   `FFMPEG_PATH`, `FFPROBE_PATH`: Manually specify paths if automatic detection fails or is disabled.
-*   `CPU_THREADS`: Limit CPU core usage for CPU-based encoders.
-*   `RECURSE_NEXT`: Set to `1` to enable recursive folder processing by default, `0` otherwise.
+*   `ENCODER_PROFILE`: Selects the video codec and hardware acceleration (e.g., `nvidia_h265`, `cpu_av1`). See script comments for all options.
+*   `CQP`: Constant Quantization Parameter for quality control (lower value = higher quality, larger file, range: -1 to 51).
+*   `OUTPUT_FORMAT`: Output video container (`mkv`, `mp4`, `avi`). MKV is recommended for subtitle compatibility.
+*   `OUTPUT_EXT`: Automatically set based on `OUTPUT_FORMAT`.
+*   `SUB_FORMAT`: Filename format for extracted subtitles (used by `extract-subs.bat`).
+*   `CPU_THREADS`: Number of threads for CPU encoders (0 for default).
+*   `OUTPUT_SUFFIX`: Text added to the end of the output filename (before the extension).
+*   `FFMPEG_PATH`, `FFPROBE_PATH`: Manually specify paths to `ffmpeg.exe` and `ffprobe.exe` if automatic detection fails or is disabled.
+*   `SHADER_BASE_PATH`: The directory containing the shader files (defaults to `shaders\` relative to the script).
+*   `DISABLE_WHERE_SEARCH`: Set to `1` to disable searching the system PATH for `ffmpeg`/`ffprobe`.
+*   `DO_RECURSE`: Set to `1` to enable recursive folder processing by default.
+*   `DO_FORCE`: Set to `1` to enable overwriting existing output files by default.
+*   `DO_DELETE`: Set to `1` to enable deleting original files after successful transcoding by default (USE WITH CAUTION!).
+*   `DO_EXTRACT_SUBS`: Set to `1` to enable subtitle extraction by default.
+*   `DO_SET_DEFAULT_AUDIO`: Set to `1` to enable setting the default audio track by default.
+*   `AUDIO_LANG_PRIORITY`: Comma-separated list of preferred audio languages for `DO_SET_DEFAULT_AUDIO` (e.g., `"jpn,eng"`).
 
 </details>
 
@@ -263,7 +271,7 @@ By default, [`Anime4K-Batch.bat`](./Anime4K-Batch.bat) only runs the upscaling s
 
 1.  **Use the `-extract-subs` Flag (Recommended):**
     *   Pass the `-extract-subs` flag when calling [`Anime4K-Batch.bat`](./Anime4K-Batch.bat) or [`glsl-transcode.bat`](./scripts/glsl-transcode.bat). This tells `glsl-transcode.bat` to trigger `extract-subs.bat` internally before it starts transcoding. This is useful for one-off extractions without extensively modifying `Anime4K-Batch.bat`.
-    *   Optionally, pass the `-sformat <string>` argument (e.g., `-sformat FILE.lang.title`) to set a custom output filename format. If `-sformat` is not provided, `extract-subs.bat` will use its internal default priority.
+    *   Optionally, pass the `-sformat <string>` argument (e.g., `-sformat FILE`) to set a custom output filename format. If `-sformat` is not provided, `extract-subs.bat` will use its internal default priority.
 2.  **Modify `Anime4K-Batch.bat`:**
     *   Comment out the line: `:: call %~dp0\scripts\glsl-transcode.bat %*` (add `::` at the beginning).
     *   Create a new line: `call %~dp0\scripts\extract-subs.bat %*   &&   call %~dp0\scripts\glsl-transcode.bat %*`. This makes `Anime4K-Batch.bat` explicitly call `extract-subs.bat` first.
