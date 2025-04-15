@@ -1,6 +1,6 @@
 # Anime4K-Batch - Batch Video Upscaler
 
-This batch script enhances the resolution of videos using GLSL shaders like [Anime4K](https://github.com/bloc97/Anime4K), leveraging the power of `ffmpeg` for processing. Once set up, the script can be called in [several ways](#usage), however you'd like.
+This batch script enhances the resolution of videos using GLSL shaders like [Anime4K](https://github.com/bloc97/Anime4K), leveraging the power of `ffmpeg` for processing. Once set up, the script can be called in [several ways](#installation--usage), however you'd like.
 
 <img src="assets\image-1.png" alt="Custom context menu" height="279">
 
@@ -11,7 +11,7 @@ This batch script enhances the resolution of videos using GLSL shaders like [Ani
 *   [Features](#features)
 *   [Requirements](#requirements)
 *   [Configuration](#configuration)
-*   [Usage](#usage)
+*   [Instalaltion & Usage](#installation--usage)
 *   [Extra Utilities](#extra-utilities)
 *   [Limitations](#limitations)
 *   [Credits](#credits)
@@ -33,25 +33,30 @@ This batch script enhances the resolution of videos using GLSL shaders like [Ani
 ## Requirements
 
 *   **Operating System**: Windows 10+
-*   [**ffmpeg.exe** and **ffprobe.exe**](https://ffmpeg.org/download.html#build-windows): Required for video processing and analysis. Must be in the system PATH, the working directory, the installation folder, or specified within the script (`glsl-transcode.bat`).
+*   [**ffmpeg.exe** and **ffprobe.exe**](https://ffmpeg.org/download.html#build-windows): Required for video processing and analysis. Must be in the system PATH, the working directory, the installation folder, or specified within the script (`scripts/glsl-transcode.bat`).
 *   **GLSL Shaders**: Standard Anime4K upscaling/sharpening shader files (`.glsl`) are provided in this repository.
 
 Supported ffmpeg and ffprobe binaries can be found in [Releases](https://github.com/Th-Underscore/Anime4K-Batch/releases).
 
-## Usage
+## Installation & Usage
 
-There are four main ways to use the `Anime4K-Batch.bat` script:
+There are four main ways to install and use the `Anime4K-Batch.bat` script:
 
 <details>
 <summary><b>1. Add to Context Menu (Recommended)</b></summary>
 
 1. **Standard**: Admin rights required.
-    *   Execute [`install_registry.bat`](#./install_registry.bat). That's it!
-    *   If you wish to remove Anime4K-Batch from the context menu, execute [`uninstall_registry.bat`](#./reg/uninstall_registry.bat).
+    *   Execute [`install_registry.bat`](#scripts/install_registry.bat). That's it!
+    *   If you wish to remove Anime4K-Batch from the context menu, execute [`uninstall_registry.bat`](#scripts/uninstall_registry.bat).
     *   _(Optional)_ To disable the new Windows 11 context menu for easier access, run this in Command Prompt (`cmd.exe`):
 
         ```cmd
         REG ADD "HKCU\Software\Classes\CLSID{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" /ve /f
+        ```
+    * _(Optional)_ If you wish to add specific flags to the utility scripts (e.g., remux recursively), edit the `\command` lines before executing `install_registry.bat`. For example (take note of the `-r`):
+
+        ```cmd
+        REG ADD "%ROOT_STORE%\Ani4K.Remux\command" /ve /d "\"%BASE_DIR%\scripts\remux.bat\" -r \"%%1\" & pause" /f
         ```
 
 2. **Basic**: No admin rights required.
@@ -114,7 +119,7 @@ There are four main ways to use the `Anime4K-Batch.bat` script:
 *   Open Command Prompt (`cmd.exe`) or PowerShell.
 *   Navigate to the script's directory or use its absolute path.
 *   Execute the script with optional flags and options, followed by paths to video files and/or folders.
-*   Arguments are passed to the underlying script(s) (`glsl-transcode.bat` and optionally `extract-subs.bat`).
+*   Arguments are passed to the underlying script(s) (`scripts/glsl-transcode.bat` and optionally `scripts/extract-subs.bat`).
 
     ```batch
     C:\path\to\Anime4K-Batch.bat [options] [flags] "path\to\folder" "path\to\video.mkv" ...
@@ -236,7 +241,8 @@ In the script, place these flags *before* the file/folder paths. See [Anime4K-Ba
 
 <details>
 <summary><b>Alternative</b></summary>
-Advanced settings are configured by editing the `--- SETTINGS ---` section directly within the `glsl-transcode.bat` script file:
+
+Advanced settings are configured by editing the `--- SETTINGS ---` section directly within the `scripts/glsl-transcode.bat` script file:
 
 *   `TARGET_RESOLUTION_W`, `TARGET_RESOLUTION_H`: Desired output video dimensions.
 *   `SHADER_FILE`: The specific `.glsl` shader file to use (relative to `SHADER_BASE_PATH`).
@@ -286,7 +292,7 @@ This PowerShell script allows you to combine multiple GLSL shaders into a single
 C:\path\to\Append-Shaders.ps1 -BaseDir "$env:AppData\mpv\" -FileListString "~~/shaders/Anime4K_Clamp_Highlights.glsl;~~/shaders/Anime4K_Restore_CNN_M.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl;~~/shaders/Anime4K_AutoDownscalePre_x2.glsl;~~/shaders/Anime4K_AutoDownscalePre_x4.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_S.glsl" -OutputFile ".\shaders\Anime4K_ComplexChain.glsl"
 ```
 
-You could then use the flag `-shader Anime4K_ComplexChain.glsl` or set `SHADER_FILE=Anime4K_ComplexChain.glsl` in `glsl-transcode.bat`.
+You could then use the flag `-shader Anime4K_ComplexChain.glsl` or set `SHADER_FILE=Anime4K_ComplexChain.glsl` in `scripts\glsl-transcode.bat`.
 
 </details>
 
@@ -295,10 +301,7 @@ You could then use the flag `-shader Anime4K_ComplexChain.glsl` or set `SHADER_F
 
 This batch script extracts subtitle tracks from video files using `ffprobe` and `ffmpeg`. It's designed to be run before `glsl-transcode.bat` if you want to preserve subtitles, especially when changing container formats (e.g., MKV to MP4).
 
-**How it's used:**
-
-*   **Via `Anime4K-Batch.bat`:** Edit `Anime4K-Batch.bat` to uncomment the line that runs both `extract-subs.bat` and `glsl-transcode.bat`. See [Enabling Subtitle Extraction](#enabling-subtitle-extraction).
-*   **Via `glsl-transcode.bat`:** Use the `-extract-subs` flag when calling `glsl-transcode.bat` (either directly or passed through `Anime4K-Batch.bat`). This flag makes `glsl-transcode.bat` call `extract-subs.bat` internally.
+See [Enabling Subtitle Extraction](#enabling-subtitle-extraction) (applies to both `Anime4K-Batch.bat` and `glsl-transcode.bat`).
 
 **Standalone Usage / Command Line Options:**
 
