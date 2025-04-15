@@ -40,13 +40,15 @@ Supported ffmpeg and ffprobe binaries can be found in [Releases](https://github.
 
 ## Installation & Usage
 
+First, download [the latest `Anime4K-Batch.zip`](https://github.com/Th-Underscore/Anime4K-Batch/releases/latest) (or clone the repository).
+
 There are four main ways to install and use the [`Anime4K-Batch.bat`](./Anime4K-Batch.bat) script:
 
 <details>
 <summary><b>1. Add to Context Menu (Recommended)</b></summary>
 
 1. **Standard**: Admin rights required.
-    *   Execute [`scripts/install_registry.bat`](./scripts/install_registry.bat). That's it!
+    *   Execute [`scripts/install_registry.bat`](./scripts/install_registry.bat). That's it! The script should now be available whenever you right-click on video files and folders.
     *   If you wish to remove Anime4K-Batch from the context menu, execute [`uninstall_registry.bat`](./scripts/uninstall_registry.bat).
     *   _(Optional)_ To disable the new Windows 11 context menu for easier access, run this in Command Prompt (`cmd.exe`):
 
