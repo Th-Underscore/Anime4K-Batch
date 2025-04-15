@@ -503,6 +503,14 @@ if "!DO_EXTRACT_SUBS!"=="1" (
     )
 )
 
+REM --- Check Output File Existence AGAIN before FFMPEG ---
+if exist "%OUTPUT_FILE%" (
+    if not "%FORCE_PROCESSING%"=="1" (
+        echo Skipping "%INPUT_FILE%" because output "%OUTPUT_FILE%" was found just before transcoding. Use -f to force.
+        goto :eof
+    )
+)
+
 REM --- Execute FFMPEG ---
 echo.
 echo Starting ffmpeg command:
