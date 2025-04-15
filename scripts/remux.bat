@@ -4,11 +4,10 @@ setlocal enabledelayedexpansion
 REM --- Batch Remuxer ---
 REM Remuxes video files, copying video and audio streams to a new container.
 REM Options (place BEFORE file/folder paths):
-REM   -container <string> : Output container format (default: %OUTPUT_FORMAT% = "mp4")
+REM   -container <type>   : Output container format (default: %OUTPUT_FORMAT% = "mp4")
 REM Flags (place BEFORE file/folder paths):
 REM   -r                  : Recursive search in folders
 REM   -f                  : Force overwrite existing output files
-REM   -no-where           : Disable auto-detection of ffmpeg/ffprobe via 'where' command
 REM   -delete             : Delete original file after successful remux (USE WITH CAUTION!)
 
 REM --- Base Directory (do not touch) ---
@@ -38,58 +37,58 @@ REM --- END OF SETTINGS ---
 set PROCESSED_ANY_PATH=0
 
 REM --- Locate FFMPEG and FFPROBE ---
-REM Priority: 1. Executable in script directory (%BASE_DIR%)
-REM           2. Path found via 'where' command (unless -no-where is used)
-REM           3. Empty path (will cause error later if not found)
+REM Priority: 1. Path specified in script config (%FFMPEG_PATH% and %FFPROBE_PATH%)
+REM           2. Local executables in script directory (%BASE_DIR%)
+REM           3. Path found via 'where' command (unless DISABLE_WHERE_SEARCH is set to 1)
+REM           4. Empty path (will cause error later if not found)
+echo.
 
-REM Check for local executables first
-if exist "%BASE_DIR%\ffmpeg.exe" (
+REM Check for local executables
+if not exist "%FFMPEG_PATH%" if exist "%BASE_DIR%\ffmpeg.exe" (
     echo Found ffmpeg.exe in script directory.
     set "FFMPEG_PATH=%BASE_DIR%\ffmpeg.exe"
     goto :ffmpeg_path_set
 )
 
-if exist "%BASE_DIR%\ffprobe.exe" (
+if not exist "%FFPROBE_PATH%" if exist "%BASE_DIR%\ffprobe.exe" (
     echo Found ffprobe.exe in script directory.
     set "FFPROBE_PATH=%BASE_DIR%\ffprobe.exe"
     goto :ffprobe_path_set
 )
 
 if "%DISABLE_WHERE_SEARCH%"=="1" (
-    echo Using configured/default paths due to -no-where flag ^(local executables not found^).
+    echo Using configured/default paths due to DISABLE_WHERE_SEARCH flag ^(local executables not found^).
     goto :paths_finalized
 )
 
-REM --- Auto-detect FFMPEG/FFPROBE using 'where' command ---
+REM Auto-detect FFMPEG/FFPROBE using 'where'
 echo Searching for executables using 'where' command...
 
-:check_ffmpeg_where
-if defined FFMPEG_PATH goto :ffmpeg_path_set
+if defined FFMPEG_PATH goto :check_ffprobe_where
 set FFMPEG_FOUND_BY_WHERE=0
 for /f "delims=" %%G in ('where ffmpeg.exe 2^>nul') do (
-    echo Found ffmpeg.exe via 'where': %%G
+    echo   Found ffmpeg.exe: %%G
     set "FFMPEG_PATH=%%G"
     set FFMPEG_FOUND_BY_WHERE=1
-    goto :ffmpeg_path_set
+    goto :check_ffprobe_where
 )
 if %FFMPEG_FOUND_BY_WHERE% == 0 echo ffmpeg.exe not found via 'where'. Will rely on default/empty path.
-:ffmpeg_path_set
 
 :check_ffprobe_where
-if defined FFPROBE_PATH goto :ffprobe_path_set
+if defined FFPROBE_PATH goto :paths_finalized
 set FFPROBE_FOUND_BY_WHERE=0
 for /f "delims=" %%G in ('where ffprobe.exe 2^>nul') do (
-    echo Found ffprobe.exe via 'where': %%G
+    echo   Found ffprobe.exe: %%G
     set "FFPROBE_PATH=%%G"
     set FFPROBE_FOUND_BY_WHERE=1
-    goto :ffprobe_path_set
+    goto :paths_finalized
 )
 if %FFPROBE_FOUND_BY_WHERE% == 0 echo ffprobe.exe not found via 'where'. Will rely on default/empty path.
-:ffprobe_path_set
 
 :paths_finalized
 echo Final FFMPEG Path: %FFMPEG_PATH%
 echo Final FFPROBE Path: %FFPROBE_PATH%
+echo.
 
 REM --- Basic Checks ---
 if not exist "%FFMPEG_PATH%" (
@@ -108,18 +107,12 @@ if "%~1"=="" goto :parse_args_done
 if /i "%~1"=="-container" (
     if "%~2"=="" ( echo ERROR: Missing value for -ext flag. & goto :eof )
     set "OUTPUT_EXT=.%~2"
-    echo Setting Output Extension: %OUTPUT_EXT%
+    echo Setting Output Extension: !OUTPUT_EXT!
     shift
     shift
     goto :parse_args_loop
 )
 
-if /i "%~1"=="-no-where" (
-    set DISABLE_WHERE_SEARCH=1
-    echo Disabling 'where' search for executables.
-    shift
-    goto :parse_args_loop
-)
 if /i "%~1"=="-r" (
     set DO_RECURSE=1
     echo Recursive flag set for next path.
@@ -161,14 +154,15 @@ shift
 goto :parse_args_loop
 
 :parse_args_done
-echo Argument parsing complete.
 
 REM --- Check if any valid input path was processed ---
 if "%PROCESSED_ANY_PATH%"=="0" (
     echo ERROR: No valid input files or folders were provided or found.
     echo Usage: Drag and drop video files onto this script or run from cmd:
-    echo %SCRIPT_NAME% [-container mp4] [-no-where] [-r] [-f] [-delete] "path\to\folder" "path\to\video1.mkv" ...
+    echo %SCRIPT_NAME% [-container mp4] [-r] [-f] [-delete] "path\to\folder" "path\to\video1.mkv" ...
 )
+
+echo Argument parsing complete.
 
 goto :eof
 
@@ -233,10 +227,11 @@ if "!DO_REMUX!"=="1" (
         goto :eof
     )
 
-    echo Executing: "%FFMPEG_PATH%" -hide_banner
+    echo Executing: "%FFMPEG_PATH%" -hide_banner -y -i "!INPUT_FILE!" !MAP_ARGS! "!OUTPUT_FILE!"
     call "%FFMPEG_PATH%" -hide_banner -y -i "!INPUT_FILE!" !MAP_ARGS! "!OUTPUT_FILE!"
-    if not errorlevel 0 (
-        echo ERROR: ffmpeg failed to remux file "!INPUT_FILE!". Errorlevel: %ERRORLEVEL%
+    if not !ERRORLEVEL!==0 (
+        echo ERROR: ffmpeg failed to remux file "!INPUT_FILE!". Errorlevel: !ERRORLEVEL!
+        set STOP_PROCESSING=1
         if exist "!OUTPUT_FILE!" del "!OUTPUT_FILE!"
     ) else (
         echo Successfully remuxed "!INPUT_FILE!" to "!OUTPUT_FILE!".
@@ -244,7 +239,7 @@ if "!DO_REMUX!"=="1" (
         if "%DELETE_ORIGINAL_FLAG%"=="1" if exist "!OUTPUT_FILE!" (
             echo Deleting original file: "!INPUT_FILE!"
             del "!INPUT_FILE!"
-            if not errorlevel 0 (
+            if not !ERRORLEVEL!==0 (
                 echo WARNING: Failed to delete original file "!INPUT_FILE!". It might be in use or permissions are denied.
             ) else (
                 echo Successfully deleted original file: "!INPUT_FILE!"
@@ -264,9 +259,8 @@ set "OUTPUT_EXT=%~x2"
 set MAP_ARGS=
 set output_conds=x
 set input_conds=x
-echo %OUTPUT_EXT% -- !%OUTPUT_EXT%_conds!
-if defined %OUTPUT_EXT%_conds set output_conds=!%OUTPUT_EXT%_conds!
-if defined %INPUT_EXT%_conds set input_conds=!%INPUT_EXT%_conds!
+if defined %OUTPUT_EXT%_conds set "output_conds=!%OUTPUT_EXT%_conds!"
+if defined %INPUT_EXT%_conds set "input_conds=!%INPUT_EXT%_conds!"
 
 REM Check input and output containers for each specific stream condition
 if "x!output_conds:no_copy_video=!!input_conds:no_copy_video=!"=="x!output_conds!!input_conds!" (

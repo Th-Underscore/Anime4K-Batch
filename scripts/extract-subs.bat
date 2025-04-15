@@ -9,7 +9,6 @@ REM   -suffix <string>   : Suffix to append after the base filename (default: %O
 REM Flags (place BEFORE file/folder paths):
 REM   -r                 : Recursive search in folders
 REM   -f                 : Force overwrite existing subtitle files
-REM   -no-where          : Disable auto-detection of ffmpeg/ffprobe via 'where' command (binaries in the same folder as this script will be used regardless)
 
 REM --- Base Directory (do not touch) ---
 set "SCRIPT_NAME=%~nx0"
@@ -38,58 +37,56 @@ REM --- END OF SETTINGS ---
 set PROCESSED_ANY_PATH=0
 
 REM --- Locate FFMPEG and FFPROBE ---
-REM Priority: 1. Executable in script directory (%BASE_DIR%)
-REM           2. Path found via 'where' command (unless -no-where is used)
-REM           3. Empty path (will cause error later if not found)
+REM Priority: 1. Path specified in script config (%FFMPEG_PATH% and %FFPROBE_PATH%)
+REM           2. Executable in script directory (%BASE_DIR%)
+REM           3. Path found via 'where' command (unless DISABLE_WHERE_SEARCH is set to 1)
+REM           4. Empty path (will cause error later if not found)
 
 REM Check for local executables first
-if exist "%BASE_DIR%\ffmpeg.exe" (
+if not exist "%FFMPEG_PATH%" if exist "%BASE_DIR%\ffmpeg.exe" (
     echo Found ffmpeg.exe in script directory.
     set "FFMPEG_PATH=%BASE_DIR%\ffmpeg.exe"
     goto :ffmpeg_path_set
 )
 
-if exist "%BASE_DIR%\ffprobe.exe" (
+if not exist "%FFPROBE_PATH%" if exist "%BASE_DIR%\ffprobe.exe" (
     echo Found ffprobe.exe in script directory.
     set "FFPROBE_PATH=%BASE_DIR%\ffprobe.exe"
     goto :ffprobe_path_set
 )
 
 if "%DISABLE_WHERE_SEARCH%"=="1" (
-    echo Using configured/default paths due to -no-where flag ^(local executables not found^).
+    echo Using configured/default paths due to DISABLE_WHERE_SEARCH flag ^(local executables not found^).
     goto :paths_finalized
 )
 
 REM --- Auto-detect FFMPEG/FFPROBE using 'where' command ---
 echo Searching for executables using 'where' command...
 
-:check_ffmpeg_where
-if defined FFMPEG_PATH goto :ffmpeg_path_set
-set FFMPEG_FOUND_BY_WHERE=0
+if defined FFMPEG_PATH goto :check_ffprobe_where
 for /f "delims=" %%G in ('where ffmpeg.exe 2^>nul') do (
     echo Found ffmpeg.exe via 'where': %%G
     set "FFMPEG_PATH=%%G"
     set FFMPEG_FOUND_BY_WHERE=1
-    goto :ffmpeg_path_set
+    goto :check_ffprobe_where
 )
-if %FFMPEG_FOUND_BY_WHERE% == 0 echo ffmpeg.exe not found via 'where'. Will rely on default/empty path.
-:ffmpeg_path_set
+if %FFMPEG_FOUND_BY_WHERE echo ffmpeg.exe not found via 'where'. Will rely on default/empty path.
 
 :check_ffprobe_where
-if defined FFPROBE_PATH goto :ffprobe_path_set
+if defined FFPROBE_PATH goto :paths_finalized
 set FFPROBE_FOUND_BY_WHERE=0
 for /f "delims=" %%G in ('where ffprobe.exe 2^>nul') do (
     echo Found ffprobe.exe via 'where': %%G
     set "FFPROBE_PATH=%%G"
     set FFPROBE_FOUND_BY_WHERE=1
-    goto :ffprobe_path_set
+    goto :paths_finalized
 )
 if %FFPROBE_FOUND_BY_WHERE% == 0 echo ffprobe.exe not found via 'where'. Will rely on default/empty path.
-:ffprobe_path_set
 
 :paths_finalized
 echo Final FFMPEG Path: %FFMPEG_PATH%
 echo Final FFPROBE Path: %FFPROBE_PATH%
+echo.
 
 REM --- Basic Checks ---
 if not exist "%FFMPEG_PATH%" (
@@ -129,12 +126,6 @@ if /i "%~1"=="-suffix" (
     goto :parse_args_loop
 )
 
-if /i "%~1"=="-no-where" (
-    set DISABLE_WHERE_SEARCH=1
-    echo Disabling 'where' search for executables.
-    shift
-    goto :parse_args_loop
-)
 if /i "%~1"=="-r" (
     set DO_RECURSE=1
     echo Recursive flag set for next path.
@@ -150,17 +141,16 @@ if /i "%~1"=="-f" (
 
 REM If it's not a recognized flag, assume it's a path/file
 set "CURRENT_ARG=%~1"
-echo Processing argument: "!CURRENT_ARG!" (Recursive: %DO_RECURSE%, Force: %DO_FORCE%)
 
 REM Check if argument is a directory
 if exist "!CURRENT_ARG!\" (
-    echo Processing directory: "!CURRENT_ARG!"
-    set "PROCESSED_ANY_PATH=1"
+    echo Processing directory: "!CURRENT_ARG!" ^(Recursive: %DO_RECURSE%, Force: %DO_FORCE%^)
+    set PROCESSED_ANY_PATH=1
     call :process_directory "!CURRENT_ARG!" %DO_RECURSE% %DO_FORCE%
 ) else if exist "!CURRENT_ARG!" (
     REM Assume argument is a file
-    echo Processing file: "!CURRENT_ARG!"
-    set "PROCESSED_ANY_PATH=1"
+    echo Processing file: "!CURRENT_ARG!" ^(Force: %DO_FORCE%^)
+    set PROCESSED_ANY_PATH=1
     call :process_single_file "!CURRENT_ARG!" %DO_FORCE%
 ) else (
     echo WARNING: Argument "!CURRENT_ARG!" is not a recognized flag, file, or directory. Skipping.
@@ -176,7 +166,7 @@ REM --- Check if any valid input path was processed ---
 if "%PROCESSED_ANY_PATH%"=="0" (
     echo ERROR: No valid input files or folders were provided or found.
     echo Usage: Drag and drop video files onto this script or run from cmd:
-    echo %SCRIPT_NAME% [options] [-no-where] [-r] [-f] [-delete] "path\to\folder" "path\to\video1.mkv" ...
+    echo %SCRIPT_NAME% [options] [-r] [-f] [-delete] "path\to\folder" "path\to\video1.mkv" ...
 )
 
 goto :eof
@@ -193,7 +183,7 @@ if "%~1"=="" (
 set "INPUT_FILE=%~1"
 set "FORCE_PROCESSING=%2"
 
-call :extract_subtitles_logic "%INPUT_FILE%" %FORCE_PROCESSING%
+call :extract_subtitles_logic "!INPUT_FILE!" %FORCE_PROCESSING%
 
 goto :eof
 
@@ -212,8 +202,8 @@ REM --- Get subtitle stream indices using temp file ---
 set SUB_INDICES=
 set "TEMP_FFPROBE_IDX=%TEMP%\ffprobe_subidx_%RANDOM%.txt"
 "%FFPROBE_PATH%" -v error -select_streams s -show_entries stream=index -of csv=p=0 "%SUB_INPUT_FILE%" > "%TEMP_FFPROBE_IDX%"
-if not errorlevel 0 (
-    echo WARNING: ffprobe failed to get subtitle indices for "%SUB_INPUT_FILE%". Maybe no subtitles? Skipping extraction for this file.
+if not !ERRORLEVEL!==0 (
+    echo WARNING: ffprobe failed to get subtitle indices for "!SUB_INPUT_FILE!". Maybe no subtitles? Skipping extraction for this file.
     if exist "%TEMP_FFPROBE_IDX%" del "%TEMP_FFPROBE_IDX%"
     goto :eof
 )
@@ -225,8 +215,9 @@ if exist "%TEMP_FFPROBE_IDX%" (
     del "%TEMP_FFPROBE_IDX%"
 )
 
+echo.
 if not defined SUB_INDICES (
-    echo No subtitle streams found to extract in "%SUB_INPUT_FILE%".
+    echo No subtitle streams found to extract in "!SUB_INPUT_FILE!".
     goto :eof
 )
 
@@ -237,7 +228,7 @@ set DO_EXTRACTION=0
 REM --- Collect data for each stream ---
 for %%I in (%SUB_INDICES%) do (
     set SUB_INDEX=%%I
-    echo Processing subtitle stream index: !SUB_INDEX!
+    echo Processing subtitle stream index !SUB_INDEX!:
 
     REM Get codec name using temp file
     set SUB_CODEC=
@@ -266,7 +257,7 @@ for %%I in (%SUB_INDICES%) do (
         echo WARNING: Unknown codec "!SUB_CODEC!" for subtitle stream !SUB_INDEX!. Skipping extraction.
         goto :eof
     )
-    echo Detected codec: "!SUB_CODEC!" ^(extension: "!SUB_EXT!"^)
+    echo   Detected codec: "!SUB_CODEC!" ^(extension: "!SUB_EXT!"^)
 
     REM Get Language using temp file
     set SUB_LANG=und
@@ -283,18 +274,18 @@ for %%I in (%SUB_INDICES%) do (
     set SUB_TAG=stream!SUB_INDEX!
 
     REM Get Title
-    set SUB_TITLE=
+    set "SUB_TITLE="
     set "TEMP_FFPROBE_TITLE=%TEMP%\ffprobe_subtitle_%RANDOM%.txt"
     "%FFPROBE_PATH%" -v error -select_streams !SUB_INDEX! -show_entries stream_tags=title -of csv=p=0 "%SUB_INPUT_FILE%" > "!TEMP_FFPROBE_TITLE!"
     if exist "!TEMP_FFPROBE_TITLE!" (
         for /f "usebackq tokens=*" %%T in ("!TEMP_FFPROBE_TITLE!") do (
-            if not "%%T"=="N/A" if not "%%T"=="" set SUB_TITLE=%%T
+            if not "%%T"=="N/A" if not "%%T"=="" set "SUB_TITLE=%%T"
         )
         del "!TEMP_FFPROBE_TITLE!"
     )
 
     if defined SUB_TITLE (
-        set SUB_TAG=!SUB_TITLE!
+        set "SUB_TAG=!SUB_TITLE!"
     ) else (
         REM Use Language if Title not found and language is defined and not 'und'
         if defined SUB_LANG if not "!SUB_LANG!"=="und" set SUB_TAG=!SUB_LANG!
@@ -362,20 +353,20 @@ for %%I in (%SUB_INDICES%) do (
 
     REM Final output path
     set "SUB_OUTPUT_FILE=!SUB_INPUT_PATH!!FORMATTED_NAME!!SUB_EXT!"
-    echo Outputting to: "!SUB_OUTPUT_FILE!"
+    echo   Outputting to: "!SUB_OUTPUT_FILE!"
 
     REM Check if output exists (respect -f flag)
     set DO_EXTRACT=1
     if exist "!SUB_OUTPUT_FILE!" (
         if not "%FORCE_PROCESSING%"=="1" (
-            echo Skipping extraction, output file "!SUB_OUTPUT_FILE!" already exists. Use -f to force.
+            echo   Skipping extraction, output file "!SUB_OUTPUT_FILE!" already exists. Use -f to force.
             set DO_EXTRACT=0
         ) else (
-            echo Forcing extraction, queueing to overwrite existing file "!SUB_OUTPUT_FILE!".
+            echo   Forcing extraction, queueing to overwrite existing file.
         )
     )
 
-    REM Execute ffmpeg extraction command
+    REM Add stream output map to extraction arguments
     if "!DO_EXTRACT!"=="1" (
         set "EXTRACT_ARGS=!EXTRACT_ARGS! -map 0:!SUB_INDEX! -c copy "!SUB_OUTPUT_FILE!""
         set DO_EXTRACTION=1
@@ -388,16 +379,19 @@ if "%DO_EXTRACTION%"=="0" (
     goto :eof
 )
 
-echo Executing: "%FFMPEG_PATH%" -hide_banner -y -i "%SUB_INPUT_FILE%" !EXTRACT_ARGS!
-call "%FFMPEG_PATH%" -hide_banner -y -i "%SUB_INPUT_FILE%" !EXTRACT_ARGS!
+echo.
+echo Executing: "%FFMPEG_PATH%" -hide_banner -y -i "!SUB_INPUT_FILE!" !EXTRACT_ARGS!
+echo.
+call "%FFMPEG_PATH%" -hide_banner -y -i "!SUB_INPUT_FILE!" !EXTRACT_ARGS!
+echo.
 
-if not errorlevel 0 (
-    echo ERROR: ffmpeg failed to extract subtitles. Errorlevel: %ERRORLEVEL%
+if not !ERRORLEVEL!==0 (
+    echo ERROR: ffmpeg failed to extract subtitles. Errorlevel: !ERRORLEVEL!
     echo Output files may be incomplete or corrupted.
     goto :eof
 )
 
-echo Finished subtitle extraction for "%SUB_INPUT_FILE%".
+echo Finished subtitle extraction for "!SUB_INPUT_FILE!".
 goto :eof
 
 
@@ -409,7 +403,7 @@ set "DIR_PATH=%~1"
 set "IS_RECURSIVE=%2"
 set "FORCE_PROCESSING_DIR=%3"
 
-echo Searching for video files in "%DIR_PATH%" ^(Recursive: %IS_RECURSIVE%^)...
+echo Searching for video files in "!DIR_PATH!" ^(Recursive: %IS_RECURSIVE%^)...
 
 if "%IS_RECURSIVE%"=="1" (
     for /r "%DIR_PATH%" %%F in (*.mkv *.mp4 *.avi *.mov *.wmv *.flv) do (
