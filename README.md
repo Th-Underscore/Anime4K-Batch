@@ -28,7 +28,9 @@ This batch script enhances the resolution of videos using GLSL shaders like [Ani
 *   Preserves all audio and subtitle streams (requires MKV output for subtitles).
 *   Supports MP4, AVI, and MKV container formats for input/output.
 *   Automatic detection of `ffmpeg`/`ffprobe` via system PATH (can be disabled).
-*   Optional subtitle extraction using [`extract-subs.bat`](./scripts/extract-subs.bat), configurable via [`Anime4K-Batch.bat`](./Anime4K-Batch.bat) or the `-extract-subs` flag in [`glsl-transcode.bat`](./scripts/glsl-transcode.bat).
+*   Optional subtitle extraction using [`extract-subs.bat`](./scripts/extract-subs.bat), configurable via [`Anime4K-Batch.bat`](./Anime4K-Batch.bat). See [Enabling Subtitle Extraction](#enabling-subtitle-extraction).
+*   Optional default audio track prioritization using [`set-audio-priority.bat`](./scripts/set-audio-priority.bat), configurable via [`Anime4K-Batch.bat`](./Anime4K-Batch.bat). See [Setting Default Audio Priority](#setting-default-audio-priority).
+*   
 
 ## Requirements
 
@@ -48,8 +50,8 @@ There are four main ways to install and use the [`Anime4K-Batch.bat`](./Anime4K-
 <summary><b>1. Add to Context Menu (Recommended)</b></summary>
 
 1. **Standard**: Admin rights required.
-    *   Execute [`scripts/install_registry.bat`](./scripts/install_registry.bat). That's it! The script should now be available whenever you right-click on video files and folders.
-    *   If you wish to remove Anime4K-Batch from the context menu, execute [`uninstall_registry.bat`](./scripts/uninstall_registry.bat).
+    *   Execute [`install_registry.bat`](./install_registry.bat). That's it! The script should now be available whenever you right-click on video files and folders.
+    *   If you wish to remove Anime4K-Batch from the context menu, execute [`uninstall_registry.bat`](./uninstall_registry.bat).
     *   _(Optional)_ To disable the new Windows 11 context menu for easier access, run this in Command Prompt (`cmd.exe`):
 
         ```cmd
@@ -129,16 +131,9 @@ There are four main ways to install and use the [`Anime4K-Batch.bat`](./Anime4K-
 
 #### Command Line Options & Flags
 
-These options/flags override settings defined inside the script(s) *for that specific run*. Place them *before* the file/folder paths.
+Using these options/flags override settings defined inside the script(s) *for that specific run*. Place them *before* the file/folder paths.
 
-**Common Flags (affect both `glsl-transcode.bat` and `extract-subs.bat` if enabled):**
-
-*   `-suffix <string>`: Suffix to append after the base filename part (default: `_upscaled`).
-*   `-r`: **(Flag)** Process folders recursively.
-*   `-f`: **(Flag)** Force overwrite if an output file with the target name already exists.
-*   `-no-where`: **(Flag)** Disable automatic searching for `ffmpeg`/`ffprobe` in the system PATH; rely solely on paths set in the script or binaries in the script's directory.
-
-**`glsl-transcode.bat` Specific Options & Flags:**
+**Options & Flags:**
 
 *   `-w <width>`: Override target width.
 *   `-h <height>`: Override target height.
@@ -147,52 +142,49 @@ These options/flags override settings defined inside the script(s) *for that spe
 *   `-codec-prof <type>`: Override encoder profile (e.g., nvidia_h265, cpu_av1).
 *   `-cqp <value>`: Override the Constant Quantization Parameter (quality, 0-51).
 *   `-container <type>`: Override output container format (`avi`, `mkv`, `mp4`).
+*   `-suffix <string>`: Suffix to append after the base filename part (default: `_upscaled`).
 *   `-sformat <string>`: Alias of `-format` option for `extract-subs.bat`.
+*   `-alang <list>`: Comma-separated audio language priority for `-set-audio-priority` (e.g., "jpn,eng").
+*   `-r`: **(Flag)** Process folders recursively.
+*   `-f`: **(Flag)** Force overwrite if an output file with the target name already exists.
 *   `-delete`: **(Flag)** Delete original file after successful transcode (USE WITH CAUTION!).
-*   `-extract-subs`: **(Flag)** Extract subtitles using `extract-subs.bat` before transcoding. Passes `-f`, `-no-where`, `-suffix`, and `-format` (`-sformat`) flags automatically.
-
-**`extract-subs.bat` Specific Options & Flags (only relevant if subtitle extraction is enabled *via Anime4K-Batch.bat*):**
-
-*   `-format <string>`: Output filename format for subtitles (default: `FILE.lang.title`). Uses `FILE`, `lang`, `title` placeholders.
+*   `-extract-subs`: **(Flag)** Extract subtitles using `extract-subs.bat` before transcoding. Passes `-f`, `-suffix`, and `-format` (`-sformat`) flags automatically.
+*   `-set-audio-priority`: **(Flag)** Set default audio track on the *output* file using `set-audio-priority.bat` after transcoding. Passes `-f` and `-lang` (`-alang`) flags automatically.
 
 #### Command Line Examples
 
-These examples demonstrate various command-line possibilities. While some are based on the default settings, others showcase specific flags and options. Note that features like subtitle extraction require enabling them in [`Anime4K-Batch.bat`](./Anime4K-Batch.bat) first (see [Enabling Subtitle Extraction](#enabling-subtitle-extraction)). Adjust paths and options as needed.
+These examples demonstrate various command-line possibilities. While some are based on the default settings, others showcase specific flags and options. Note that features like subtitle extraction and default audio setting require enabling them via flags (`-extract-subs`, `-set-audio-priority`) or modifying [`Anime4K-Batch.bat`](./Anime4K-Batch.bat) (see [Enabling Subtitle Extraction](#enabling-subtitle-extraction)). Note that, without editing the script, `Anime4K-Batch.bat` acts as an alias for [`glsl-transcode.bat`](./glsl-transcode.bat). Adjust paths and options as needed.
 
-*   **Upscale everything in a folder recursively to 4K using a specific shader, force overwrite, and extract subs:**
+*   **Upscale everything in a folder recursively to 4K using ModeA_A HQ shader in MPV's config, force overwrite, extract subs, and set default audio priority to Japanese -> Russian -> English:**
     ```batch
-    Anime4K-Batch.bat -w 3840 -h 2160 -shaderpath "%appdata%\mpv\shaders" -shader Anime4K_ModeA_A.glsl -r -f "C:\path\to\input\folder"
+    Anime4K-Batch.bat -w 3840 -h 2160 -shaderpath "%appdata%\mpv\shaders" -shader Anime4K_ModeA_A.glsl -r -f -extract-subs -set-audio-priority -alang "jpn,rus,eng" "C:\path\to\input\folder"
     ```
-    *(Ensure subtitle extraction is enabled in `Anime4K-Batch.bat` OR use the `-extract-subs` flag if calling `glsl-transcode.bat` directly. Common flags like `-r` and `-f` are passed automatically when extraction is enabled either way.)*
+    *(This assumes you are calling `Anime4K-Batch.bat` which passes flags to `glsl-transcode.bat`. The `-extract-subs` and `-set-audio-priority` flags trigger the respective sub-scripts)*
 
-*   **Upscale to 1080p, use slightly lower quality (higher CQP), output as MP4, specify custom shaders, process recursively:**
+*   **Upscale to 1080p, use a lower quality setting (higher CQP for smaller files), output as MP4, specify a custom shader folder (using default shader file), process folders recursively, extract subs, and set default audio (using default priority):**
     ```batch
-    Anime4K-Batch.bat -w 1920 -h 1080 -cqp 28 -container mp4 -shaderpath "C:\MyCustomShaders" -r "C:\path\to\input"
-    ```
-    *(Ensure subtitle extraction is enabled, e.g., in `Anime4K-Batch.bat`, if you want subtitles extracted)*
-
-*   **Only extract subtitles recursively, forcing overwrite:**
-    ```batch
-    REM If ONLY extract-subs.bat is active in Anime4K-Batch.bat
-    Anime4K-Batch.bat -r -f "C:\path\to\input"
+    Anime4K-Batch.bat -w 1920 -h 1080 -cqp 32 -container mp4 -shaderpath "C:\MyCustomShaders" -r -extract-subs -set-audio-priority "C:\path\to\input"
     ```
 
-*   **Upscale specific file to 4K (CQP 24), disable PATH check, extract subs:**
+*   **Upscale, extract subs without specifying language, and force overwrite:**
     ```batch
-    Anime4K-Batch.bat -w 3840 -h 2160 -cqp 24 -no-where "C:\path\to\video.mkv"
-    ```
-    *(Ensure subtitle extraction is enabled, e.g., in `Anime4K-Batch.bat` or via the `-extract-subs` flag if calling `glsl-transcode.bat` directly)*
-
-*   **Use default settings but process recursively:**
-    ```batch
-    Anime4K-Batch.bat -r "C:\path\to\folder" "C:\path\to\another\video.mp4"
+    Anime4K-Batch.bat -extract-subs -sformat "FILE.title" -f "C:\path\to\video.mkv"
     ```
 
-*   **Upscale recursively and delete original files (USE WITH CAUTION!), extract subs first:**
+*   **Upscale to 4K with CQP 24 and set default audio to English:**
     ```batch
-    Anime4K-Batch.bat -r -delete "C:\path\to\folder"
+    Anime4K-Batch.bat -w 3840 -h 2160 -cqp 24 -set-audio-priority -alang "eng" "C:\path\to\video.mkv"
     ```
-    *(Ensure subtitle extraction is enabled, e.g., in `Anime4K-Batch.bat`)*
+
+*   **Use default settings from glsl-transcode.bat but process folders recursively and extract subs:**
+    ```batch
+    Anime4K-Batch.bat -r -extract-subs "C:\path\to\folder" "C:\path\to\another\video.mp4"
+    ```
+
+*   **Upscale recursively, extract subtitles, set default audio, and delete original files after successful transcode (USE WITH CAUTION!):**
+    ```batch
+    Anime4K-Batch.bat -r -extract-subs -set-audio-priority -delete "C:\path\to\folder"
+    ```
 
 </details>
 
@@ -220,7 +212,6 @@ In the script, place these flags *before* the file/folder paths. See [`Anime4K-B
 *   `-suffix <string>`: Suffix to append after the base filename part.
 *   `-r`: **(Flag)** Process folders recursively.
 *   `-f`: **(Flag)** Force overwrite if an output file with the target name already exists.
-*   `-no-where`: **(Flag)** Disable automatic searching for `ffmpeg`/`ffprobe` in the system PATH; rely solely on paths set in the script or binaries in the script's directory.
 
 **Transcoding-Specific Options & Flags:**
 
@@ -232,12 +223,10 @@ In the script, place these flags *before* the file/folder paths. See [`Anime4K-B
 *   `-cqp <value>`: Constant Quantization Parameter (quality, 0-51).
 *   `-container <type>`: Output container format (`avi`, `mkv`, `mp4`).
 *   `-sformat <string>`: Alias of `-format` option for `extract-subs.bat`.
+*   `-alang <list>`: Comma-separated audio language priority for `-set-audio-priority` (e.g., "jpn,eng").
 *   `-delete`: **(Flag)** Delete original file after successful transcode (USE WITH CAUTION!).
 *   `-extract-subs`: **(Flag)** Extract subtitles using `extract-subs.bat` before transcoding.
-
-**Subtitle Extraction–Specific Options & Flags (only relevant if subtitle extraction enabled *via Anime4K-Batch.bat*):**
-
-*   `-format <string>`: Output filename format for subtitles (default: `FILE.lang.title`). Uses `FILE`, `lang`, `title` placeholders.
+*   `-set-audio-priority`: **(Flag)** Set default audio track on the *output* file using `set-audio-priority.bat` after transcoding.
 
 </details>
 
@@ -274,9 +263,20 @@ By default, [`Anime4K-Batch.bat`](./Anime4K-Batch.bat) only runs the upscaling s
 
 1.  **Use the `-extract-subs` Flag (Recommended):**
     *   Pass the `-extract-subs` flag when calling [`Anime4K-Batch.bat`](./Anime4K-Batch.bat) or [`glsl-transcode.bat`](./scripts/glsl-transcode.bat). This tells `glsl-transcode.bat` to trigger `extract-subs.bat` internally before it starts transcoding. This is useful for one-off extractions without extensively modifying `Anime4K-Batch.bat`.
+    *   Optionally, pass the `-sformat <string>` argument (e.g., `-sformat FILE.lang.title`) to set a custom output filename format. If `-sformat` is not provided, `extract-subs.bat` will use its internal default priority.
 2.  **Modify `Anime4K-Batch.bat`:**
     *   Comment out the line: `:: call %~dp0\scripts\glsl-transcode.bat %*` (add `::` at the beginning).
     *   Create a new line: `call %~dp0\scripts\extract-subs.bat %*   &&   call %~dp0\scripts\glsl-transcode.bat %*`. This makes `Anime4K-Batch.bat` explicitly call `extract-subs.bat` first.
+
+### Setting Default Audio Priority
+
+Similar to subtitle extraction, setting the default audio track priority using [`set-audio-priority.bat`](./scripts/set-audio-priority.bat) is primarily controlled via flags passed to [`glsl-transcode.bat`](./scripts/glsl-transcode.bat) (either directly or via [`Anime4K-Batch.bat`](./Anime4K-Batch.bat)).
+
+1.  **Use the `-set-audio-priority` Flag (Recommended):**
+    *   Pass the `-set-audio-priority` argument when calling [`Anime4K-Batch.bat`](./Anime4K-Batch.bat) or [`glsl-transcode.bat`](./scripts/glsl-transcode.bat). This tells `glsl-transcode.bat` to trigger `set-audio-priority.bat` internally *after* it finishes transcoding the output file.
+    *   Optionally, pass the `-alang "<list>"` flag (e.g., `-alang "jpn,eng"`) to specify the language priority. If `-alang` is not provided, `set-audio-priority.bat` will use its internal default priority. **MUST** be quoted when multiple languages are specified.
+
+*(Note: Unlike subtitle extraction, there isn't a simple modification to `Anime4K-Batch.bat` to* always *run `set-audio-priority.bat` after transcoding without using the flag, as the audio setting needs to operate on the* output *file from the transcode step.)*
 
 ## Extra Utilities
 
@@ -321,7 +321,6 @@ C:\path\to\extract-subs.bat [options] [flags] "path\to\folder" "path\to\video.mk
     *   **Note:** When running `extract-subs.bat` standalone (not via `Anime4K-Batch.bat`), if you don't want *any* suffix added, use `-suffix ""`.
 *   `-r`: **(Flag)** Process folders recursively.
 *   `-f`: **(Flag)** Force overwrite existing subtitle files.
-*   `-no-where`: **(Flag)** Disable automatic `ffmpeg`/`ffprobe` detection via PATH.
 
 </details>
 
@@ -339,7 +338,28 @@ C:\path\to\remux.bat [options] [flags] "path\to\folder" "path\to\video.mkv" ...
 *   `-container <string>`: Output container extension (default: `mp4`).
 *   `-r`: **(Flag)** Process folders recursively.
 *   `-f`: **(Flag)** Force overwrite existing output files.
-*   `-no-where`: **(Flag)** Disable automatic `ffmpeg`/`ffprobe` detection via PATH.
+
+</details>
+
+<details>
+<summary><b><code>set-audio-priority.bat</code></b></summary>
+
+This batch script ([`set-audio-priority.bat`](./scripts/set-audio-priority.bat)) sets the default track based on language priority using `ffprobe` and `ffmpeg`. It remuxes the file, placing the highest priority audio track first and marking it as default. This is useful for ensuring media players select the desired language automatically.
+
+It can be triggered automatically after transcoding by using the `-set-audio-priority` flag in [`glsl-transcode.bat`](./scripts/glsl-transcode.bat). The language priority can be specified using the `-alang` flag in `glsl-transcode.bat`.
+
+**Standalone Usage / Command Line Options:**
+
+```batch
+C:\path\to\set-audio-priority.bat [options] [flags] "path\to\folder" "path\to\video.mkv" ...
+```
+
+*   `-lang "<list>"`: Comma-separated language priority (default: `"jpn,chi,kor,eng"`). Must be quoted if it contains commas.
+*   `-suffix <string>`: Suffix for the output filename (default: `_reordered`). Only used if `-replace` is not active.
+*   `-r`: **(Flag)** Process folders recursively.
+*   `-f`: **(Flag)** Force overwrite existing output files.
+*   `-delete`: **(Flag)** Delete original file after successful processing (mutually exclusive with `-replace`).
+*   `-replace`: **(Flag)** Replace original file with the processed version (enabled by default, mutually exclusive with `-delete`).
 
 </details>
 

@@ -13,20 +13,13 @@
 ::   -container <type>  : Output container format (avi, mkv, mp4; default: %OUTPUT_FORMAT%)
 ::   -suffix <string>   : Suffix to append to output filenames (default: %OUTPUT_SUFFIX%)
 ::   -sformat <string>  : Subtitle filename format for -extract-subs (default: %SUB_FORMAT%)
+::   -alang <list>      : Comma-separated audio language priority for -set-audio-priority (default: %AUDIO_LANG_PRIORITY%). MUST be quoted if contains commas.
 :: glsl-transcode.bat flags (place BEFORE file/folder paths):
 ::   -r                 : Recursive search in folders
-::   -f                 : Force overwrite existing output files
-::   -no-where          : Disable auto-detection of ffmpeg/ffprobe via 'where' command (binaries in the same folder as this script will be used regardless)
-::   -extract-subs      : Extract subtitles from the *output* file using extract-subs.bat
+::   -f                 : Force overwrite existing output
+::   -extract-subs      : Extract subtitles from the *input* file using extract-subs.bat
+::   -set-audio-priority : Set default audio track on the *output* file using set-audio-priority.bat
 ::   -delete            : Delete original file after successful transcode (USE WITH CAUTION! You can just delete the original files yourself, grouping by "Type" and sorting by "Date modified")
-::
-:: extract-subs.bat options (place BEFORE file/folder paths):
-::   -format <string>   : Output filename format (FILE, lang, title; default: %OUTPUT_FILENAME_FORMAT% = "FILE.lang.title" for Jellyfin compatibility)
-::   -suffix <string>   : Suffix to append after the base filename (default: %OUTPUT_SUFFIX%)
-:: extract-subs.bat flags (place BEFORE file/folder paths):
-::   -r                 : Recursive search in folders
-::   -f                 : Force overwrite existing subtitle files
-::   -no-where          : Disable auto-detection of ffmpeg/ffprobe via 'where' command (binaries in the same folder as this script will be used regardless)
 ::
 :: See the individual scripts for advanced settings and information. You can also edit the code in any way you'd like!
 ::
@@ -36,23 +29,23 @@
 ::    - call %~dp0\scripts\glsl-transcode.bat -w 1920 -h 1080 -r %*
 ::
 :: --- More Examples ---
-:: Upscale everything in a folder recursively to 4K using ModeA_A HQ shader in MPV's config, force overwrite, and extract subs:
-::    - call %~dp0\scripts\glsl-transcode.bat -w 3840 -h 2160 -shaderpath "%appdata%\mpv\shaders" -shader Anime4K_ModeA_A.glsl -r -f -extract-subs %*
+:: Upscale everything in a folder recursively to 4K using ModeA_A HQ shader in MPV's config, force overwrite, extract subs, and set default audio priority to Japanese -> Russian -> English:
+::    - call %~dp0\scripts\glsl-transcode.bat -w 3840 -h 2160 -shaderpath "%appdata%\mpv\shaders" -shader Anime4K_ModeA_A.glsl -r -f -extract-subs -set-audio-priority -alang "jpn,rus,eng" %*
 ::
-:: Upscale to 1080p, use a lower quality setting (higher CQP for smaller files), output as MP4, specify a custom shader folder, and extract subs:
-::    - call %~dp0\scripts\glsl-transcode.bat -w 1920 -h 1080 -cqp 28 -container mp4 -shaderpath "C:\MyCustomShaders" -r -extract-subs %*
+:: Upscale to 1080p, use a lower quality setting (higher CQP for smaller files), output as MP4, specify a custom shader folder (using default shader file), process folders recursively, extract subs, and set default audio (using default priority):
+::    - call %~dp0\scripts\glsl-transcode.bat -w 1920 -h 1080 -cqp 32 -container mp4 -shaderpath "C:\MyCustomShaders" -r -extract-subs -set-audio-priority %*
 ::
-:: Only extract subtitles recursively, forcing overwrite of existing .ass/.srt files (no suffix):
-::    - call %~dp0\scripts\extract-subs.bat -r -f %*
+:: Upscale, extract subs without specifying language, and force overwrite:
+::    - call %~dp0\scripts\glsl-transcode.bat -extract-subs -sformat "FILE.title" -f %*
 ::
-:: Upscale a specific file to 4K with CQP 24, assuming ffmpeg/ffprobe are in PATH (disable 'where' check):
-::    - call %~dp0\scripts\glsl-transcode.bat -w 3840 -h 2160 -cqp 24 -no-where %*
+:: Upscale to 4K with CQP 24 and set default audio to English:
+::    - call %~dp0\scripts\glsl-transcode.bat -w 3840 -h 2160 -cqp 24 -set-audio-priority -alang "eng" %*
 ::
 :: Use default settings from glsl-transcode.bat but process folders recursively and extract subs:
 ::    - call %~dp0\scripts\glsl-transcode.bat -r -extract-subs %*
 ::
-:: Upscale recursively, extract subtitles, and delete original files after successful transcode (USE WITH CAUTION!):
-::    - call %~dp0\scripts\glsl-transcode.bat -r -extract-subs -delete %*
+:: Upscale recursively, extract subtitles, set default audio, and delete original files after successful transcode (USE WITH CAUTION!):
+::    - call %~dp0\scripts\glsl-transcode.bat -r -extract-subs -set-audio-priority -delete %*
 ::
 :: --- Usage ---
 :: CLI (check the README for better usage recommendations):
