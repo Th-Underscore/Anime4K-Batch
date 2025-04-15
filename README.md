@@ -33,7 +33,7 @@ This batch script enhances the resolution of videos using GLSL shaders like [Ani
 ## Requirements
 
 *   **Operating System**: Windows 10+
-*   [**ffmpeg.exe** and **ffprobe.exe**](https://ffmpeg.org/download.html#build-windows): Required for video processing and analysis. Must be in the system PATH, the working directory, or specified within the script (`glsl-transcode.bat`).
+*   [**ffmpeg.exe** and **ffprobe.exe**](https://ffmpeg.org/download.html#build-windows): Required for video processing and analysis. Must be in the system PATH, the working directory, the installation folder, or specified within the script (`glsl-transcode.bat`).
 *   **GLSL Shaders**: Standard Anime4K upscaling/sharpening shader files (`.glsl`) are provided in this repository.
 
 Supported ffmpeg and ffprobe binaries can be found in [Releases](https://github.com/Th-Underscore/Anime4K-Batch/releases).
@@ -267,8 +267,8 @@ By default, `Anime4K-Batch.bat` only runs the upscaling script (`glsl-transcode.
 1.  **Use the `-extract-subs` Flag (Recommended):**
     *   Pass the `-extract-subs` flag when calling `Anime4K-Batch.bat` or `glsl-transcode.bat`. This tells `glsl-transcode.bat` to trigger `extract-subs.bat` internally before it starts transcoding. This is useful for one-off extractions without extensively modifying `Anime4K-Batch.bat`.
 2.  **Modify `Anime4K-Batch.bat`:**
-    *   Comment out the line: `:: call %~dp0\glsl-transcode.bat %*` (add `::` at the beginning).
-    *   Create a new line: `call %~dp0\extract-subs.bat %*   &&   call %~dp0\glsl-transcode.bat %*`. This makes `Anime4K-Batch.bat` explicitly call `extract-subs.bat` first.
+    *   Comment out the line: `:: call %~dp0\scripts\glsl-transcode.bat %*` (add `::` at the beginning).
+    *   Create a new line: `call %~dp0\scripts\extract-subs.bat %*   &&   call %~dp0\scripts\glsl-transcode.bat %*`. This makes `Anime4K-Batch.bat` explicitly call `extract-subs.bat` first.
 
 ## Extra Utilities
 

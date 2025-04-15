@@ -11,44 +11,47 @@ REM   -r                 : Recursive search in folders
 REM   -f                 : Force overwrite existing subtitle files
 REM   -no-where          : Disable auto-detection of ffmpeg/ffprobe via 'where' command (binaries in the same folder as this script will be used regardless)
 
+REM --- Base Directory (do not touch) ---
+set "SCRIPT_NAME=%~nx0"
+set "BASE_DIR=%~dp0"
+if "%BASE_DIR:~-1%"=="\" set "BASE_DIR=%BASE_DIR:~0,-1%"
+for %%A in ("%BASE_DIR%") do set "BASE_DIR=%%~dpA"
+
 REM --- SETTINGS ---
 
-REM --- Output Format ---
+REM -- Output Format --
 set OUTPUT_FILENAME_FORMAT=FILE.lang.title
 set OUTPUT_SUFFIX=
 REM Jellyfin format: "FILE.lang.title"
 
-REM --- Paths (relative to script location) ---
+REM -- Paths (relative to script location) --
 set FFMPEG_PATH=
 set FFPROBE_PATH=
 
-REM --- Flags ---
+REM -- Flags --
 set DISABLE_WHERE_SEARCH=0
 set DO_RECURSE=0
 set DO_FORCE=0
 
 REM --- END OF SETTINGS ---
 
-REM Save the script name for later use
-set "SCRIPT_NAME=%~nx0"
-
 set PROCESSED_ANY_PATH=0
 
 REM --- Locate FFMPEG and FFPROBE ---
-REM Priority: 1. Executable in script directory (%~dp0)
+REM Priority: 1. Executable in script directory (%BASE_DIR%)
 REM           2. Path found via 'where' command (unless -no-where is used)
 REM           3. Empty path (will cause error later if not found)
 
 REM Check for local executables first
-if exist "%~dp0\ffmpeg.exe" (
+if exist "%BASE_DIR%\ffmpeg.exe" (
     echo Found ffmpeg.exe in script directory.
-    set "FFMPEG_PATH=%~dp0\ffmpeg.exe"
+    set "FFMPEG_PATH=%BASE_DIR%\ffmpeg.exe"
     goto :ffmpeg_path_set
 )
 
-if exist "%~dp0\ffprobe.exe" (
+if exist "%BASE_DIR%\ffprobe.exe" (
     echo Found ffprobe.exe in script directory.
-    set "FFPROBE_PATH=%~dp0\ffprobe.exe"
+    set "FFPROBE_PATH=%BASE_DIR%\ffprobe.exe"
     goto :ffprobe_path_set
 )
 

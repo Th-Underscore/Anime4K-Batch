@@ -20,22 +20,28 @@ REM   -no-where          : Disable auto-detection of ffmpeg/ffprobe via 'where' 
 REM   -extract-subs      : Extract subtitles from the *output* file using extract-subs.bat
 REM   -delete            : Delete original file after successful transcode (USE WITH CAUTION! You can just delete the original files yourself, grouping by "Type" and sorting by "Date modified")
 
+REM --- Base Directory (do not touch) ---
+set "SCRIPT_NAME=%~nx0"
+set "BASE_DIR=%~dp0"
+if "%BASE_DIR:~-1%"=="\" set "BASE_DIR=%BASE_DIR:~0,-1%"
+for %%A in ("%BASE_DIR%") do set "BASE_DIR=%%~dpA"
+
 REM --- SETTINGS ---
 
-REM --- Target Resolution ---
+REM -- Target Resolution --
 REM Recommended options: 1024x768, 1440x1080, 1920x1440, 2880x2160 (4:3)
 REM                      1280x720, 1920x1080, 2560x1440, 3840x2160 (16:9)
 set TARGET_RESOLUTION_W=3840
 set TARGET_RESOLUTION_H=2160
 
-REM --- Shader File ---
+REM -- Shader File --
 REM Choose the .glsl file from the 'shaders' directory.
 REM Options based on Go code: Anime4K_ModeA.glsl, Anime4K_ModeA_A.glsl, Anime4K_ModeA_A-fast.glsl,
 REM                           Anime4K_ModeB.glsl, Anime4K_ModeB_B.glsl, Anime4K_ModeC.glsl,
 REM                           Anime4K_ModeC_A.glsl, FSRCNNX_x2_16-0-4-1.glsl
 set SHADER_FILE=Anime4K_ModeA_A-fast.glsl
 
-REM --- Encoder & Hardware Acceleration ---
+REM -- Encoder & Hardware Acceleration --
 REM Choose the encoder AND the corresponding hardware acceleration type.
 REM Options:
 REM   cpu_h264    (libx264, no hwaccel)
@@ -49,32 +55,32 @@ REM   amd_h265    (hevc_amf, opencl hwaccel)
 REM   amd_av1     (av1_amf, opencl hwaccel) - Requires RX 7000+
 set ENCODER_PROFILE=nvidia_h265
 
-REM --- Constant Quantization Parameter (CQP) ---
+REM -- Constant Quantization Parameter (CQP) --
 REM Lower value = better quality, larger file. Range (-1)-51. Recommended ~26-32. 24 more or less doubles the file size from 1080p to 2160p. Less than 24 is virtually lossless for anime.
 REM Some hardware encoders might use different quality controls not implemented here.
 set CQP=24
 
-REM --- Output Format ---
+REM -- Output Format --
 REM Options: mkv, mp4, avi
 REM MKV is recommended, especially if input has subtitles. MP4 is more compatible and performant for some players but has limitations on audio tracks and subtitles.
 set OUTPUT_FORMAT=mkv
 set OUTPUT_EXT=.%OUTPUT_FORMAT%
 set SUB_FORMAT=FILE.lang.title
 
-REM --- CPU Threads (for CPU encoders only) ---
+REM -- CPU Threads (for CPU encoders only) --
 REM Set the number of threads for libx264, libx265, libsvtav1.
 REM Set to 0 to use default (usually all available threads).
 set CPU_THREADS=0
 
-REM --- Suffix for Output File ---
+REM -- Suffix for Output File --
 set OUTPUT_SUFFIX=_upscaled
 
-REM --- Paths (relative to script location) ---
+REM -- Paths (relative to script location) --
 set FFMPEG_PATH=
 set FFPROBE_PATH=
-set "SHADER_BASE_PATH=%~dp0\shaders\"
+set "SHADER_BASE_PATH=%BASE_DIR%\shaders\"
 
-REM --- Flags ---
+REM -- Flags --
 set DISABLE_WHERE_SEARCH=0
 set DO_RECURSE=0
 set DO_FORCE=0
@@ -83,26 +89,23 @@ set DO_EXTRACT_SUBS=0
 
 REM --- END OF SETTINGS ---
 
-REM Save the script name for later use
-set "SCRIPT_NAME=%~nx0"
-
 set PROCESSED_ANY_PATH=0
 
 REM --- Locate FFMPEG and FFPROBE ---
-REM Priority: 1. Executable in script directory (%~dp0)
+REM Priority: 1. Executable in script directory (%BASE_DIR%)
 REM           2. Path found via 'where' command (unless -no-where is used)
 REM           3. Empty path (will cause error later if not found)
 
 REM Check for local executables first
-if exist "%~dp0\ffmpeg.exe" (
+if exist "%BASE_DIR%\ffmpeg.exe" (
     echo Found ffmpeg.exe in script directory.
-    set "FFMPEG_PATH=%~dp0\ffmpeg.exe"
+    set "FFMPEG_PATH=%BASE_DIR%\ffmpeg.exe"
     goto :ffmpeg_path_set
 )
 
-if exist "%~dp0\ffprobe.exe" (
+if exist "%BASE_DIR%\ffprobe.exe" (
     echo Found ffprobe.exe in script directory.
-    set "FFPROBE_PATH=%~dp0\ffprobe.exe"
+    set "FFPROBE_PATH=%BASE_DIR%\ffprobe.exe"
     goto :ffprobe_path_set
 )
 
@@ -489,7 +492,7 @@ if "!DO_EXTRACT_SUBS!"=="1" (
 
     echo !EXTRACT_ARGS!
 
-    set "EXTRACT_CMD="%~dp0\extract-subs.bat"!EXTRACT_ARGS! "!INPUT_FILE!""
+    set "EXTRACT_CMD="%BASE_DIR%\scripts\extract-subs.bat"!EXTRACT_ARGS! "!INPUT_FILE!""
 
     echo Running extract command: !EXTRACT_CMD!
     call !EXTRACT_CMD!
