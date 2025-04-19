@@ -1,0 +1,18 @@
+{
+    // --- Input/Output ---
+    "Lang": "jpn,chi,kor,eng", // Comma-separated language priority list (3-letter ISO 639-2 codes).
+    "Suffix": "_reordered", // Suffix for the output filename when not using -Replace. Ignored if -Replace is true.
+    "Recurse": false, // Process folders recursively.
+    "Force": false, // Force overwrite existing output files (or temporary files in -Replace mode).
+    "Delete": false, // Delete original file after successful processing (Mutually exclusive with Replace).
+    "Replace": false, // Replace the original file with the processed version (Mutually exclusive with Delete).
+
+    // --- Executable Paths (Optional) ---
+    "FfmpegPath": "", // Optional: Path to ffmpeg.exe. Auto-detected if empty or omitted.
+    "FfprobePath": "", // Optional: Path to ffprobe.exe. Auto-detected if empty or omitted.
+    "DisableWhereSearch": false, // Disable searching for ffmpeg/ffprobe in PATH.
+
+    // --- Other ---
+    "Verbose": false, // Verbose output (detailed progress and information).
+    "Concise": false // Concise output (only progress shown).
+}

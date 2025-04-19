@@ -1,0 +1,16 @@
+{
+    // --- Input/Output ---
+    "Format": "FILE.lang.title", // Output filename format string. Placeholders: FILE (base filename), lang (language code), title (stream title/tag).
+    "Suffix": "", // Suffix to append *after* the base filename (the FILE placeholder) but *before* language/title placeholders.
+    "Recurse": false, // Process folders recursively.
+    "Force": false, // Force overwrite existing subtitle files.
+
+    // --- Executable Paths (Optional) ---
+    "FfmpegPath": "", // Optional: Path to ffmpeg.exe. Auto-detected if empty or omitted.
+    "FfprobePath": "", // Optional: Path to ffprobe.exe. Auto-detected if empty or omitted.
+    "DisableWhereSearch": false, // Disable searching for ffmpeg/ffprobe in PATH.
+
+    // --- Other ---
+    "Verbose": false, // Verbose output (detailed progress and information).
+    "Concise": false // Concise output (only progress shown).
+}

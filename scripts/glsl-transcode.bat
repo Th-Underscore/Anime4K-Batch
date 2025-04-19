@@ -1,705 +1,79 @@
 @echo off
-setlocal enabledelayedexpansion
 
-REM --- Batch GLSL Transcoder ---
-REM Replicates the core ffmpeg transcoding logic of the Anime4K-GUI project.
-REM Options (place BEFORE file/folder paths):
-REM   -w <width>         : Target output width (default: %TARGET_RESOLUTION_W%)
-REM   -h <height>        : Target output height (default: %TARGET_RESOLUTION_H%)
-REM   -shader <file>     : Shader filename (default: %SHADER_FILE%)
-REM   -shaderpath <path> : Path to shaders folder (default: %SHADER_BASE_PATH%)
-REM   -codec-prof <type> : Encoder profile (e.g., nvidia_h265, cpu_av1; default: %ENCODER_PROFILE%)
-REM   -cqp <value>       : Constant Quantization Parameter (0-51, lower is better; default: %CQP%) (24 is virtually lossless for double the file size)
-REM   -container <type>  : Output container format (avi, mkv, mp4; default: %OUTPUT_FORMAT%)
-REM   -suffix <string>   : Suffix to append to output filenames (default: %OUTPUT_SUFFIX%)
-REM   -sformat <string>  : Subtitle filename format for -extract-subs (default: %SUB_FORMAT%)
-REM   -alang <list>      : Comma-separated audio language priority list for -set-audio-priority (default: %AUDIO_LANG_PRIORITY%). MUST be quoted if contains commas.
-REM Flags (place BEFORE file/folder paths):
-REM   -r                 : Recursive search in folders
-REM   -f                 : Force overwrite existing output
-REM   -extract-subs      : Extract subtitles from the *input* file using extract-subs.bat
-REM   -set-audio-priority : Set default audio track on the *output* file using set-audio-priority.bat
-REM   -delete            : Delete original file after successful transcode (USE WITH CAUTION! You can just delete the original files yourself, grouping by "Type" and sorting by "Date modified")
+REM --- Wrapper script to call glsl-transcode.ps1 ---
+REM Parses original batch arguments and maps them to PowerShell parameters.
 
-REM --- Base Directory (do not touch) ---
-set "SCRIPT_NAME=%~nx0"
-set "BASE_DIR=%~dp0"
-if "%BASE_DIR:~-1%"=="\" set "BASE_DIR=%BASE_DIR:~0,-1%"
-for %%A in ("%BASE_DIR%") do set "BASE_DIR=%%~dpA"
+set "SCRIPT_DIR=%~dp0"
+set "POWERSHELL_SCRIPT_PATH=%SCRIPT_DIR%glsl-transcode.ps1"
 
-REM --- SETTINGS ---
-
-REM -- Target Resolution --
-REM Recommended options: 1024x768, 1440x1080, 1920x1440, 2880x2160 (4:3)
-REM                      1280x720, 1920x1080, 2560x1440, 3840x2160 (16:9)
-set TARGET_RESOLUTION_W=3840
-set TARGET_RESOLUTION_H=2160
-
-REM -- Shader File --
-REM Choose the .glsl file from the 'shaders' directory.
-REM Options based on Go code: Anime4K_ModeA.glsl, Anime4K_ModeA_A.glsl, Anime4K_ModeA_A-fast.glsl,
-REM                           Anime4K_ModeB.glsl, Anime4K_ModeB_B.glsl, Anime4K_ModeC.glsl,
-REM                           Anime4K_ModeC_A.glsl, FSRCNNX_x2_16-0-4-1.glsl
-set SHADER_FILE=Anime4K_ModeA_A-fast.glsl
-
-REM -- Encoder & Hardware Acceleration --
-REM Choose the encoder AND the corresponding hardware acceleration type.
-REM Options:
-REM   cpu_h264    (libx264, no hwaccel)
-REM   cpu_h265    (libx265, no hwaccel)
-REM   cpu_av1     (libsvtav1, no hwaccel)
-REM   nvidia_h264 (h264_nvenc, cuda hwaccel)
-REM   nvidia_h265 (hevc_nvenc, cuda hwaccel)
-REM   nvidia_av1  (av1_nvenc, cuda hwaccel) - Requires RTX 4000+
-REM   amd_h264    (h264_amf, opencl hwaccel)
-REM   amd_h265    (hevc_amf, opencl hwaccel)
-REM   amd_av1     (av1_amf, opencl hwaccel) - Requires RX 7000+
-set ENCODER_PROFILE=nvidia_h265
-
-REM -- Constant Quantization Parameter (CQP) --
-REM Lower value = better quality, larger file. Range (-1)-51. Recommended ~26-32. 24 more or less doubles the file size from 1080p to 2160p. Less than 24 is virtually lossless for anime.
-REM Some hardware encoders might use different quality controls not implemented here.
-set CQP=24
-
-REM -- Output Format --
-REM Options: mkv, mp4, avi
-REM MKV is recommended, especially if input has subtitles. MP4 is more compatible and performant for some players but has limitations on audio tracks and subtitles.
-set OUTPUT_FORMAT=mkv
-set OUTPUT_EXT=.%OUTPUT_FORMAT%
-set SUB_FORMAT=FILE.lang.title
-
-REM -- CPU Threads (for CPU encoders only) --
-REM Set the number of threads for libx264, libx265, libsvtav1.
-REM Set to 0 to use default (usually all available threads).
-set CPU_THREADS=0
-
-REM -- Suffix for Output File --
-set OUTPUT_SUFFIX=_upscaled
-
-REM -- Paths (relative to script location) --
-set FFMPEG_PATH=
-set FFPROBE_PATH=
-set "SHADER_BASE_PATH=%BASE_DIR%\shaders\"
-
-REM -- Flags --
-set DISABLE_WHERE_SEARCH=0
-set DO_RECURSE=0
-set DO_FORCE=0
-set DO_DELETE=0
-set DO_EXTRACT_SUBS=0
-set DO_SET_DEFAULT_AUDIO=0
-
-set AUDIO_LANG_PRIORITY=
-
-REM --- END OF SETTINGS ---
-
-set PROCESSED_ANY_PATH=0
-
-REM --- Locate FFMPEG and FFPROBE ---
-REM Priority: 1. Path specified in script config (%FFMPEG_PATH% and %FFPROBE_PATH%)
-REM           2. Local executables in script directory (%BASE_DIR%)
-REM           3. Path found via 'where' command (unless DISABLE_WHERE_SEARCH is set to 1)
-REM           4. Empty path (will cause error later if not found)
-echo.
-
-REM Check for local executables
-if not exist "%FFMPEG_PATH%" if exist "%BASE_DIR%\ffmpeg.exe" (
-    echo Found ffmpeg.exe in script directory.
-    set "FFMPEG_PATH=%BASE_DIR%\ffmpeg.exe"
-    goto :ffmpeg_path_set
+REM Check if the PowerShell script exists
+if not exist "%POWERSHELL_SCRIPT_PATH%" (
+    echo ERROR: PowerShell script not found at "%POWERSHELL_SCRIPT_PATH%"
+    exit /b 1
 )
 
-if not exist "%FFPROBE_PATH%" if exist "%BASE_DIR%\ffprobe.exe" (
-    echo Found ffprobe.exe in script directory.
-    set "FFPROBE_PATH=%BASE_DIR%\ffprobe.exe"
-    goto :ffprobe_path_set
-)
+set "PS_ARGS="
+set "PATHS_ARRAY_ELEMENTS="
 
-if "%DISABLE_WHERE_SEARCH%"=="1" (
-    echo Using configured/default paths due to DISABLE_WHERE_SEARCH flag ^(local executables not found^).
-    goto :paths_finalized
-)
+:arg_loop
+if "%~1"=="" goto :args_done
 
-REM Auto-detect FFMPEG/FFPROBE using 'where'
-echo Searching for executables using 'where' command...
+REM --- Handle Flags (Switches) first ---
+if /i "%~1"=="-r"                   ( set "PS_ARGS=%PS_ARGS% -Recurse" & shift & goto :arg_loop )
+if /i "%~1"=="-f"                   ( set "PS_ARGS=%PS_ARGS% -Force" & shift & goto :arg_loop )
+if /i "%~1"=="-extract-subs"        ( set "PS_ARGS=%PS_ARGS% -ExtractSubs" & shift & goto :arg_loop )
+if /i "%~1"=="-set-audio-priority"  ( set "PS_ARGS=%PS_ARGS% -SetAudioPriority" & shift & goto :arg_loop )
+if /i "%~1"=="-delete"              ( set "PS_ARGS=%PS_ARGS% -Delete" & shift & goto :arg_loop )
+if /i "%~1"=="-concise"             ( set "PS_ARGS=%PS_ARGS% -Concise" & shift & goto :arg_loop )
+if /i "%~1"=="-v"                   ( set "PS_ARGS=%PS_ARGS% -Verbose" & shift & goto :arg_loop )
+REM --- Handle Arguments with values ---
+REM Escape %~2 single quotes, then wrap in 'value'
+set "ARG_VAL=%~2"
+set "ARG_VAL=%ARG_VAL:'=''%"
+if /i "%~1"=="-w"                   ( set "PS_ARGS=%PS_ARGS% -TargetResolutionW '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-h"                   ( set "PS_ARGS=%PS_ARGS% -TargetResolutionH '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-shader"              ( set "PS_ARGS=%PS_ARGS% -ShaderFile '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-shaderpath"          ( set "PS_ARGS=%PS_ARGS% -ShaderBasePath '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-codec-prof"          ( set "PS_ARGS=%PS_ARGS% -EncoderProfile '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-cqp"                 ( set "PS_ARGS=%PS_ARGS% -CQP '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-container"           ( set "PS_ARGS=%PS_ARGS% -Container '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-suffix"              ( set "PS_ARGS=%PS_ARGS% -Suffix '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-sub-format"          ( set "PS_ARGS=%PS_ARGS% -SubFormat '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-alang"               ( set "PS_ARGS=%PS_ARGS% -AudioLangPriority '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-config"              ( set "PS_ARGS=%PS_ARGS% -ConfigPath '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 
-if defined FFMPEG_PATH goto :check_ffprobe_where
-set FFMPEG_FOUND_BY_WHERE=0
-for /f "delims=" %%G in ('where ffmpeg.exe 2^>nul') do (
-    echo   Found ffmpeg.exe: %%G
-    set "FFMPEG_PATH=%%G"
-    set FFMPEG_FOUND_BY_WHERE=1
-    goto :check_ffprobe_where
-)
-if %FFMPEG_FOUND_BY_WHERE% == 0 echo ffmpeg.exe not found via 'where'. Will rely on default/empty path.
-
-:check_ffprobe_where
-if defined FFPROBE_PATH goto :paths_finalized
-set FFPROBE_FOUND_BY_WHERE=0
-for /f "delims=" %%G in ('where ffprobe.exe 2^>nul') do (
-    echo   Found ffprobe.exe: %%G
-    set "FFPROBE_PATH=%%G"
-    set FFPROBE_FOUND_BY_WHERE=1
-    goto :paths_finalized
-)
-if %FFPROBE_FOUND_BY_WHERE% == 0 echo ffprobe.exe not found via 'where'. Will rely on default/empty path.
-
-:paths_finalized
-echo Final FFMPEG Path: %FFMPEG_PATH%
-echo Final FFPROBE Path: %FFPROBE_PATH%
-echo.
-
-REM --- Basic Checks ---
-if not exist "%FFMPEG_PATH%" (
-    echo ERROR: Cannot find ffmpeg.exe at %FFMPEG_PATH%
-    goto :eof
-)
-if not exist "%FFPROBE_PATH%" (
-    echo ERROR: Cannot find ffprobe.exe at %FFPROBE_PATH%
-    goto :eof
-)
-if not exist "%SHADER_BASE_PATH%%SHADER_FILE%" (
-    echo ERROR: Cannot find shader file: !SHADER_BASE_PATH!!SHADER_FILE!
-    goto :eof
-)
-
-set IS_CODEC_SETUP=0
-set IS_SUFFIX_PROCESSED=0
-goto :parse_args_loop
-
-REM --- Determine Encoder and HWAccel Params ---
-:codec_setup
-set VIDEO_CODEC=
-set HWACCEL_PARAMS=
-set PRESET_PARAM=
-set THREAD_PARAM=
-
-if /i "%ENCODER_PROFILE%"=="cpu_h264" (
-    set VIDEO_CODEC=libx264
-    set PRESET_PARAM=-preset slow
-    if not "%CPU_THREADS%"=="0" set THREAD_PARAM=-threads %CPU_THREADS%
-) else if /i "%ENCODER_PROFILE%"=="cpu_h265" (
-    set VIDEO_CODEC=libx265
-    set PRESET_PARAM=-preset slow
-    if not "%CPU_THREADS%"=="0" set THREAD_PARAM=-x265-params pools=%CPU_THREADS%
-) else if /i "%ENCODER_PROFILE%"=="cpu_av1" (
-    set VIDEO_CODEC=libsvtav1
-    REM AV1 doesn't use -preset, uses -preset for speed/quality tradeoff differently
-    if not "%CPU_THREADS%"=="0" set THREAD_PARAM=-svtav1-params pin=%CPU_THREADS%
-) else if /i "%ENCODER_PROFILE%"=="nvidia_h264" (
-    set VIDEO_CODEC=h264_nvenc
-    set HWACCEL_PARAMS=-hwaccel_device cuda -hwaccel_output_format cuda
-    set PRESET_PARAM=-preset p7 -tune hq
-) else if /i "%ENCODER_PROFILE%"=="nvidia_h265" (
-    set VIDEO_CODEC=hevc_nvenc
-    set HWACCEL_PARAMS=-hwaccel_device cuda -hwaccel_output_format cuda
-    set PRESET_PARAM=-preset p7 -tune hq -tier high
-) else if /i "%ENCODER_PROFILE%"=="nvidia_av1" (
-    set VIDEO_CODEC=av1_nvenc
-    set HWACCEL_PARAMS=-hwaccel_device cuda -hwaccel_output_format cuda
-    set PRESET_PARAM=-preset p7 -tune hq
-) else if /i "%ENCODER_PROFILE%"=="amd_h264" (
-    set VIDEO_CODEC=h264_amf
-    set HWACCEL_PARAMS=-hwaccel_device opencl -hwaccel_output_format opencl
-    set PRESET_PARAM=-quality quality
-) else if /i "%ENCODER_PROFILE%"=="amd_h265" (
-    set VIDEO_CODEC=hevc_amf
-    set HWACCEL_PARAMS=-hwaccel_device opencl -hwaccel_output_format opencl
-    set PRESET_PARAM=-quality quality
-) else if /i "%ENCODER_PROFILE%"=="amd_av1" (
-    set VIDEO_CODEC=av1_amf
-    set HWACCEL_PARAMS=-hwaccel_device opencl -hwaccel_output_format opencl
-    set PRESET_PARAM=-quality quality
+:handle_path
+REM --- Assume it's a path ---
+REM Build PowerShell array elements: 'path'
+set "ARG_PATH=%~1"
+set "ARG_PATH=%ARG_PATH:'=''%"
+if defined PATHS_ARRAY_ELEMENTS (
+    set "PATHS_ARRAY_ELEMENTS=%PATHS_ARRAY_ELEMENTS%, '%ARG_PATH%'"
 ) else (
-    echo ERROR: Invalid ENCODER_PROFILE selected: %ENCODER_PROFILE%
-    goto :eof
+    set "PATHS_ARRAY_ELEMENTS='%ARG_PATH%'"
 )
-
-echo Using Encoder: %VIDEO_CODEC%
-if not "%HWACCEL_PARAMS%"=="" echo Using HWAccel: %HWACCEL_PARAMS%
-
-set IS_CODEC_SETUP=1
-goto :eof
-
-REM --- Calculate length of suffix before parsing args and after overriding ---
-:process_suffix
-set OUTPUT_SUFFIX_LEN=0
-set "temp_suffix=%OUTPUT_SUFFIX%"
-:suffix_len_loop
-if defined temp_suffix (
-    set /a OUTPUT_SUFFIX_LEN+=1
-    set "temp_suffix=!temp_suffix:~1!"
-    goto :suffix_len_loop
-)
-echo Calculated Output Suffix Length: %OUTPUT_SUFFIX_LEN%
-
-set IS_SUFFIX_PROCESSED=1
-goto :eof
-
-REM --- Argument Parsing Loop ---
-:parse_args_loop
-if "%~1"=="" goto :parse_args_done
-
-if /i "%~1"=="-w" (
-    if "%~2"=="" ( echo ERROR: Missing value for -w flag. & goto :eof )
-    set "TARGET_RESOLUTION_W=%~2"
-    echo Overriding Target Width: %TARGET_RESOLUTION_W%
-    shift
-    shift
-    goto :parse_args_loop
-)
-
-if /i "%~1"=="-h" (
-    if "%~2"=="" ( echo ERROR: Missing value for -h flag. & goto :eof )
-    set "TARGET_RESOLUTION_H=%~2"
-    echo Overriding Target Height: %TARGET_RESOLUTION_H%
-    shift
-    shift
-    goto :parse_args_loop
-)
-if /i "%~1"=="-shader" (
-    if "%~2"=="" ( echo ERROR: Missing value for -shader flag. & goto :eof )
-    set "SHADER_FILE=%~2"
-    echo Overriding Shader File: !SHADER_FILE!
-    shift
-    shift
-    goto :parse_args_loop
-)
-if /i "%~1"=="-shaderpath" (
-    if "%~2"=="" ( echo ERROR: Missing value for -shaderpath flag. & goto :eof )
-    set "SHADER_BASE_PATH=%~2"
-    echo Overriding Shader Base Path: %SHADER_BASE_PATH%
-    shift
-    shift
-    goto :parse_args_loop
-)
-if /i "%~1"=="-codec-prof" (
-    if "%~2"=="" ( echo ERROR: Missing value for -codec-prof flag. & goto :eof )
-    set "ENCODER_PROFILE=%~2"
-    echo Overriding Encoder Profile: %ENCODER_PROFILE%
-    shift
-    shift
-    goto :parse_args_loop
-)
-if /i "%~1"=="-container" (
-    if "%~2"=="" ( echo ERROR: Missing value for -container flag. & goto :eof )
-    set "OUTPUT_EXT=.%~2"
-    echo Overriding Output Container: %OUTPUT_EXT%
-    shift
-    shift
-    goto :parse_args_loop
-)
-if /i "%~1"=="-suffix" (
-    if "%~2"=="" ( echo ERROR: Missing value for -suffix flag. & goto :eof )
-    set "OUTPUT_SUFFIX=%~2"
-    echo Overriding Output Suffix: %OUTPUT_SUFFIX%
-    shift
-    shift
-    goto :parse_args_loop
-)
-if /i "%~1"=="-sub-format" (
-    if "%~2"=="" ( echo ERROR: Missing value for -sub-format flag. & goto :eof )
-    set "SUB_FORMAT=%~2"
-    echo Overriding Subtitle Format: %SUB_FORMAT%
-    shift
-    shift
-    goto :parse_args_loop
-)
-if /i "%~1"=="-alang" (
-    if "%~2"=="" ( echo ERROR: Missing value for -alang flag. & goto :eof )
-    set "AUDIO_LANG_PRIORITY=%~2"
-    echo Overriding Audio Language Priority: !AUDIO_LANG_PRIORITY!
-    shift
-    shift
-    goto :parse_args_loop
-)
-if /i "%~1"=="-cqp" (
-    if "%~2"=="" ( echo ERROR: Missing value for -cqp flag. & goto :eof )
-    set "CQP=%~2"
-    echo Overriding CQP: %CQP%
-    shift
-    shift
-    goto :parse_args_loop
-)
-if /i "%~1"=="-r" (
-    set DO_RECURSE=1
-    echo Set to process folders recursively...
-    shift
-    goto :parse_args_loop
-)
-if /i "%~1"=="-f" (
-    set DO_FORCE=1
-    echo Set to force overwrite existing output files...
-    shift
-    goto :parse_args_loop
-)
-if /i "%~1"=="-extract-subs" (
-    set DO_EXTRACT_SUBS=1
-    echo Set to extract subtitles before transcoding...
-    shift
-    goto :parse_args_loop
-)
-if /i "%~1"=="-set-audio-priority" (
-    set DO_SET_DEFAULT_AUDIO=1
-    echo Set to set default audio after transcoding...
-    shift
-    goto :parse_args_loop
-)
-if /i "%~1"=="-delete" (
-    set DO_DELETE=1
-    echo Set to delete original files on successful transcode...
-    shift
-    goto :parse_args_loop
-)
-
-REM If it's not a recognized flag, assume it's a path/file
-set "CURRENT_ARG=%~1"
-echo.
-
-REM Basic checks
-if not exist "%FFMPEG_PATH%" (
-    echo ERROR: Cannot find ffmpeg.exe at %FFMPEG_PATH%
-    goto :eof
-)
-if not exist "%FFPROBE_PATH%" (
-    echo ERROR: Cannot find ffprobe.exe at %FFPROBE_PATH%
-    goto :eof
-)
-if not exist "%SHADER_BASE_PATH%%SHADER_FILE%" (
-    echo ERROR: Cannot find shader file: !SHADER_BASE_PATH!!SHADER_FILE!
-    goto :eof
-)
-echo.
-
-REM Check if argument is a directory
-if exist "!CURRENT_ARG!\" (
-    if "!IS_CODEC_SETUP!"=="0" call :codec_setup
-    if "!IS_SUFFIX_PROCESSED!"=="0" call :process_suffix
-    echo Processing directory: "!CURRENT_ARG!" ^(Recursive: %DO_RECURSE%, Force: %DO_FORCE%, Delete: %DO_DELETE%^)
-    set PROCESSED_ANY_PATH=1
-    shift
-    call :process_directory "!CURRENT_ARG!" %DO_RECURSE% %DO_FORCE% %DO_DELETE%
-) else if exist "!CURRENT_ARG!" (
-    REM Assume argument is a file
-    if "!IS_CODEC_SETUP!"=="0" call :codec_setup
-    if "!IS_SUFFIX_PROCESSED!"=="0" call :process_suffix
-    echo Processing file: "!CURRENT_ARG!" ^(Force: %DO_FORCE%, Delete: %DO_DELETE%^)
-    set PROCESSED_ANY_PATH=1
-    shift
-    call :process_single_file "!CURRENT_ARG!" %DO_FORCE% %DO_DELETE%
-) else (
-    echo WARNING: Argument "!CURRENT_ARG!" is not a recognized flag, file, or directory. Skipping.
-)
-
 shift
-goto :parse_args_loop
+goto :arg_loop
 
-:parse_args_done
+:args_done
 
-REM --- Check if any valid input path was processed ---
-if "%PROCESSED_ANY_PATH%"=="0" (
-    echo ERROR: No valid input files or folders were provided or found.
-    echo Usage: Drag and drop video files onto this script or run from cmd:
-    echo %SCRIPT_NAME% [options] [-r] [-f] "path\to\folder" "path\to\video1.mkv" ...
-    goto :eof
+REM Check if paths were provided
+if not defined PATHS_ARRAY_ELEMENTS (
+    echo ERROR: No input file or directory paths provided.
+    exit /b 1
 )
 
-echo Argument parsing complete.
+REM Escape script path for PowerShell single quotes and brackets
+set "PS_ESCAPED_SCRIPT_PATH=%POWERSHELL_SCRIPT_PATH:'=''%"
+set "PS_ESCAPED_SCRIPT_PATH=%PS_ESCAPED_SCRIPT_PATH:[=`[%"
+set "PS_ESCAPED_SCRIPT_PATH=%PS_ESCAPED_SCRIPT_PATH:]=`]%"
 
-goto :eof
+REM Construct and execute the full PowerShell command string
+echo Executing PowerShell command: '%PS_ESCAPED_SCRIPT_PATH%'%PS_ARGS:&=^&% -Path @^(%PATHS_ARRAY_ELEMENTS:&=^&%^)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& '%PS_ESCAPED_SCRIPT_PATH%'%PS_ARGS% -Path @(%PATHS_ARRAY_ELEMENTS%)"
 
-REM =============================================
-REM == Subroutine to process a single file     ==
-REM =============================================
-:process_single_file
-REM --- Check if input argument is empty ---
-if "%~1"=="" (
-    echo Processed all files in this batch.
-    goto :eof
-)
-set "INPUT_FILE=%~1"
-set "FORCE_PROCESSING=%2"
-set "DELETE_ORIGINAL_FLAG=%3"
-set "INPUT_PATH=%~dp1"
-set "INPUT_NAME=%~n1"
-set "INPUT_EXT=%~x1"
+REM Capture the exit code from PowerShell
+set "EXIT_CODE=%ERRORLEVEL%"
 
-REM --- Construct Potential Output Path EARLY for check ---
-set "OUTPUT_FILE=%INPUT_PATH%%INPUT_NAME%%OUTPUT_SUFFIX%%OUTPUT_EXT%"
-
-REM --- Check if Output File Exists and if Force flag is NOT set ---
-if exist "%OUTPUT_FILE%" (
-    if not "%FORCE_PROCESSING%"=="1" (
-        echo Skipping "!INPUT_FILE!" because output "!OUTPUT_FILE!" already exists. Use -f to force.
-        goto :eof
-    ) else (
-        echo Forcing processing for "!INPUT_FILE!" despite existing output "!OUTPUT_FILE!".
-    )
-)
-
-echo.
-echo -----------------------------------------------------
-echo Processing: !INPUT_FILE!
-echo -----------------------------------------------------
-echo.
-
-REM --- Input Format Check ---
-REM Currently redundant, may change later
-if "%FORCE_PROCESSING%"=="1" (
-    set SUPPORTED=true
-) else (
-    set SUPPORTED=false
-    if /i "%INPUT_EXT%"==".mkv" set SUPPORTED=true
-    if /i "%INPUT_EXT%"==".mp4" set SUPPORTED=true
-    if /i "%INPUT_EXT%"==".avi" set SUPPORTED=true
-    if /i "%INPUT_EXT%"==".gif" set SUPPORTED=true
-)
-
-if "%SUPPORTED%"=="false" (
-    echo WARNING: Input format %INPUT_EXT% may not be fully supported. Skipping.
-    goto :eof
-)
-
-REM --- Get Input Video Info (Pixel Format) ---
-echo Probing file details with ffprobe...
-set PIX_FMT=
-
-echo   Probing pixel format for "!INPUT_FILE!"...
-set "TEMP_FFPROBE_OUT=%TEMP%\ffprobe_pixfmt_%RANDOM%.txt"
-"%FFPROBE_PATH%" -v error -select_streams v:0 -show_entries stream=pix_fmt -of csv=p=0 "%INPUT_FILE%" > "%TEMP_FFPROBE_OUT%"
-
-set PIX_FMT=
-if exist "%TEMP_FFPROBE_OUT%" (
-    for /f "usebackq tokens=*" %%G in ("%TEMP_FFPROBE_OUT%") do (
-        set "PIX_FMT=%%G"
-    )
-    del "%TEMP_FFPROBE_OUT%"
-)
-
-if not defined PIX_FMT (
-    echo ERROR: ffprobe failed to determine pixel format for "!NPUT_FILE!". Check ffprobe command/output if run manually. Skipping.
-    goto :eof
-)
-echo   Detected Pixel Format: %PIX_FMT%
-
-REM --- HDR Check (Simple AV1 heuristic based on Go code comment) ---
-if /i not "%VIDEO_CODEC%"=="libsvtav1" if /i not "%VIDEO_CODEC%"=="av1_nvenc" if /i not "%VIDEO_CODEC%"=="av1_amf" (
-    REM Check if pix_fmt contains '10le' or '10be' or '12le' etc. (very basic HDR check)
-    echo "%PIX_FMT%" | findstr /r /c:"10^[lb^]e" /c:"12^[lb^]e" /c:"p010" /c:"yuv420p10" > nul
-    if !ERRORLEVEL!==0 (
-        echo WARNING: Detected potential HDR pixel format ^(%PIX_FMT%^). Only AV1 encoders fully support HDR preservation in this script. Output might not be HDR.
-    )
-)
-
-echo.
-echo Output file will be: !OUTPUT_FILE!
-
-REM --- Construct FFMPEG Command ---
-
-REM ** Escape the shader path for use within the filtergraph **
-set "ESCAPED_SHADER_PATH=%SHADER_BASE_PATH%%SHADER_FILE%"
-set "ESCAPED_SHADER_PATH=!ESCAPED_SHADER_PATH:\=\\!"
-set "ESCAPED_SHADER_PATH=!ESCAPED_SHADER_PATH::=\:!"
-
-REM --- Prepare Conditional Arguments ---
-
-set .gif_conds=no_audio no_subs
-set .mp4_conds=no_subs
-
-call :collect_stream_args "!INPUT_FILE!" "!OUTPUT_FILE!"
-if not defined MAP_ARGS (
-    echo ERROR: No valid stream arguments found for "!INPUT_FILE!". Skipping.
-    goto :eof
-)
-
-REM --- Extract Subtitles if Flag is Set ---
-if "!DO_EXTRACT_SUBS!"=="1" (
-    set "EXTRACT_ARGS="
-    if "!FORCE_PROCESSING!"=="1" set "EXTRACT_ARGS=!EXTRACT_ARGS! -f"
-    REM Pass the correct suffix and format used for the transcoded file
-    set "EXTRACT_ARGS=!EXTRACT_ARGS! -suffix "!OUTPUT_SUFFIX!""
-    set "EXTRACT_ARGS=!EXTRACT_ARGS! -format "!SUB_FORMAT!""
-
-    set "EXTRACT_CMD="%BASE_DIR%\scripts\extract-subs.bat"!EXTRACT_ARGS! "!INPUT_FILE!""
-
-    echo.
-    echo Extracting subtitles with command: !EXTRACT_CMD!
-    call !EXTRACT_CMD! >nul 2>&1
-    if not !ERRORLEVEL!==0 (
-        echo.
-        echo WARNING: Subtitle extraction failed for "!INPUT_FILE!" ^(Errorlevel: !ERRORLEVEL!^).
-    ) else (
-        echo Successfully extracted subtitles for "!INPUT_FILE!".
-    )
-)
-
-REM --- Check Output File Existence AGAIN before FFMPEG ---
-if exist "%OUTPUT_FILE%" (
-    if not "%FORCE_PROCESSING%"=="1" (
-        echo Skipping "!INPUT_FILE!" because output "!OUTPUT_FILE!" was found just before transcoding. Use -f to force.
-        goto :eof
-    )
-)
-
-REM --- Execute FFMPEG ---
-echo.
-echo Starting ffmpeg command:
-echo "%FFMPEG_PATH%" -v warning -stats -y ^
-    %HWACCEL_PARAMS% ^
-    -i "!INPUT_FILE!" ^
-    -init_hw_device vulkan -vf "format=%PIX_FMT%,hwupload,libplacebo=w=%TARGET_RESOLUTION_W%:h=%TARGET_RESOLUTION_H%:upscaler=bilinear:custom_shader_path='!ESCAPED_SHADER_PATH!',format=%PIX_FMT%" ^
-    %MAP_ARGS% ^
-    -c:v %VIDEO_CODEC% -qp %CQP% ^
-    %PRESET_PARAM% ^
-    %THREAD_PARAM% ^
-    "!OUTPUT_FILE!"
-
-call "%FFMPEG_PATH%" -v warning -stats -y ^
-    %HWACCEL_PARAMS% ^
-    -i "!INPUT_FILE!" ^
-    -init_hw_device vulkan -vf "format=%PIX_FMT%,hwupload,libplacebo=w=%TARGET_RESOLUTION_W%:h=%TARGET_RESOLUTION_H%:upscaler=bilinear:custom_shader_path='!ESCAPED_SHADER_PATH!',format=%PIX_FMT%" ^
-    %MAP_ARGS% ^
-    -c:v %VIDEO_CODEC% -qp %CQP% ^
-    %PRESET_PARAM% ^
-    %THREAD_PARAM% ^
-    "!OUTPUT_FILE!"
-echo.
-
-if not !ERRORLEVEL!==0 (
-    echo ERROR: ffmpeg process failed or was interrupted ^(Errorlevel: !ERRORLEVEL!^) while processing "!INPUT_FILE!".
-    set STOP_PROCESSING=1
-    if not !ERRORLEVEL!==255 (         REM Normal interrupt Ctrl+C
-    if not !ERRORLEVEL!==123 (         REM Hard interrupt Ctrl+C
-    if not !ERRORLEVEL!==-1073741510 ( REM Idk some kinda interrupt Ctrl+C
-        echo Cleaning up output file...
-    )))
-    goto :eof
-)
-
-echo Successfully processed "!INPUT_FILE!"
-
-REM --- Set Default Audio if Flag is Set ---
-if "!DO_SET_DEFAULT_AUDIO!"=="1" if exist "%OUTPUT_FILE%" (
-    set "SETAUDIO_ARGS="
-    if "!FORCE_PROCESSING!"=="1" set "SETAUDIO_ARGS=!SETAUDIO_ARGS! -f"
-    REM Use -replace to modify the output file in place
-    set "SETAUDIO_ARGS=!SETAUDIO_ARGS! -replace"
-    REM Pass language priority if specified via -alang
-    if defined AUDIO_LANG_PRIORITY (
-        set "SETAUDIO_ARGS=!SETAUDIO_ARGS! -lang "!AUDIO_LANG_PRIORITY!""
-    )
-
-    set "SETAUDIO_CMD="%BASE_DIR%\scripts\set-audio-priority.bat"!SETAUDIO_ARGS! "!OUTPUT_FILE!""
-
-    echo.
-    echo Setting default audio track with command: !SETAUDIO_CMD!
-    call !SETAUDIO_CMD! >nul 2>&1
-    if not !ERRORLEVEL!==0 (
-        echo WARNING: Setting default audio track failed for "!OUTPUT_FILE!" ^(Errorlevel: !ERRORLEVEL!^).
-    ) else (
-        echo Successfully set default audio track for "!OUTPUT_FILE!".
-    )
-)
-
-REM --- Delete Original File if Flag is Set ---
-if "%DELETE_ORIGINAL_FLAG%"=="1" if exist "%OUTPUT_FILE%" (
-    echo Deleting original file: "!INPUT_FILE!"
-    del "%INPUT_FILE%"
-    if not !ERRORLEVEL!==0 (
-        echo WARNING: Failed to delete original file "!INPUT_FILE!". It might be in use or permissions are denied.
-    ) else (
-        echo Successfully deleted original file: "!INPUT_FILE!"
-    )
-)
-
-goto :eof
-
-REM =============================================
-REM == Subroutine to collect stream arguments  ==
-REM =============================================
-:collect_stream_args
-set "INPUT_EXT=%~x1"
-set "OUTPUT_EXT=%~x2"
-echo Mapping video stream for supported output ^(%OUTPUT_EXT%^)...
-set MAP_ARGS=-map 0:v:0
-set output_conds=x
-set input_conds=x
-if defined %OUTPUT_EXT%_conds set "output_conds=!%OUTPUT_EXT%_conds!"
-if defined %INPUT_EXT%_conds set "input_conds=!%INPUT_EXT%_conds!"
-
-REM Check input and output containers for each specific stream condition
-if "x!output_conds:no_audio=!!input_conds:no_audio=!"=="x!output_conds!!input_conds!" (
-    echo Mapping audio streams for supported output ^(%OUTPUT_EXT%^)...
-    set MAP_ARGS=%MAP_ARGS% -map 0:a? -c:a copy
-) else (
-    echo Skipping audio streams for "%INPUT_EXT%" to "%OUTPUT_EXT%" output due to limited audio compatibility.
-    echo Perhaps extract audio manually?
-)
-
-if "x!output_conds:no_subs=!!input_conds:no_subs=!"=="x!output_conds!!input_conds!" (
-    echo Mapping subtitle streams for supported output ^(%OUTPUT_EXT%^)...
-    set MAP_ARGS=%MAP_ARGS% -map 0:s? -c:s copy
-) else (
-    echo Skipping subtitle streams for "%INPUT_EXT%" to "%OUTPUT_EXT%" output due to limited subtitle compatibility.
-    if "%DO_EXTRACT_SUBS%"=="0" (
-        echo Perhaps extract subtitles manually?
-    )
-)
-
-goto :eof
-
-
-REM =============================================
-REM == Subroutine to process a directory       ==
-REM =============================================
-:process_directory
-set "DIR_PATH=%~1"
-set "IS_RECURSIVE=%2"
-set "FORCE_OVERWRITE_FILES=%3"
-set "DELETE_ORIGINAL_FILES=%4"
-
-echo Searching for video files in "%DIR_PATH%" ^(Recursive: %IS_RECURSIVE%, Force: %FORCE_OVERWRITE_FILES%, Delete: %DELETE_ORIGINAL_FILES%^)...
-
-if "%IS_RECURSIVE%"=="1" (
-    for /r "%DIR_PATH%" %%F in (*.mkv *.mp4 *.avi) do (
-        REM Check if filename ends with the output suffix
-        set "CURRENT_FILENAME=%%~nF"
-        set "FILENAME_SUFFIX=!CURRENT_FILENAME:~-%OUTPUT_SUFFIX_LEN%!"
-
-        set SKIP_FILE=0
-        if /i "!FILENAME_SUFFIX!"=="!OUTPUT_SUFFIX!" set SKIP_FILE=1
-
-        if "!SKIP_FILE!"=="1" (
-            echo Skipping already processed file: "%%F"
-        ) else (
-            echo Found recursive: "%%F"
-            call :process_single_file "%%F" %FORCE_OVERWRITE_FILES% %DELETE_ORIGINAL_FILES%
-            if "!STOP_PROCESSING!"=="1" goto :eof
-        )
-    )
-) else (
-    for %%F in ("%DIR_PATH%\*.mkv" "%DIR_PATH%\*.mp4" "%DIR_PATH%\*.avi") do (
-        REM Check if filename ends with the output suffix
-        set "CURRENT_FILENAME=%%~nF"
-        set "FILENAME_SUFFIX=!CURRENT_FILENAME:~-%OUTPUT_SUFFIX_LEN%!"
-
-        set SKIP_FILE=0
-        if /i "!FILENAME_SUFFIX!"=="!OUTPUT_SUFFIX!" set SKIP_FILE=1
-
-        if "!SKIP_FILE!"=="1" (
-            echo Skipping already processed file: "%%F"
-        ) else (
-            echo Found: "%%F"
-            call :process_single_file "%%F" %FORCE_OVERWRITE_FILES% %DELETE_ORIGINAL_FILES%
-            if "!STOP_PROCESSING!"=="1" goto :eof
-        )
-    )
-)
-
-goto :eof
-
-
-:finished
-echo.
-echo All arguments processed.
 endlocal
+exit /b %EXIT_CODE%

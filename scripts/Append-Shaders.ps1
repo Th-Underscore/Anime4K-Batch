@@ -53,7 +53,7 @@ foreach ($relPath in $RelativePathsWithPlaceholder) {
     # Trim whitespace from each part
     $trimmedRelPath = $relPath.Trim()
     if ($trimmedRelPath -like '~~*') {
-         # Replace placeholder, handling both / and \ after ~~ potentially
+        # Replace placeholder, handling both / and \ after ~~ potentially
         $pathSuffix = $trimmedRelPath.Substring(2).TrimStart('\/')
         $fullPath = Join-Path -Path $BaseDir -ChildPath $pathSuffix
         $FullPaths += $fullPath
@@ -71,7 +71,7 @@ Write-Host "Files to combine (in order):"
 $FullPaths | ForEach-Object { Write-Host "- $_" }
 
 # Check if all source files exist
-$missingFiles = $FullPaths | Where-Object { !(Test-Path $_ -PathType Leaf) }
+$missingFiles = $FullPaths | Where-Object { !(Test-Path -LiteralPath $_ -PathType Leaf) }
 if ($missingFiles) {
     Write-Error "The following source files were not found:"
     $missingFiles | ForEach-Object { Write-Error "- $_" }
@@ -82,7 +82,7 @@ Write-Host "Combining shaders into $OutputFile..."
 
 # Combine the files
 try {
-    Get-Content -Raw -Path $FullPaths | Set-Content -Path $OutputFile -NoNewline -ErrorAction Stop
+    Get-Content -Raw -LiteralPath $FullPaths | Set-Content -LiteralPath $OutputFile -NoNewline -ErrorAction Stop
     Write-Host "Successfully created $OutputFile"
 } catch {
     Write-Error "Failed to combine files. Error: $($_.Exception.Message)"

@@ -1,0 +1,15 @@
+{
+    // --- Input/Output ---"Container": "mp4", // Target output container format (e.g., 'mp4', 'mkv').
+    "Recurse": false, // Process folders recursively.
+    "Force": false, // Force overwrite existing output files.
+    "Delete": false, // Delete original file after successful remux (USE WITH CAUTION!).
+
+    // --- Executable Paths (Optional) ---
+    "FfmpegPath": "", // Optional: Path to ffmpeg.exe. Auto-detected if empty or omitted.
+    "FfprobePath": "", // Optional: Path to ffprobe.exe (not typically needed for remux).
+    "DisableWhereSearch": false, // Disable searching for ffmpeg/ffprobe in PATH.
+
+    // --- Other ---
+    "Verbose": false, // Verbose output (detailed progress and information).
+    "Concise": false // Concise output (only progress shown).
+}
