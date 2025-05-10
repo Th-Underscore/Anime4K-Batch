@@ -30,7 +30,6 @@ This batch script enhances the resolution of videos using GLSL shaders like [Ani
 *   Automatic detection of `ffmpeg`/`ffprobe` via system PATH (can be disabled).
 *   Optional subtitle extraction using [`extract-subs.bat`](./scripts/extract-subs.bat), configurable via [`Anime4K-Batch.bat`](./Anime4K-Batch.bat). See [Enabling Subtitle Extraction](#enabling-subtitle-extraction).
 *   Optional default audio track prioritization using [`set-audio-priority.bat`](./scripts/set-audio-priority.bat), configurable via [`Anime4K-Batch.bat`](./Anime4K-Batch.bat). See [Setting Default Audio Priority](#setting-default-audio-priority).
-*   
 
 ## Requirements
 
@@ -198,42 +197,79 @@ Upscaled video files are saved in the *same directory* as their corresponding in
 
 ## Configuration
 
-There are two main methods of configuring the script.
+The primary method for configuring Anime4K-Batch is by editing the `config.json` file, located in the root directory alongside `Anime4K-Batch.bat`. This file allows you to set persistent default values for nearly all script options, making it the recommended way to customize behavior.
+
+Settings in `config.json` are automatically loaded by the scripts. For temporary overrides for a specific run, or for scripting particular behaviors, command-line flags can be used.
 
 <details>
-<summary><b>Standard</b></summary>
+<summary><b>1. Using <code>config.json</code> (Recommended)</b></summary>
 
-Specifying these options/flags in [the main batch script](./Anime4K-Batch.bat?plain=1#L66) will determine the script's behaviour globally.
+Edit the `config.json` file using any text editor. This file uses a simple JSON format to define various settings. Changes saved to `config.json` will apply to subsequent runs of `Anime4K-Batch.bat` and its associated scripts (like `glsl-transcode.bat`, `extract-subs.bat`, etc.), provided they support reading this configuration file.
 
-In the script, place these flags *before* the file/folder paths. See [`Anime4K-Batch.bat`](./Anime4K-Batch.bat) for a full guide.
+**Example `config.json` structure:**
+```json
+{
+    // --- Input/Output ---
+    "Suffix": "_upscaled",         // Suffix to append to output filenames.
+    "Container": "mkv",             // Output container format (e.g., 'mkv', 'mp4').
+    "Force": false,                 // Force overwrite existing output files.
+    "Recurse": false,               // Process folders recursively.
 
-**Common Flags (affect both [`glsl-transcode.bat`](./scripts/glsl-transcode.bat) and [`extract-subs.bat`](./scripts/extract-subs.bat) if enabled):**
+    // --- Transcoding Settings ---
+    "TargetResolutionW": 3840,      // Target output width.
+    "TargetResolutionH": 2160,      // Target output height.
+    "ShaderFile": "Anime4K_ModeA_A-fast.glsl", // Shader filename located in ShaderBasePath.
+    "EncoderProfile": "nvidia_h265",// Encoder profile (e.g., cpu_h264, nvidia_h265).
+    "CQP": 24,                      // Constant Quantization Parameter (quality).
 
-*   `-suffix <string>`: Suffix to append after the base filename part.
-*   `-r`: **(Flag)** Process folders recursively.
-*   `-f`: **(Flag)** Force overwrite if an output file with the target name already exists.
-
-**Transcoding-Specific Options & Flags:**
-
-*   `-w <width>`: Target width.
-*   `-h <height>`: Target height.
-*   `-shader <file>`: Shader filename (relative to shader path).
-*   `-shaderpath <path>`: Base path for shaders.
-*   `-codec-prof <type>`: Encoder profile (e.g., nvidia_h265, cpu_av1).
-*   `-cqp <value>`: Constant Quantization Parameter (quality, 0-51).
-*   `-container <type>`: Output container format (`avi`, `mkv`, `mp4`).
-*   `-sformat <string>`: Alias of `-format` option for `extract-subs.bat`.
-*   `-alang <list>`: Comma-separated audio language priority for `-set-audio-priority` (e.g., "jpn,eng").
-*   `-delete`: **(Flag)** Delete original file after successful transcode (USE WITH CAUTION!).
-*   `-extract-subs`: **(Flag)** Extract subtitles using `extract-subs.bat` before transcoding.
-*   `-set-audio-priority`: **(Flag)** Set default audio track on the *output* file using `set-audio-priority.bat` after transcoding.
-
+    // ... and many more settings.
+    // For a full list and detailed descriptions, please refer to the actual 'config.json' file.
+}
+```
+Ensure your `config.json` is valid JSON. You can find a template or the default `config.json` in the repository.
 </details>
 
 <details>
-<summary><b>Alternative</b></summary>
+<summary><b>2. Command-Line Flags (Overrides <code>config.json</code>)</b></summary>
 
-Advanced settings are configured by editing the `--- SETTINGS ---` section directly within the [`scripts/glsl-transcode.bat`](./scripts/glsl-transcode.bat) script file:
+You can override settings from `config.json` (and any internal script defaults) by providing command-line flags when executing `Anime4K-Batch.bat`. These flags apply *only* to that specific run and do not modify `config.json`.
+
+This is useful for:
+*   Testing different settings without changing your defaults.
+*   Scripting specific one-off tasks.
+
+For a comprehensive list of available command-line options and flags, their functions, and examples, please refer to the [Command Line Options & Flags](#command-line-options--flags) section under "Installation & Usage".
+
+**Example:**
+If `config.json` sets `TargetResolutionW` to `1920`, but you want to upscale a specific batch to `3840`, you can run:
+```batch
+Anime4K-Batch.bat -w 3840 "path\to\your\videos"
+```
+
+Additionally, you can modify the main `Anime4K-Batch.bat` script itself to include default flags in its execution line for `glsl-transcode.bat` or other sub-scripts. This is an older method but still functional. Flags set this way will also override `config.json` settings.
+Example (editing `Anime4K-Batch.bat`):
+```batch
+:: Original line might be:
+:: call "%~dp0\scripts\glsl-transcode.bat" %*
+:: Modified to always recurse and force overwrite:
+call "%~dp0\scripts\glsl-transcode.bat" -r -f %*
+```
+However, managing defaults through `config.json` is generally cleaner.
+</details>
+
+<details>
+<summary><b>3. Editing Script Variables (Legacy / Advanced)</b></summary>
+
+Prior to the widespread use of `config.json`, default settings were primarily managed by editing variables directly within the individual script files (e.g., in the `--- SETTINGS ---` section of `scripts/glsl-transcode.bat`).
+
+If `config.json` is present and the script is designed to read it (which is the case for the core scripts), values from `config.json` will typically take precedence over these hardcoded internal script variables.
+
+This legacy method might still be relevant for:
+*   Scripts that have not been updated to use `config.json`.
+*   Advanced users who want to inspect or modify the script's deepest default behaviors.
+*   Situations where `config.json` might be missing or unreadable.
+
+The following settings, for example, can be found and edited directly in [`scripts/glsl-transcode.bat`](./scripts/glsl-transcode.bat):
 
 *   `TARGET_RESOLUTION_W`, `TARGET_RESOLUTION_H`: Desired output video dimensions (width and height).
 *   `SHADER_FILE`: The specific `.glsl` shader file to use (relative to `SHADER_BASE_PATH`).
@@ -254,6 +290,7 @@ Advanced settings are configured by editing the `--- SETTINGS ---` section direc
 *   `DO_SET_DEFAULT_AUDIO`: Set to `1` to enable setting the default audio track by default.
 *   `AUDIO_LANG_PRIORITY`: Comma-separated list of preferred audio languages for `DO_SET_DEFAULT_AUDIO` (e.g., `"jpn,eng"`).
 
+It's generally recommended to use `config.json` for configuration, as direct script edits can be overwritten by updates to the scripts.
 </details>
 
 ### Codecs compatibility table
@@ -273,8 +310,8 @@ By default, [`Anime4K-Batch.bat`](./Anime4K-Batch.bat) only runs the upscaling s
     *   Pass the `-extract-subs` flag when calling [`Anime4K-Batch.bat`](./Anime4K-Batch.bat) or [`glsl-transcode.bat`](./scripts/glsl-transcode.bat). This tells `glsl-transcode.bat` to trigger `extract-subs.bat` internally before it starts transcoding. This is useful for one-off extractions without extensively modifying `Anime4K-Batch.bat`.
     *   Optionally, pass the `-sformat <string>` argument (e.g., `-sformat FILE`) to set a custom output filename format. If `-sformat` is not provided, `extract-subs.bat` will use its internal default priority.
 2.  **Modify `Anime4K-Batch.bat`:**
-    *   Comment out the line: `:: call %~dp0\scripts\glsl-transcode.bat %*` (add `::` at the beginning).
-    *   Create a new line: `call %~dp0\scripts\extract-subs.bat %*   &&   call %~dp0\scripts\glsl-transcode.bat %*`. This makes `Anime4K-Batch.bat` explicitly call `extract-subs.bat` first.
+    *   Comment out the line: `:: call "%~dp0\scripts\glsl-transcode.bat" %*` (add `::` at the beginning).
+    *   Create a new line: `call "%~dp0\scripts\extract-subs.bat" %*   &&   call "%~dp0\scripts\glsl-transcode.bat" %*`. This makes `Anime4K-Batch.bat` explicitly call `extract-subs.bat` first.
 
 ### Setting Default Audio Priority
 
