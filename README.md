@@ -250,9 +250,9 @@ Additionally, you can modify the main `Anime4K-Batch.bat` script itself to inclu
 Example (editing `Anime4K-Batch.bat`):
 ```batch
 :: Original line might be:
-:: call "%~dp0\scripts\glsl-transcode.bat" %*
+:: call "%~dp0\scripts\glsl-transcode.bat" %* ^
 :: Modified to always recurse and force overwrite:
-call "%~dp0\scripts\glsl-transcode.bat" -r -f %*
+call "%~dp0\scripts\glsl-transcode.bat" -r -f %* ^
 ```
 However, managing defaults through `config.json` is generally cleaner.
 </details>
@@ -310,8 +310,8 @@ By default, [`Anime4K-Batch.bat`](./Anime4K-Batch.bat) only runs the upscaling s
     *   Pass the `-extract-subs` flag when calling [`Anime4K-Batch.bat`](./Anime4K-Batch.bat) or [`glsl-transcode.bat`](./scripts/glsl-transcode.bat). This tells `glsl-transcode.bat` to trigger `extract-subs.bat` internally before it starts transcoding. This is useful for one-off extractions without extensively modifying `Anime4K-Batch.bat`.
     *   Optionally, pass the `-sformat <string>` argument (e.g., `-sformat FILE`) to set a custom output filename format. If `-sformat` is not provided, `extract-subs.bat` will use its internal default priority.
 2.  **Modify `Anime4K-Batch.bat`:**
-    *   Comment out the line: `:: call "%~dp0\scripts\glsl-transcode.bat" %*` (add `::` at the beginning).
-    *   Create a new line: `call "%~dp0\scripts\extract-subs.bat" %*   &&   call "%~dp0\scripts\glsl-transcode.bat" %*`. This makes `Anime4K-Batch.bat` explicitly call `extract-subs.bat` first.
+    *   Comment out the line: `:: call "%~dp0\scripts\glsl-transcode.bat" %* ^` (add `::` at the beginning).
+    *   Create a new line: `call "%~dp0\scripts\extract-subs.bat" %*   &&   call "%~dp0\scripts\glsl-transcode.bat" %* ^`. This makes `Anime4K-Batch.bat` explicitly call `extract-subs.bat` first.
 
 ### Setting Default Audio Priority
 

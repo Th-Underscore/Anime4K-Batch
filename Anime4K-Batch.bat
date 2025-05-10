@@ -1,6 +1,6 @@
 :: --- Anime4K-GUI Batch Transcoder ---
 :: Replicates the core ffmpeg GLSL transcoding logic of the Anime4K-GUI project, as well as subtitle extraction.
-:: Append your desired options before the ^ parameter.
+:: Append your desired options before the %* parameter.
 ::
 :: --- Settings ---
 :: glsl-transcode.bat options (place BEFORE file/folder paths):
@@ -25,27 +25,27 @@
 ::
 :: --- Examples ---
 :: Config:
-::    - call "%~dp0\scripts\glsl-transcode.bat" -w 3840 -h 2160 -container mp4 -r ^
-::    - call "%~dp0\scripts\glsl-transcode.bat" -w 1920 -h 1080 -r ^
+::    - call "%~dp0\scripts\glsl-transcode.bat" -w 3840 -h 2160 -container mp4 -r %* ^
+::    - call "%~dp0\scripts\glsl-transcode.bat" -w 1920 -h 1080 -r %* ^
 ::
 :: --- More Examples ---
 :: Upscale everything in a folder recursively to 4K using ModeA_A HQ shader in MPV's config, force overwrite, extract subs, and set default audio priority to Japanese -> Russian -> English:
-::    - call "%~dp0\scripts\glsl-transcode.bat" -w 3840 -h 2160 -shaderpath "%appdata%\mpv\shaders" -shader Anime4K_ModeA_A.glsl -r -f -extract-subs -set-audio-priority -alang "jpn,rus,eng" ^
+::    - call "%~dp0\scripts\glsl-transcode.bat" -w 3840 -h 2160 -shaderpath "%appdata%\mpv\shaders" -shader Anime4K_ModeA_A.glsl -r -f -extract-subs -set-audio-priority -alang "jpn,rus,eng" %* ^
 ::
 :: Upscale to 1080p, use a lower quality setting (higher CQP for smaller files), output as MP4, specify a custom shader folder (using default shader file), process folders recursively, extract subs, and set default audio (using default priority):
-::    - call "%~dp0\scripts\glsl-transcode.bat" -w 1920 -h 1080 -cqp 32 -container mp4 -shaderpath "C:\MyCustomShaders" -r -extract-subs -set-audio-priority ^
+::    - call "%~dp0\scripts\glsl-transcode.bat" -w 1920 -h 1080 -cqp 32 -container mp4 -shaderpath "C:\MyCustomShaders" -r -extract-subs -set-audio-priority %* ^
 ::
 :: Upscale, extract subs without specifying language, and force overwrite:
-::    - call "%~dp0\scripts\glsl-transcode.bat" -extract-subs -sformat "FILE.title" -f ^
+::    - call "%~dp0\scripts\glsl-transcode.bat" -extract-subs -sformat "FILE.title" -f %* ^
 ::
 :: Upscale to 4K with CQP 24 and set default audio to English:
-::    - call "%~dp0\scripts\glsl-transcode.bat" -w 3840 -h 2160 -cqp 24 -set-audio-priority -alang "eng" ^
+::    - call "%~dp0\scripts\glsl-transcode.bat" -w 3840 -h 2160 -cqp 24 -set-audio-priority -alang "eng" %* ^
 ::
 :: Use default settings from glsl-transcode.bat but process folders recursively and extract subs:
-::    - call "%~dp0\scripts\glsl-transcode.bat" -r -extract-subs ^
+::    - call "%~dp0\scripts\glsl-transcode.bat" -r -extract-subs %* ^
 ::
 :: Upscale recursively, extract subtitles, set default audio, and delete original files after successful transcode (USE WITH CAUTION!):
-::    - call "%~dp0\scripts\glsl-transcode.bat" -r -extract-subs -set-audio-priority -delete ^
+::    - call "%~dp0\scripts\glsl-transcode.bat" -r -extract-subs -set-audio-priority -delete %* ^
 ::
 :: --- Usage ---
 :: CLI (check the README for better usage recommendations):
@@ -53,10 +53,11 @@
 ::    - C:\path\to\Anime4K-Batch.bat "%userprofile%\Anime\Season 1" "%userprofile%\Anime\Movie.mkv"
 :: or - C:\path\to\Anime4K-Batch.bat -r "%userprofile%\Anime"
 
-:: This is the default command. It will only transcode using the settings in glsl-transcode.bat.
-:: Append your desired flags and options before the ^ character.
+:: This is the default command. It will only transcode using the settings in config.json.
+:: Append your desired flags and options before the %* ^ character.
 :: Include the -extract-subs flag to also extract subtitles from the input file (recommended for transcoding to mp4).
-call "%~dp0\scripts\glsl-transcode.bat" ^
-    -config "%~dp0\config.json" %*
+:: MAKE SURE THERE IS NO SPACE BETWEEN THE ^ AND THE NEXT LINE! A SINGLE SPACE WILL BREAK THE SCRIPT! The indentation afterwards is acceptable.
+call "%~dp0\scripts\glsl-transcode.bat" %* ^
+    -config "%~dp0\config.json"
 
 pause
