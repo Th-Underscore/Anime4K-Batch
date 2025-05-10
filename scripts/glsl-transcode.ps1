@@ -67,6 +67,9 @@ Disable searching for ffmpeg/ffprobe in PATH using 'where.exe' or 'Get-Command'.
 .PARAMETER Concise
 Concise output (only progress shown).
 
+.PARAMETER ConfigPath
+Path to the config.json file. Default: `glsl-transcode-config.json`. Anime4K-Batch default: 'config.json' (script's root directory).
+
 .EXAMPLE
 .\glsl-transcode.ps1 -Path "C:\videos\input.mkv" -TargetResolutionW 1920 -TargetResolutionH 1080 -EncoderProfile cpu_h265 -CQP 28
 
@@ -163,7 +166,7 @@ begin {
     if (Test-Path -LiteralPath $effectiveConfigPath -PathType Leaf) {
         Write-Verbose "Loading configuration from: $effectiveConfigPath"
         try {
-            $jsonContent = (Get-Content -LiteralPath $effectiveConfigPath -Raw) -replace '//.*' # Use multiline mode for comment removal
+            $jsonContent = (Get-Content -LiteralPath $effectiveConfigPath -Raw) -replace '//.*'
             $config = $jsonContent | ConvertFrom-Json -ErrorAction Stop
             Write-Verbose "Configuration loaded successfully."
 
@@ -287,6 +290,7 @@ begin {
     }
 
     # --- Locate FFMPEG and FFPROBE ---
+    # Correctly pass the switch parameter using -SwitchName:$BooleanVariable syntax
     $ffmpeg = Find-Executable -Name 'ffmpeg' -ExplicitPath $FfmpegPath -DisableWhere:$DisableWhereSearch
     $ffprobe = Find-Executable -Name 'ffprobe' -ExplicitPath $FfprobePath -DisableWhere:$DisableWhereSearch
 
