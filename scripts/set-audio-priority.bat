@@ -32,6 +32,7 @@ set "ARG_VAL=%ARG_VAL:'=''%"
 
 if /i "%~1"=="-lang"             ( set "PS_ARGS=%PS_ARGS% -Lang '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-suffix"           ( set "PS_ARGS=%PS_ARGS% -Suffix '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-config"              ( set "PS_ARGS=%PS_ARGS% -ConfigPath '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 
 :handle_path
 REM --- Assume it's a path ---

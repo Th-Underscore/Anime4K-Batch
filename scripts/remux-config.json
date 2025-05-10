@@ -1,5 +1,5 @@
 {
-    // --- Input/Output ---"Container": "mp4", // Target output container format (e.g., 'mp4', 'mkv').
+    "Container": "mp4", // Target output container format (e.g., 'mp4', 'mkv').
     "Recurse": false, // Process folders recursively.
     "Force": false, // Force overwrite existing output files.
     "Delete": false, // Delete original file after successful remux (USE WITH CAUTION!).

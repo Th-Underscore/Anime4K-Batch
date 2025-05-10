@@ -106,7 +106,7 @@ begin {
     if (Test-Path -LiteralPath $effectiveConfigPath -PathType Leaf) {
         Write-Verbose "Loading configuration from: $effectiveConfigPath"
         try {
-            $jsonContent = (Get-Content -LiteralPath $effectiveConfigPath -Raw) -replace '(?m)^//.*'
+            $jsonContent = (Get-Content -LiteralPath $effectiveConfigPath -Raw) -replace '//.*'
             $config = $jsonContent | ConvertFrom-Json -ErrorAction Stop
             Write-Verbose "Configuration loaded successfully."
 

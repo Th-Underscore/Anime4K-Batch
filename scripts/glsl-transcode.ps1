@@ -163,7 +163,7 @@ begin {
     if (Test-Path -LiteralPath $effectiveConfigPath -PathType Leaf) {
         Write-Verbose "Loading configuration from: $effectiveConfigPath"
         try {
-            $jsonContent = (Get-Content -LiteralPath $effectiveConfigPath -Raw) -replace '(?m)^//.*' # Use multiline mode for comment removal
+            $jsonContent = (Get-Content -LiteralPath $effectiveConfigPath -Raw) -replace '//.*' # Use multiline mode for comment removal
             $config = $jsonContent | ConvertFrom-Json -ErrorAction Stop
             Write-Verbose "Configuration loaded successfully."
 
@@ -287,7 +287,6 @@ begin {
     }
 
     # --- Locate FFMPEG and FFPROBE ---
-    # Correctly pass the switch parameter using -SwitchName:$BooleanVariable syntax
     $ffmpeg = Find-Executable -Name 'ffmpeg' -ExplicitPath $FfmpegPath -DisableWhere:$DisableWhereSearch
     $ffprobe = Find-Executable -Name 'ffprobe' -ExplicitPath $FfprobePath -DisableWhere:$DisableWhereSearch
 

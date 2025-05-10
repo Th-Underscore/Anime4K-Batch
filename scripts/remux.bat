@@ -29,6 +29,7 @@ REM Escape %~2 single quotes, then wrap in 'value'
 set "ARG_VAL=%~2"
 set "ARG_VAL=%ARG_VAL:'=''%"
 if /i "%~1"=="-container"        ( set "PS_ARGS=%PS_ARGS% -Container '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-config"        ( set "PS_ARGS=%PS_ARGS% -ConfigPath '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 
 :handle_path
 REM --- Assume it's a path ---
