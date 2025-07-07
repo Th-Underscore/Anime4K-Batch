@@ -70,7 +70,7 @@ if ($PSBoundParameters.ContainsKey('CustomRegex')) {
 }
 
 # Validate the path exists
-if (-not (Test-Path -Path $Path -PathType Container)) {
+if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
     Write-Error "Error: The specified path '$Path' does not exist or is not a directory."
     return
 }
@@ -83,7 +83,7 @@ Write-Host "Using Season: S$paddedSeason" -ForegroundColor Cyan
 Write-Host "--------------------------------------------------"
 
 # Get all files in the directory that match the extensions
-$files = Get-ChildItem -Path $Path -File | Where-Object { $videoExtensions -contains $_.Extension }
+$files = Get-ChildItem -LiteralPath $Path -File | Where-Object { $videoExtensions -contains $_.Extension }
 
 if (-not $files) {
     Write-Warning "No video files with specified extensions found in '$Path'."
@@ -119,7 +119,7 @@ foreach ($file in $files) {
 
         # Use the built-in ShouldProcess to handle -WhatIf and -Confirm
         if ($pscmdlet.ShouldProcess($file.Name, "Rename to $newFileName")) {
-            Rename-Item -Path $file.FullName -NewName $newFileName
+            Rename-Item -LiteralPath $file.FullName -NewName $newFileName
         }
     }
     else {
