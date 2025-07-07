@@ -50,7 +50,7 @@ param(
 )
 
 # --- Script Configuration ---
-# Default Regex: Now handles decimals!
+# Default Regex
 # (?i)                  - Makes the search case-insensitive.
 # \b(?:e|ep|-)\s*       - Looks for a word boundary (\b) followed by 'e', 'ep', or '-' (a non-capturing group ?:).
 # (?:\d+\.\d+|\d+)      - Groups a decimal number (e.g., 1.5) OR a whole number (e.g., 10). This is part of capture group 1.
@@ -62,7 +62,6 @@ $defaultRegex = '(?i)(?:e|ep|-|S\d+E)\s*((?:\d+\.\d+|\d+)(?:\s*-.*)?)'
 $videoExtensions = @('.mkv', '.mp4', '.avi', '.mov', '.webm')
 # --- End Configuration ---
 
-# Determine which regex to use
 $regexToUse = $defaultRegex
 if ($PSBoundParameters.ContainsKey('CustomRegex')) {
     Write-Host "Using custom regex provided by user: '$CustomRegex'" -ForegroundColor Yellow
@@ -90,40 +89,33 @@ if (-not $files) {
     return
 }
 
-# Loop through each file
+# Start loop
 foreach ($file in $files) {
-    # Check if the file name matches our regex pattern
     if ($file.BaseName -match $regexToUse) {
-        # The captured episode number is in $matches[1].
         $episodeString = $matches[1]
         $formattedEpisode = ""
 
-        # Check if the episode is a decimal or whole number for correct formatting
         if ($episodeString -like '*.*') {
-            # It's a decimal (e.g., "1.5"), so don't pad it.
+            # Don't pad decimals
             $formattedEpisode = $episodeString
         }
         else {
-            # It's a whole number, so pad it to two digits.
+            # Pad integers
             $formattedEpisode = $episodeString.PadLeft(2, '0')
         }
 
-        # Construct the new file name
         $newFileName = "S$($paddedSeason)E$($formattedEpisode)$($file.Extension)"
 
-        # Check if a rename is actually needed
         if ($file.Name -eq $newFileName) {
             Write-Host "SKIP: '$($file.Name)' is already in the correct format." -ForegroundColor Green
             continue
         }
 
-        # Use the built-in ShouldProcess to handle -WhatIf and -Confirm
         if ($pscmdlet.ShouldProcess($file.Name, "Rename to $newFileName")) {
             Rename-Item -LiteralPath $file.FullName -NewName $newFileName
         }
     }
     else {
-        # If the regex doesn't find a match, print a warning and skip the file.
         Write-Warning "Could not find an episode number in '$($file.Name)'. Skipping."
     }
 }
