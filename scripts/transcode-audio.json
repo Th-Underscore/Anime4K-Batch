@@ -1,0 +1,20 @@
+{
+    // --- Input/Output ---
+    "Codec": "ac3", // Audio codec to transcode to (e.g., "aac", "mp3", "flac", "opus", etc.).
+    "Bitrate": "", // Optional: Bitrate for the output audio file (e.g., "128k", "192k", "320k", etc.). Default bitrate is used if empty or omitted.
+    "Channels": "", // Optional: Number of audio channels (e.g., "1" for mono, "2" for stereo, "6" for 5.1, etc.). Original channels are used if empty or omitted.
+    "Suffix": "_transcoded", // Suffix for the output filename when not using -Replace. Ignored if -Replace is true.
+    "Recurse": false, // Process folders recursively.
+    "Force": false, // Force overwrite existing output files (or temporary files in -Replace mode).
+    "Delete": false, // Delete original file after successful processing (Mutually exclusive with Replace).
+    "Replace": false, // Replace the original file with the processed version (Mutually exclusive with Delete).
+
+    // --- Executable Paths (Optional) ---
+    "FfmpegPath": "", // Optional: Path to ffmpeg.exe. Auto-detected if empty or omitted.
+    "FfprobePath": "", // Optional: Path to ffprobe.exe. Auto-detected if empty or omitted.
+    "DisableWhereSearch": false, // Disable searching for ffmpeg/ffprobe in PATH.
+
+    // --- Other ---
+    "Verbose": false, // Verbose output (detailed progress and information).
+    "Concise": false // Concise output (only progress shown).
+}

@@ -16,12 +16,14 @@ REM Delete file context menu entries
 REG DELETE "%ROOT_STORE%\Ani4K.Transcode" /f
 REG DELETE "%ROOT_STORE%\Ani4K.Extract" /f
 REG DELETE "%ROOT_STORE%\Ani4K.Remux" /f
+REG DELETE "%ROOT_STORE%\Ani4K.TranscodeAudio" /f
 REG DELETE "%ROOT_STORE%\Ani4K.SetAudioPriority" /f
 
 REM Delete directory context menu entries
 REG DELETE "%ROOT_STORE%\Ani4K.TranscodeDir" /f
 REG DELETE "%ROOT_STORE%\Ani4K.ExtractDir" /f
 REG DELETE "%ROOT_STORE%\Ani4K.RemuxDir" /f
+REG DELETE "%ROOT_STORE%\Ani4K.TranscodeAudioDir" /f
 REG DELETE "%ROOT_STORE%\Ani4K.SetAudioPriorityDir" /f
 
 echo Removing main context menu entries (HKCU)...
