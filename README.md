@@ -28,8 +28,12 @@ This batch script enhances the resolution of videos using GLSL shaders like [Ani
 *   Preserves all audio and subtitle streams (requires MKV output for subtitles).
 *   Supports MP4, AVI, and MKV container formats for input/output.
 *   Automatic detection of `ffmpeg`/`ffprobe` via system PATH (can be disabled).
-*   Optional subtitle extraction using [`extract-subs.bat`](./scripts/extract-subs.bat), configurable via [`Anime4K-Batch.bat`](./Anime4K-Batch.bat). See [Enabling Subtitle Extraction](#enabling-subtitle-extraction).
-*   Optional default audio track prioritization using [`set-audio-priority.bat`](./scripts/set-audio-priority.bat), configurable via [`Anime4K-Batch.bat`](./Anime4K-Batch.bat). See [Setting Default Audio Priority](#setting-default-audio-priority).
+*   Optional subtitle extraction using [`extract-subs.bat`](./scripts/extract-subs.bat).
+*   Optional default subtitle track prioritization using [`set-subs-priority.bat`](./scripts/set-subs-priority.bat).
+*   Optional default audio track prioritization using [`set-audio-priority.bat`](./scripts/set-audio-priority.bat).
+*   Standalone audio transcoding using [`transcode-audio.bat`](./scripts/transcode-audio.bat).
+*   Standalone file remuxing using [`remux.bat`](./scripts/remux.bat) (separate functionality also included in [`glsl-transcode.bat`](./scripts/glsl-transcode.bat)).
+*   Advanced episode file renaming using [`Rename-MediaFiles.ps1`](./scripts/Rename-MediaFiles.ps1).
 
 ## Requirements
 
@@ -144,25 +148,23 @@ Using these options/flags override settings defined inside the script(s) *for th
 *   `-suffix <string>`: Suffix to append after the base filename part (default: `_upscaled`).
 *   `-sformat <string>`: Alias of `-format` option for `extract-subs.bat`.
 *   `-alang <list>`: Comma-separated audio language priority for `-set-audio-priority` (e.g., "jpn,eng").
+*   `-atitle <list>`: Comma-separated audio title priority for `-set-audio-priority`.
+*   `-slang <list>`: Comma-separated subtitle language priority for `-set-subs-priority`.
+*   `-stitle <list>`: Comma-separated subtitle title priority for `-set-subs-priority`.
 *   `-r`: **(Flag)** Process folders recursively.
 *   `-f`: **(Flag)** Force overwrite if an output file with the target name already exists.
 *   `-delete`: **(Flag)** Delete original file after successful transcode (USE WITH CAUTION!).
-*   `-extract-subs`: **(Flag)** Extract subtitles using `extract-subs.bat` before transcoding. Passes `-f`, `-suffix`, and `-format` (`-sformat`) flags automatically.
-*   `-set-audio-priority`: **(Flag)** Set default audio track on the *output* file using `set-audio-priority.bat` after transcoding. Passes `-f` and `-lang` (`-alang`) flags automatically.
+*   `-set-subs-priority`: **(Flag)** Set default subtitle track on the *input* file using `set-subs-priority.bat` before transcoding.
+*   `-extract-subs`: **(Flag)** Extract subtitles using `extract-subs.bat` before transcoding.
+*   `-set-audio-priority`: **(Flag)** Set default audio track on the *output* file using `set-audio-priority.bat` after transcoding.
 
 #### Command Line Examples
 
 These examples demonstrate various command-line possibilities. While some are based on the default settings, others showcase specific flags and options. Note that features like subtitle extraction and default audio setting require enabling them via flags (`-extract-subs`, `-set-audio-priority`) or modifying [`Anime4K-Batch.bat`](./Anime4K-Batch.bat) (see [Enabling Subtitle Extraction](#enabling-subtitle-extraction)). Note that, without editing the script, `Anime4K-Batch.bat` acts as an alias for [`glsl-transcode.bat`](./glsl-transcode.bat). Adjust paths and options as needed.
 
-*   **Upscale everything in a folder recursively to 4K using ModeA_A HQ shader in MPV's config, force overwrite, extract subs, and set default audio priority to Japanese -> Russian -> English:**
+*   **Upscale to 4K, set default subtitle to English "Full" track, extract it, then set default audio to Japanese "Commentary" track:**
     ```batch
-    Anime4K-Batch.bat -w 3840 -h 2160 -shaderpath "%appdata%\mpv\shaders" -shader Anime4K_ModeA_A.glsl -r -f -extract-subs -set-audio-priority -alang "jpn,rus,eng" "C:\path\to\input\folder"
-    ```
-    *(This assumes you are calling `Anime4K-Batch.bat` which passes flags to `glsl-transcode.bat`. The `-extract-subs` and `-set-audio-priority` flags trigger the respective sub-scripts)*
-
-*   **Upscale to 1080p, use a lower quality setting (higher CQP for smaller files), output as MP4, specify a custom shader folder (using default shader file), process folders recursively, extract subs, and set default audio (using default priority):**
-    ```batch
-    Anime4K-Batch.bat -w 1920 -h 1080 -cqp 32 -container mp4 -shaderpath "C:\MyCustomShaders" -r -extract-subs -set-audio-priority "C:\path\to\input"
+    Anime4K-Batch.bat -w 3840 -h 2160 -set-subs-priority -slang "eng" -stitle "Full" -extract-subs -set-audio-priority -alang "jpn" -atitle "Commentary" "C:\path\to\video.mkv"
     ```
 
 *   **Upscale, extract subs without specifying language, and force overwrite:**
@@ -289,6 +291,9 @@ The following settings, for example, can be found and edited directly in [`scrip
 *   `DO_EXTRACT_SUBS`: Set to `1` to enable subtitle extraction by default.
 *   `DO_SET_DEFAULT_AUDIO`: Set to `1` to enable setting the default audio track by default.
 *   `AUDIO_LANG_PRIORITY`: Comma-separated list of preferred audio languages for `DO_SET_DEFAULT_AUDIO` (e.g., `"jpn,eng"`).
+*   `DO_SET_DEFAULT_SUBTITLE`: Set to `1` to enable setting the default subtitle track by default.
+*   `SUB_LANG_PRIORITY`: Comma-separated list of preferred subtitle languages.
+*   `SUB_TITLE_PRIORITY`: Comma-separated list of preferred subtitle titles.
 
 It's generally recommended to use `config.json` for configuration, as direct script edits can be overwritten by updates to the scripts.
 </details>
@@ -302,16 +307,20 @@ It's generally recommended to use `config.json` for configuration, as direct scr
 
 **Hardware accelerated AV1 for NVIDIA and AMD is supported only on RTX 4000+ and RX 7000+ series respectively**
 
-### Enabling Subtitle Extraction
+### Controlling Subtitles
 
-By default, [`Anime4K-Batch.bat`](./Anime4K-Batch.bat) only runs the upscaling script ([`glsl-transcode.bat`](./scripts/glsl-transcode.bat)). There are two ways to enable subtitle extraction using [`extract-subs.bat`](./scripts/extract-subs.bat) before upscaling:
+Subtitle handling is managed by two separate flags that perform actions in a specific order:
 
-1.  **Use the `-extract-subs` Flag (Recommended):**
-    *   Pass the `-extract-subs` flag when calling [`Anime4K-Batch.bat`](./Anime4K-Batch.bat) or [`glsl-transcode.bat`](./scripts/glsl-transcode.bat). This tells `glsl-transcode.bat` to trigger `extract-subs.bat` internally before it starts transcoding. This is useful for one-off extractions without extensively modifying `Anime4K-Batch.bat`.
-    *   Optionally, pass the `-sformat <string>` argument (e.g., `-sformat FILE`) to set a custom output filename format. If `-sformat` is not provided, `extract-subs.bat` will use its internal default priority.
-2.  **Modify `Anime4K-Batch.bat`:**
-    *   Comment out the line: `:: call "%~dp0\scripts\glsl-transcode.bat" %* ^` (add `::` at the beginning).
-    *   Create a new line: `call "%~dp0\scripts\extract-subs.bat" %*   &&   call "%~dp0\scripts\glsl-transcode.bat" %* ^`. This makes `Anime4K-Batch.bat` explicitly call `extract-subs.bat` first.
+1.  **`-set-subs-priority` (Optional, runs first):**
+    *   This flag triggers [`set-subs-priority.bat`](./scripts/set-subs-priority.bat) to modify the **input file** in-place.
+    *   It reorders the internal subtitle tracks based on language and title, marking the best match as default. This is useful for ensuring players select the correct subtitle track automatically.
+    *   Use `-slang` and `-stitle` to specify priorities.
+
+2.  **`-extract-subs` (Optional, runs second):**
+    *   This flag triggers [`extract-subs.bat`](./scripts/extract-subs.bat) to save subtitle tracks as external `.srt`, `.ass`, etc., files.
+    *   This is highly recommended if your output container is `mp4`, which has poor subtitle support.
+    *   If you ran `-set-subs-priority` first, the extracted files will reflect the new, correct track order.
+    *   Use `-sformat` to control the output filename pattern.
 
 ### Setting Default Audio Priority
 
@@ -319,7 +328,7 @@ Similar to subtitle extraction, setting the default audio track priority using [
 
 1.  **Use the `-set-audio-priority` Flag (Recommended):**
     *   Pass the `-set-audio-priority` argument when calling [`Anime4K-Batch.bat`](./Anime4K-Batch.bat) or [`glsl-transcode.bat`](./scripts/glsl-transcode.bat). This tells `glsl-transcode.bat` to trigger `set-audio-priority.bat` internally *after* it finishes transcoding the output file.
-    *   Optionally, pass the `-alang "<list>"` flag (e.g., `-alang "jpn,eng"`) to specify the language priority. If `-alang` is not provided, `set-audio-priority.bat` will use its internal default priority. **MUST** be quoted when multiple languages are specified.
+    *   Optionally, pass the `-alang "<list>"` and `-atitle "<list>"` flags to specify the language and title priority. If not provided, `set-audio-priority.bat` will use its internal defaults.
 
 *(Note: Unlike subtitle extraction, there isn't a simple modification to `Anime4K-Batch.bat` to* always *run `set-audio-priority.bat` after transcoding without using the flag, as the audio setting needs to operate on the* output *file from the transcode step.)*
 
@@ -340,6 +349,8 @@ C:\path\to\Append-Shaders.ps1 -BaseDir "$env:AppData\mpv\" -FileListString "~~/s
 ```
 
 You could then use the flag `-shader Anime4K_ComplexChain.glsl` or set `SHADER_FILE=Anime4K_ComplexChain.glsl` in `scripts/glsl-transcode.bat`.
+
+**This is purely a PowerShell script and is not wrapped by a `.bat` file.**
 
 </details>
 
@@ -405,6 +416,64 @@ C:\path\to\set-audio-priority.bat [options] [flags] "path\to\folder" "path\to\vi
 *   `-f`: **(Flag)** Force overwrite existing output files.
 *   `-delete`: **(Flag)** Delete original file after successful processing (mutually exclusive with `-replace`).
 *   `-replace`: **(Flag)** Replace original file with the processed version (enabled by default, mutually exclusive with `-delete`).
+*   `-atitle "<list>"`: Comma-separated title priority (e.g., `"Commentary,Surround"`).
+
+</details>
+
+<details>
+<summary><b><code>set-subs-priority.bat</code></b></summary>
+
+This batch script ([`set-subs-priority.bat`](./scripts/set-subs-priority.bat)) sets the default subtitle track based on language and title priority. It remuxes the file, placing the highest priority subtitle track first and marking it as default.
+
+It can be triggered automatically before transcoding by using the `-set-subs-priority` flag in [`glsl-transcode.bat`](./scripts/glsl-transcode.bat).
+
+**Standalone Usage / Command Line Options:**
+
+```batch
+C:\path\to\set-subs-priority.bat [options] [flags] "path\to\folder" "path\to\video.mkv" ...
+```
+
+*   `-lang "<list>"`: Comma-separated language priority (e.g., `"eng,jpn"`).
+*   `-title "<list>"`: Comma-separated title priority (e.g., `"Full,Signs"`).
+*   `-replace`: **(Flag)** Replace original file (default behavior).
+
+</details>
+
+<details>
+<summary><b><code>transcode-audio.bat</code></b></summary>
+
+This batch script ([`transcode-audio.bat`](./scripts/transcode-audio.bat)) transcodes audio streams within video files to a specified codec and bitrate, while copying the video stream. This is useful for standardizing audio formats or reducing file size.
+
+**Standalone Usage / Command Line Options:**
+
+```batch
+C:\path\to\transcode-audio.bat [options] [flags] "path\to\folder" "path\to\video.mkv" ...
+```
+
+*   `-codec <string>`: Target audio codec (default: `aac`).
+*   `-bitrate <string>`: Target audio bitrate (default: `192k`).
+*   `-replace`: **(Flag)** Replace original file (default behavior).
+*   `-r`: **(Flag)** Process folders recursively.
+
+</details>
+
+<details>
+<summary><b><code>Rename-MediaFiles.ps1</code></b></summary>
+
+This PowerShell script ([`Rename-MediaFiles.ps1`](./scripts/Rename-MediaFiles.ps1)) renames media files into a standard TV series format (`SxxExx`), which is useful for media servers like Plex or Jellyfin. It intelligently finds episode numbers (including decimals for some specials) in existing filenames and reformats them based on a provided season number.
+
+**Standalone Usage / Command Line Options:**
+
+```powershell
+C:\path\to\Rename-MediaFiles.ps1 -SeasonNumber 1 -Path "D:\TV Shows\My Series" -WhatIf
+```
+
+*   `-SeasonNumber <number>`: **(Required)** The season number to use for renaming (e.g., `1`, `2`).
+*   `-Path <path>`: The directory containing the files to rename. Defaults to the current directory.
+*   `-CustomRegex <pattern>`: Provide your own regular expression to find the episode number in filenames. The episode number must be the first capture group.
+*   `-WhatIf`: **(Flag)** Preview changes without actually renaming files. **Always use this first!**
+
+**This is purely a PowerShell script and is not wrapped by a `.bat` file.**
 
 </details>
 

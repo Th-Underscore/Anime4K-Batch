@@ -5,7 +5,7 @@
     "Force": false, // Force overwrite existing output files.
     "Delete": false, // Delete original file after successful transcode (USE WITH CAUTION!).
     "Recurse": false, // Process folders recursively.
-
+  
     // --- Transcoding Settings ---
     "TargetResolutionW": 3840, // Target output width.
     "TargetResolutionH": 2160, // Target output height.
@@ -13,18 +13,22 @@
     "ShaderBasePath": "", // Optional: Path to the shaders folder. Defaults to script's 'shaders' subdirectory if empty or omitted.
     "EncoderProfile": "nvidia_h265", // Encoder profile (cpu_h264, cpu_h265, cpu_av1, nvidia_h264, nvidia_h265, nvidia_av1, amd_h264, amd_h265, amd_av1).
     "CQP": 24, // Constant Quantization Parameter (0-51 for H.264/H.265, 0-63 for AV1; lower is better quality).
-
+  
     // --- Sub-Scripts ---
+    "SetSubsPriority": false, // Set default subtitle track on the *input* file before transcoding.
+    "SubsLangPriority": "eng,jpn", // Comma-separated subtitle language priority list.
+    "SubsTitlePriority": "Full,Dialogue,Signs,Songs", // Comma-separated subtitle title priority list.
     "ExtractSubs": false, // Extract subtitles from the *input* file before transcoding.
     "SubFormat": "FILE.lang.title", // Subtitle filename format for -ExtractSubs (e.g., 'FILE.lang.title', 'FILE.lang').
     "SetAudioPriority": false, // Set default audio track on the *output* file after transcoding.
     "AudioLangPriority": "jpn,eng", // Comma-separated audio language priority list for -SetAudioPriority (e.g., "jpn,eng").
-
+    "AudioTitlePriority": "", // Comma-separated audio title priority list (e.g., "Commentary,Surround").
+  
     // --- Executable Paths (Optional) ---
     "FfmpegPath": "", // Optional: Path to ffmpeg.exe. Auto-detected if empty or omitted.
     "FfprobePath": "", // Optional: Path to ffprobe.exe. Auto-detected if empty or omitted.
     "DisableWhereSearch": false, // Disable searching for ffmpeg/ffprobe in PATH.
-
+  
     // --- Other ---
     "Verbose": false, // Verbose output (detailed progress and information).
     "Concise": false, // Concise output (only progress shown).
