@@ -310,7 +310,7 @@ begin {
             # Use ffprobe to get info in JSON format for easier parsing
             $ffprobeArgs = @(
                 '-v', 'error',
-                '-select_streams', 's', # Select only subtitle streams
+                '-select_streams', 's',
                 '-show_streams',
                 '-show_entries', 'stream=index,codec_name,disposition:stream_tags=language,title',
                 '-of', 'json',
