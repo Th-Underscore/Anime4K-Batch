@@ -34,17 +34,29 @@ Output container format (e.g., 'mkv', 'mp4'). Default: 'mkv'.
 .PARAMETER Suffix
 Suffix to append to output filenames. Default: '_upscaled'.
 
+.PARAMETER SubsLangPriority
+Comma-separated subtitle language priority list for -SetSubsPriority (e.g., "jpn,eng").
+
+.PARAMETER SubsTitlePriority
+Comma-separated subtitle title priority list for -SetSubsPriority (e.g., "Full,Signs").
+
 .PARAMETER SubFormat
 Subtitle filename format for -ExtractSubs. Default: 'FILE.lang.title'.
 
 .PARAMETER AudioLangPriority
 Comma-separated audio language priority list for -SetAudioPriority (e.g., "jpn,eng"). Default: ''.
 
+.PARAMETER AudioTitlePriority
+Comma-separated audio title priority list for -SetAudioPriority (e.g., "Commentary,Surround").
+
 .PARAMETER Recurse
 Process folders recursively.
 
 .PARAMETER Force
 Force overwrite existing output files.
+
+.PARAMETER SetSubsPriority
+Set default subtitle track on the *input* file using set-subs-priority.ps1 before transcoding. This modifies the source file in-place.
 
 .PARAMETER ExtractSubs
 Extract subtitles from the *input* file using extract-subs.ps1 before transcoding.
@@ -55,6 +67,7 @@ Set default audio track on the *output* file using set-audio-priority.ps1 after 
 .PARAMETER Delete
 Delete original file after successful transcode (USE WITH CAUTION!).
 
+
 .PARAMETER FfmpegPath
 Path to ffmpeg executable. Auto-detected if not provided.
 
@@ -64,11 +77,13 @@ Path to ffprobe executable. Auto-detected if not provided.
 .PARAMETER DisableWhereSearch
 Disable searching for ffmpeg/ffprobe in PATH using 'where.exe' or 'Get-Command'.
 
+
 .PARAMETER Concise
 Concise output (only progress shown).
 
 .PARAMETER ConfigPath
 Path to the config.json file. Default: `glsl-transcode-config.json`. Anime4K-Batch default: 'config.json' (script's root directory).
+
 
 .EXAMPLE
 .\glsl-transcode.ps1 -Path "C:\videos\input.mkv" -TargetResolutionW 1920 -TargetResolutionH 1080 -EncoderProfile cpu_h265 -CQP 28
@@ -120,6 +135,9 @@ param(
     [string]$AudioLangPriority = '', # Default: Use script default
 
     [Parameter()]
+    [string]$AudioTitlePriority = '',
+
+    [Parameter()]
     [switch]$Recurse,
 
     [Parameter()]
@@ -130,6 +148,15 @@ param(
 
     [Parameter()]
     [switch]$SetAudioPriority,
+
+    [Parameter()]
+    [switch]$SetSubsPriority,
+
+    [Parameter()]
+    [string]$SubsLangPriority = '',
+
+    [Parameter()]
+    [string]$SubsTitlePriority = '',
 
     [Parameter()]
     [switch]$Delete,
@@ -387,6 +414,7 @@ begin {
     $outputExt = ".$Container"
 
     # --- Script Paths for Sub-tasks ---
+    $setSubsPriorityScript = Join-Path $PSScriptRoot "set-subs-priority.ps1"
     $extractSubsScript = Join-Path $PSScriptRoot "extract-subs.ps1"
     $setAudioPriorityScript = Join-Path $PSScriptRoot "set-audio-priority.ps1"
 
@@ -459,16 +487,28 @@ begin {
             [switch]$DeleteOriginalFlag,
 
             [Parameter()]
+            [switch]$DoSetSubsPriority,
+
+            [Parameter()]
             [switch]$DoExtractSubs,
 
             [Parameter()]
             [switch]$DoSetAudioPriority,
 
             [Parameter()]
+            [string]$SubsLangPriorityForSet,
+
+            [Parameter()]
+            [string]$SubsTitlePriorityForSet,
+
+            [Parameter()]
+            [string]$SubFormatForExtract,
+
+            [Parameter()]
             [string]$AudioLangPriorityForSet,
 
             [Parameter()]
-            [string]$SubFormatForExtract
+            [string]$AudioTitlePriorityForSet
         )
 
         $inputFileFullPath = $FileInput.FullName
@@ -497,6 +537,44 @@ begin {
         if (-not (Test-Path -LiteralPath $inputFileFullpath -PathType Leaf)) {
             Write-Warning "Input file '$inputFileFullPath' does not exist. Skipping."
             return
+        }
+
+        # --- Set Default Subtitle on INPUT if Flag is Set ---
+        if ($DoSetSubsPriority) {
+            if (-not (Test-Path -LiteralPath $setSubsPriorityScript -PathType Leaf)) {
+                Write-Warning "SetSubsPriority flag is set, but script not found: $setSubsPriorityScript. Skipping subtitle prioritization."
+            } else {
+                if (-not $Concise) { Write-Host "`n--- Setting Default Subtitle Track (on Input) ---" }
+
+                if (([string]::IsNullOrWhiteSpace($SubsLangPriorityForSet)) -and ([string]::IsNullOrWhiteSpace($SubsTitlePriorityForSet)) -and (-not $Concise)) {
+                    Write-Host "SetSubsPriority flag is set, but no language or title priority specified. Using script default."
+                }
+                $setSubsParams = @{
+                    Path    = $inputFileFullPath
+                    Lang    = $SubsLangPriorityForSet
+                    Title   = $SubsTitlePriorityForSet
+                    Replace = $true
+                    Force   = $ForceProcessing
+                }
+
+                # Use the helper function to execute the script
+                $exitCode = Invoke-ExternalScript -ScriptPath $setSubsPriorityScript -Parameters $setSubsParams -TaskDescription "Set subtitle priority"
+
+                if ($Concise) {
+                    switch($exitCode) {
+                        0 { Write-Host "Subtitle priority configured successfully!" }
+                        -2 { Write-Host "Subtitle priority already configured." }
+                        default { Write-Warning "Set subtitle priority indicated failure (Exit Code: $exitCode) for '$inputFileFullPath'. Check script output for details." }
+                    }
+                } else {
+                    switch ($exitCode) {
+                        0 { Write-Host "Subtitle priority configured successfully for '$inputFileFullPath'." }
+                        -2 { Write-Host "No subtitle tracks found for '$inputFileFullPath', or it's already configured." }
+                        default { Write-Warning "Set subtitle priority indicated failure (Exit Code: $exitCode) for '$inputFileFullPath'. Check script output for details." }
+                    }
+                    Write-Host "--- End Set Default Subtitle ---`n"
+                }
+            }
         }
 
         # --- Get Input Video Info (Pixel Format) ---
@@ -565,16 +643,13 @@ begin {
                 Write-Warning "ExtractSubs flag is set, but script not found: $extractSubsScript. Skipping subtitle extraction."
             } else {
                 if (-not $Concise) { Write-Host "`n--- Extracting Subtitles ---" }
-                # Use a hashtable for splatting named parameters - generally more robust
                 $extractParams = @{
                     Path    = $inputFileFullPath
                     Format  = $SubFormatForExtract
                     Suffix  = $OutputSuffix
                     Force   = $ForceProcessing
-                    # Concise parameter removed - output is suppressed externally now
                 }
 
-                # Use the helper function to execute the script
                 $exitCode = Invoke-ExternalScript -ScriptPath $extractSubsScript -Parameters $extractParams -TaskDescription "Subtitle extraction"
 
                 if ($Concise) {
@@ -682,9 +757,9 @@ begin {
                 $setAudioParams = @{
                     Path    = $outputFileFullPath
                     Lang    = $AudioLangPriorityForSet
-                    Replace = $true # Always replace in this context
+                    Title   = $AudioTitlePriorityForSet
+                    Replace = $true
                     Force   = $ForceProcessing
-                    # Concise parameter removed - output is suppressed externally now
                 }
 
                 # Use the helper function to execute the script
@@ -764,7 +839,11 @@ process {
                                        -DoExtractSubs:$ExtractSubs `
                                        -DoSetAudioPriority:$SetAudioPriority `
                                        -AudioLangPriorityForSet $AudioLangPriority `
-                                       -SubFormatForExtract $SubFormat
+                                       -AudioTitlePriorityForSet $AudioTitlePriority `
+                                       -SubFormatForExtract $SubFormat `
+                                       -DoSetSubsPriority:$SetSubsPriority `
+                                       -SubsLangPriorityForSet $SubsLangPriority `
+                                       -SubsTitlePriorityForSet $SubsTitlePriority
                     # Add check here if $script:StopProcessing was set inside the function
                 }
             } elseif ($item -is [System.IO.FileInfo]) {
@@ -788,7 +867,11 @@ process {
                                    -DoExtractSubs:$ExtractSubs `
                                    -DoSetAudioPriority:$SetAudioPriority `
                                    -AudioLangPriorityForSet $AudioLangPriority `
-                                   -SubFormatForExtract $SubFormat
+                                   -AudioTitlePriorityForSet $AudioTitlePriority `
+                                   -SubFormatForExtract $SubFormat `
+                                   -DoSetSubsPriority:$SetSubsPriority `
+                                   -SubsLangPriorityForSet $SubsLangPriority `
+                                   -SubsTitlePriorityForSet $SubsTitlePriority
                 # Add check here if $script:StopProcessing was set inside the function
             } else {
                 Write-Warning "Path '$itemPath' is not a file or directory. Skipping."
