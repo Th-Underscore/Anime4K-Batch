@@ -15,23 +15,28 @@
     (Optional) The full path to the directory containing the media files. Defaults to the current directory.
 
 .PARAMETER CustomRegex
-    (Optional) Provide your own regular expression to find the episode number.
-    IMPORTANT: The episode number MUST be the first capture group in your regex (i.e., enclosed in the first set of parentheses).
+    (Optional) Your own regular expression to find the episode number.
+    Default: "(?i)(?:S?\d+[\s_]*(?:E|x)|(?:Season[\s_]*\d+)?(?:e|ep|Episode|-)|(?:Season[\s_]*\d+))?[\s_]*(\d+\.\d+|\d+)(.*)"
+    IMPORTANT: The episode number MUST be the first capture group in your regex (i.e., enclosed in the first set of parentheses), and the rest of the filename in the second capture group. Set capture group 2 to () to be empty.
+
+.PARAMETER Extensions
+    (Optional) The list of file extensions to process.
+    Default: ".mkv, .mp4, .avi, .mov, .webm"
 
 .EXAMPLE
-    # DRY RUN: See what changes would be made for season 1 in the current directory.
     .\Rename-MediaFiles.ps1 -SeasonNumber 1 -WhatIf
+    DRY RUN: See what changes would be made for season 1 in the current directory.
 
 .EXAMPLE
-    # Rename files for season 1, including a file with episode 1.5.
-    # e.g., "My Show - 1.mkv" -> "S01E01.mkv"
-    # e.g., "My Show - 1.5 Special.mkv" -> "S01E1.5.mkv"
     .\Rename-MediaFiles.ps1 -SeasonNumber 1
+    Rename files for season 1, including a file with episode 1.5.
+    e.g., "My Show - 1.mkv" -> "S01E01.mkv"
+    e.g., "My Show - 1.5 Special.mkv" -> "S01E1.5 Special.mkv"
 
 .EXAMPLE
-    # Use a custom regex for files named like "Show_Name_Episode_05.mp4"
-    # The '(\d+)' part is the required capture group 1.
-    .\Rename-MediaFiles.ps1 -SeasonNumber 1 -CustomRegex 'Episode_(\d+)' -Path "D:\Videos\MyShow"
+    .\Rename-MediaFiles.ps1 -SeasonNumber 1 -CustomRegex 'Episode_(\d+)(.*)' -Path "D:\Videos\MyShow"
+    Use a custom regex for files named like "Show_Name_Episode_05.mp4"
+    The '(\d+)' part is the required capture group 1, and capture group 2 will be the rest of the filename.
 
 .NOTES
     This script uses the -WhatIf parameter for safe testing. ALWAYS run with -WhatIf first!
@@ -45,27 +50,54 @@ param(
     [Parameter(Mandatory = $false, HelpMessage = "Path to the directory with files. Defaults to the current directory.")]
     [string]$Path = (Get-Location).Path,
 
-    [Parameter(Mandatory = $false, HelpMessage = "Provide a custom regex. The episode number must be in the first capture group `()`.")]
-    [string]$CustomRegex
+    [Parameter(Mandatory = $false, HelpMessage = "Provide a custom regex. The episode number must be in the first capture group `()` and the rest of the filename in the second capture group `()`. Set capture group 2 to `()` to be empty.")]
+    [string]$CustomRegex = '(?i)(?:S?\d+[\s_]*(?:E|x)|(?:Season[\s_]*\d+)?(?:e|ep|Episode|-)|(?:Season[\s_]*\d+))?[\s_]*(\d+\.\d+|\d+)(.*)',
+
+    [Parameter(Mandatory = $false, HelpMessage = "List of file extensions to process. Defaults to .mkv, .mp4, .avi, .mov, .webm.")]
+    [string]$Extensions = '.mkv, .mp4, .avi, .mov, .webm'
 )
 
 # --- Script Configuration ---
 # Default Regex
-# (?i)                  - Makes the search case-insensitive.
-# \b(?:e|ep|-)\s*       - Looks for a word boundary (\b) followed by 'e', 'ep', or '-' (a non-capturing group ?:).
-# (?:\d+\.\d+|\d+)      - Groups a decimal number (e.g., 1.5) OR a whole number (e.g., 10). This is part of capture group 1.
-#                         The decimal part `\d+\.\d+` MUST come first.
-# (?:\s*-.*)?           - Optionally matches ' -' followed by any characters (.*). This is part of capture group 1.
-$defaultRegex = '(?i)(?:e|ep|-|S\d+E)\s*((?:\d+\.\d+|\d+)(?:\s*-.*)?)'
+# (?i)                  - Makes the entire match case-insensitive.
+# (?:...)?              - An optional, non-capturing group for the entire prefix before the episode number.
+#                       - This group contains three main alternatives, separated by | (OR).
+#   --- Alternative 1 ---
+#   S?\d+                 - Matches a season number (e.g., "S01", "1") optionally preceeded by 'S'.
+#   [\s_]*                - Matches any space or underscore separators.
+#   (?:E|x)               - Matches 'E' or 'x' as an episode indicator (e.g., "S01E", "1x").
+#   - OR -
+#   --- Alternative 2 ---
+#   (?:Season[\s_]*\d+)?  - Optionally matches "Season" followed by a number (e.g., "Season 01", "season_1").
+#   (?:e|ep|Episode|-)    - Matches an episode indicator like "e", "ep", "Episode", or "-".
+#   - OR -
+#   --- Alternative 3 ---
+#   (?:Season[\s_]*\d+)   - Matches "Season" followed by a number (e.g., "Season 01", "season_1").
+#
+# [\s_]*                - Matches any space or underscore separators.
+#
+# (\d+\.\d+|\d+)        - Capture Group 1: The episode number.
+#                         Matches a decimal (e.g., 1.5) or a whole number (e.g., 1, 01).
+#                         The decimal part `\d+\.\d+` MUST come first to be matched correctly.
+#
+# (.*)                  - Capture Group 2: The rest of the string.
+#                         This greedily captures any remaining characters, which usually includes the
+#                         episode title.
 
 # List of file extensions to process.
-$videoExtensions = @('.mkv', '.mp4', '.avi', '.mov', '.webm')
+$videoExtensions = $Extensions -split ',\s*' | ForEach-Object { $_.Trim().ToLower() }
+if ($videoExtensions.Count -eq 0) {
+    Write-Error "No valid video extensions provided. Please specify at least one extension."
+    return
+}
+if ($PSBoundParameters.ContainsKey('Extensions')) {
+    Write-Host "Using custom extensions: $($videoExtensions -join ', ')" -ForegroundColor Yellow
+}
 # --- End Configuration ---
 
-$regexToUse = $defaultRegex
+$regexToUse = $CustomRegex
 if ($PSBoundParameters.ContainsKey('CustomRegex')) {
     Write-Host "Using custom regex provided by user: '$CustomRegex'" -ForegroundColor Yellow
-    $regexToUse = $CustomRegex
 }
 
 # Validate the path exists
@@ -93,18 +125,22 @@ if (-not $files) {
 foreach ($file in $files) {
     if ($file.BaseName -match $regexToUse) {
         $episodeString = $matches[1]
+        $trailingText = $matches[2]
+        $source = ""
         $formattedEpisode = ""
 
-        if ($episodeString -like '*.*') {
-            # Don't pad decimals
+        if ($file.BaseName -match '^(\[.*?\])') {
+            $source = "$($matches[1]) "
+        }
+
+        if ($episodeString -like '*.*') {  # Don't pad decimals
             $formattedEpisode = $episodeString
         }
-        else {
-            # Pad integers
+        else {  # Pad integers
             $formattedEpisode = $episodeString.PadLeft(2, '0')
         }
 
-        $newFileName = "S$($paddedSeason)E$($formattedEpisode)$($file.Extension)"
+        $newFileName = "$($source)S$($paddedSeason)E$($formattedEpisode)$trailingText$($file.Extension)"
 
         if ($file.Name -eq $newFileName) {
             Write-Host "SKIP: '$($file.Name)' is already in the correct format." -ForegroundColor Green
