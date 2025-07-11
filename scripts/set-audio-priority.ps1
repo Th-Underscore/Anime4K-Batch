@@ -14,6 +14,10 @@ One or more input video file paths or directory paths to process.
 Comma-separated language priority list (3-letter ISO 639-2 codes, e.g., "jpn,eng,kor"). Case-insensitive.
 Default: 'jpn,chi,kor,eng'.
 
+.PARAMETER Title
+Comma-separated audio title priority list (regex patterns, e.g., "commentary,surround"). Case-insensitive.
+Used as a tie-breaker for language matches, or as a primary selector if no language matches are found.
+
 .PARAMETER Suffix
 Suffix for the output filename when not using -Replace. Default: '_reordered'. Ignored if -Replace is used.
 
@@ -47,6 +51,10 @@ Concise output (only progress shown).
 .EXAMPLE
 .\set-audio-priority.ps1 -Path "C:\videos\movies_folder" -Recurse -Lang "eng,spa" -Suffix "_audio_set" -Delete
 
+.EXAMPLE
+.\set-audio-priority.ps1 -Path "C:\videos\movie.mkv" -Lang "jpn" -Title "commentary" -Replace
+# This will prioritize the Japanese track. If there are multiple, it will pick one with "commentary" in the title.
+
 .NOTES
 Requires ffmpeg and ffprobe.
 The script remuxes the entire file, copying all video, audio, subtitle, and other streams.
@@ -54,13 +62,17 @@ If no audio stream matches the priority list, the file is skipped.
 If only one audio stream exists, the file is skipped as no reordering is needed.
 The -Replace operation is generally safer as it avoids leaving partial files if interrupted, but uses temporary disk space.
 #>
-[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')] # Medium impact due to file modification/deletion
+
+[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]  # Medium impact due to file modification/deletion
 param(
     [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, Position = 0)]
     [string[]]$Path,
 
     [Parameter()]
     [string]$Lang = 'jpn,chi,kor,eng',
+
+    [Parameter()]
+    [string]$Title = '',
 
     [Parameter()]
     [string]$Suffix = '_reordered', # Used only if -Replace is not specified
@@ -228,6 +240,12 @@ begin {
     $LangPriorityList = $Lang.Split(',') | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     if (-not $Concise) { Write-Host "Language Priority: $($LangPriorityList -join ', ')" }
 
+    $TitlePriorityList = @()
+    if (-not [string]::IsNullOrWhiteSpace($Title)) {
+        $TitlePriorityList = $Title.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        if (-not $Concise -and $TitlePriorityList.Count -gt 0) { Write-Host "Title Priority: $($TitlePriorityList -join ', ')" }
+    }
+
     # --- Temporary File Suffix for Replace Mode ---
     $tempSuffix = ".tmp_reorder"
 
@@ -241,6 +259,9 @@ begin {
             [Parameter(Mandatory = $true)]
             [string[]]$LanguagePriority,
 
+            [Parameter(Mandatory = $true)][AllowEmptyCollection()]
+            [string[]]$TitlePriority,
+
             [Parameter(Mandatory = $true)]
             [int]$CurrentFileAction, # 0, 1, or 2
 
@@ -251,6 +272,8 @@ begin {
             [switch]$ForceProcessing
         )
 
+        Write-Host "Processing Audio for: $inputFileFullPath"
+
         $inputFileFullPath = $FileInput.FullName
         $inputPath = $FileInput.DirectoryName
         $inputName = $FileInput.BaseName
@@ -259,7 +282,8 @@ begin {
         if (-not $Concise) {
             Write-Host "`n-----------------------------------------------------"
             Write-Host "Processing Audio for: $inputFileFullPath"
-            Write-Host "Priority: $($LanguagePriority -join ', ')"
+            Write-Host "Lang Priority: $($LanguagePriority -join ', ')"
+            if ($TitlePriority.Count -gt 0) { Write-Host "Title Priority: $($TitlePriority -join ', ')" }
             Write-Host "Action: $CurrentFileAction (0=Suffix, 1=Delete, 2=Replace)"
             if ($CurrentFileAction -ne 2) { Write-Host "Suffix: $OutputSuffix" }
             Write-Host "Force: $ForceProcessing"
@@ -327,6 +351,7 @@ begin {
                 [PSCustomObject]@{
                     Index     = $_.index
                     Lang      = if ($_.tags -and $_.tags.language) { $_.tags.language.ToLowerInvariant() } else { 'und' }
+                    Title     = if ($_.tags -and $_.tags.title) { $_.tags.title } else { '' }
                     IsDefault = $_.disposition -and [System.Convert]::ToInt32($_.disposition.default) -ne 0
                 }
             }
@@ -348,27 +373,66 @@ begin {
 
         if (-not $Concise) {
             Write-Host "Found $($audioStreams.Count) audio streams:"
-            $audioStreams | Format-Table -AutoSize
+            $audioStreams | Format-Table -AutoSize -Wrap
         }
 
         # --- Find Preferred Audio Stream ---
         $defaultAudioStream = $null
+
+        # 1. Loop through language priorities to find a candidate stream
         foreach ($lang in $LanguagePriority) {
-            $foundStream = $audioStreams | Where-Object { $_.Lang -eq $lang } | Select-Object -First 1
+            $langMatchingStreams = @($audioStreams | Where-Object { $_.Lang -eq $lang })
+            if ($langMatchingStreams.Count -eq 0) {
+                Write-Verbose "Language '$lang' not found in audio streams."
+                continue
+            }
+
+            if (-not $Concise) { Write-Host "Found language '$lang'. Analyzing $($langMatchingStreams.Count) matching stream(s)." }
+
+            if ($langMatchingStreams.Count -eq 1) {
+                $defaultAudioStream = $langMatchingStreams[0]
+                if (-not $Concise) { Write-Host "Selected single stream for language '$lang' at index $($defaultAudioStream.Index)." }
+                break
+            }
+
+            # Multiple streams for this language, use Title as tie-breaker
+            if ($TitlePriority.Count -gt 0) {
+                if (-not $Concise) { Write-Host "Multiple streams for '$lang' found. Using title priority to select one." }
+                $regex = [regex]::new('(' + ($TitlePriority -join '|') + ')', 'IgnoreCase')
+                $foundStream = $langMatchingStreams | Where-Object { $_.Title -and $_.Title -match $regex } | Select-Object -First 1
+                if ($foundStream) {
+                    $defaultAudioStream = $foundStream
+                    if (-not $Concise) { Write-Host "Selected stream for '$lang' based on title pattern '$titlePattern' at index $($defaultAudioStream.Index)." }
+                    break
+                }
+                if ($defaultAudioStream) { break } # Exit outer language loop
+            }
+
+            if (-not $defaultAudioStream) {
+                $defaultAudioStream = $langMatchingStreams[0]
+                if (-not $Concise) { Write-Host "No title match for language '$lang', or no title priority specified. Defaulting to first stream found at index $($defaultAudioStream.Index)." }
+            }
+
+            if ($defaultAudioStream) { break } # Exit language loop
+        }
+
+        # 2. If no language match, fall back to title-only priority
+        if (-not $defaultAudioStream -and $TitlePriority.Count -gt 0) {
+            if (-not $Concise) { Write-Host "No language match from priority list. Checking title-only priority..." }
+            $regex = [regex]::new('(' + ($TitlePriority -join '|') + ')', 'IgnoreCase')
+            $foundStream = $audioStreams | Where-Object { $_.Title -and $_.Title -match $regex } | Select-Object -First 1
             if ($foundStream) {
                 $defaultAudioStream = $foundStream
-                if (-not $Concise) { Write-Host "Found preferred language '$lang' in stream index $($defaultAudioStream.Index)." }
+                if (-not $Concise) { Write-Host "Found preferred title pattern '$titlePattern' in stream index $($defaultAudioStream.Index) (Title: '$($defaultAudioStream.Title)')." }
                 break
-            } else {
-                Write-Verbose "Language '$lang' not found in audio streams." # Verbose is already conditional
             }
         }
 
-        # If no priority language found, should we default to the first?
-        # The original batch script didn't explicitly default, it just wouldn't find one.
-        # Let's stick to that behavior: if no match, skip the file.
         if (-not $defaultAudioStream) {
-            Write-Warning "No audio stream found matching the language priority list: $($LanguagePriority -join ', '). Skipping file."
+            $priorityDescription = @()
+            if ($LanguagePriority.Count -gt 0 -and $LanguagePriority[0]) { $priorityDescription += "languages '$($LanguagePriority -join ', ')'" }
+            if ($TitlePriority.Count -gt 0 -and $TitlePriority[0]) { $priorityDescription += "titles '$($TitlePriority -join ', ')'" }
+            Write-Warning "No audio stream found matching the priority for $($priorityDescription -join ' or '). Skipping file."
             return
         }
 
@@ -408,10 +472,10 @@ begin {
 
         # --- Construct ffmpeg map arguments ---
         $mapArgs = @(
-            '-map', '0:v:0', # Map video streams (optional, copy if present)
-            '-map', '0:s?'  # Map subtitle streams (optional, copy if present)
-            # Data streams? Attachments? Map all metadata? '-map_metadata 0' might be simpler?
-            # Let's map explicitly for now.
+            '-map', '0:v?',  # Map all video streams (optional)
+            '-map', '0:s?',  # Map all subtitle streams (optional)
+            '-map', '0:t?',  # Map all attachment streams (e.g., fonts) (optional)
+            '-map', '0:d?'   # Map all data streams (optional)
         )
         # Add the default audio stream first
         $mapArgs += '-map', "0:$($defaultAudioStream.Index)"
@@ -571,6 +635,7 @@ process {
 
                     Set-DefaultAudioLogic -FileInput $file `
                                           -LanguagePriority $LangPriorityList `
+                                          -TitlePriority $TitlePriorityList `
                                           -CurrentFileAction $FileAction `
                                           -OutputSuffix $Suffix `
                                           -ForceProcessing:$Force
@@ -593,6 +658,7 @@ process {
                     Write-Host "Progress: 1 / 1 - Setting audio for '$($item.Name)'"
                     Set-DefaultAudioLogic -FileInput $item `
                                         -LanguagePriority $LangPriorityList `
+                                        -TitlePriority $TitlePriorityList `
                                         -CurrentFileAction $FileAction `
                                         -OutputSuffix $Suffix `
                                         -ForceProcessing:$Force
