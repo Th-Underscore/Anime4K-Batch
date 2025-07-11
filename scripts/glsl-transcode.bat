@@ -21,6 +21,7 @@ if "%~1"=="" goto :args_done
 REM --- Handle Flags (Switches) first ---
 if /i "%~1"=="-r"                   ( set "PS_ARGS=%PS_ARGS% -Recurse" & shift & goto :arg_loop )
 if /i "%~1"=="-f"                   ( set "PS_ARGS=%PS_ARGS% -Force" & shift & goto :arg_loop )
+if /i "%~1"=="-set-subs-priority"   ( set "PS_ARGS=%PS_ARGS% -SetSubsPriority" & shift & goto :arg_loop )
 if /i "%~1"=="-extract-subs"        ( set "PS_ARGS=%PS_ARGS% -ExtractSubs" & shift & goto :arg_loop )
 if /i "%~1"=="-set-audio-priority"  ( set "PS_ARGS=%PS_ARGS% -SetAudioPriority" & shift & goto :arg_loop )
 if /i "%~1"=="-delete"              ( set "PS_ARGS=%PS_ARGS% -Delete" & shift & goto :arg_loop )
@@ -38,8 +39,11 @@ if /i "%~1"=="-codec-prof"          ( set "PS_ARGS=%PS_ARGS% -EncoderProfile '%A
 if /i "%~1"=="-cqp"                 ( set "PS_ARGS=%PS_ARGS% -CQP '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-container"           ( set "PS_ARGS=%PS_ARGS% -Container '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-suffix"              ( set "PS_ARGS=%PS_ARGS% -Suffix '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-slang"               ( set "PS_ARGS=%PS_ARGS% -SubsLangPriority '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-stitle"              ( set "PS_ARGS=%PS_ARGS% -SubsTitlePriority '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-sub-format"          ( set "PS_ARGS=%PS_ARGS% -SubFormat '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-alang"               ( set "PS_ARGS=%PS_ARGS% -AudioLangPriority '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-atitle"              ( set "PS_ARGS=%PS_ARGS% -AudioTitlePriority '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-config"              ( set "PS_ARGS=%PS_ARGS% -ConfigPath '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 
 :handle_path
