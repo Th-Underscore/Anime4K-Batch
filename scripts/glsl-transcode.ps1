@@ -96,7 +96,7 @@ Requires ffmpeg and ffprobe. Hardware acceleration requires appropriate drivers 
 Ensure the specified shader file exists in the ShaderBasePath.
 #>
 
-[CmdletBinding(SupportsShouldProcess = $true)]
+[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')] # Possible file modification/deletion
 param(
     [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, Position = 0)]
     [string[]]$Path,

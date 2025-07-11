@@ -44,7 +44,8 @@ Requires ffmpeg and ffprobe.
 The -Suffix parameter is applied to the base filename *before* the -Format placeholders are processed.
 For example, with -Suffix "_UHD" and -Format "FILE.lang", input "video.mkv" becomes "video_UHD.eng.srt".
 #>
-[CmdletBinding(SupportsShouldProcess = $true)]
+
+[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')] # Possible file creation
 param(
     [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, Position = 0)]
     [string[]]$Path,

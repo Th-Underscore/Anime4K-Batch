@@ -63,7 +63,7 @@ If only one audio stream exists, the file is skipped as no reordering is needed.
 The -Replace operation is generally safer as it avoids leaving partial files if interrupted, but uses temporary disk space.
 #>
 
-[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]  # Medium impact due to file modification/deletion
+[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')] # Possible file modification/deletion
 param(
     [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, Position = 0)]
     [string[]]$Path,

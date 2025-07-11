@@ -39,7 +39,8 @@ Concise output (only progress shown).
 Requires ffmpeg. This script copies streams directly; it does not re-encode.
 Ensure the target container supports the codecs present in the source file.
 #>
-[CmdletBinding(SupportsShouldProcess = $true)]
+
+[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')] # Possible file modification/deletion
 param(
     [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, Position = 0)]
     [string[]]$Path,

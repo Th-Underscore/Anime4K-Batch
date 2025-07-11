@@ -56,7 +56,8 @@ The script remuxes the entire file, copying all video and subtitle streams. Only
 If a file's audio is already in the target format, it is skipped.
 The -Replace operation is generally safer as it avoids leaving partial files if interrupted, but uses temporary disk space.
 #>
-[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')] # Medium impact due to file modification/deletion
+
+[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')] # Possible file modification/deletion
 param(
     [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, Position = 0)]
     [string[]]$Path,
