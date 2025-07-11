@@ -169,7 +169,7 @@ These examples demonstrate various command-line possibilities. While some are ba
 
 *   **Upscale, extract subs without specifying language, and force overwrite:**
     ```batch
-    Anime4K-Batch.bat -extract-subs -sformat "FILE.title" -f "C:\path\to\video.mkv"
+    Anime4K-Batch.bat -extract-subs -sformat "SOURCE.title" -f "C:\path\to\video.mkv"
     ```
 
 *   **Upscale to 4K with CQP 24 and set default audio to English:**
@@ -369,10 +369,11 @@ You can also run [`extract-subs.bat`](./scripts/extract-subs.bat) directly.
 C:\path\to\extract-subs.bat [options] [flags] "path\to\folder" "path\to\video.mkv" ...
 ```
 
-*   `-format <string>`: Output filename format (default: `FILE.lang.title`, following [Jellyfin's naming convention](https://jellyfin.org/docs/general/server/media/external-files)). Placeholders:
-    *   `FILE`: Original video filename (without extension).
+*   `-format <string>`: Output filename format (default: `SOURCE.lang.title.dispo`, following [Jellyfin's naming convention](https://jellyfin.org/docs/general/server/media/external-files)). Placeholders:
+    *   `SOURCE`: Original video filename (without extension).
     *   `lang`: Subtitle language code (e.g., `eng`, `jpn`).
     *   `title`: Subtitle track title, if available.
+    *   `dispo`: Subtitle track disposition, if available (e.g., 'default', 'forced').
 *   `-suffix <string>`: Suffix to append after the base filename part (default: `_upscaled`).
     *   **Note:** When running `extract-subs.bat` standalone (not via `Anime4K-Batch.bat`), if you don't want *any* suffix added, use `-suffix ""`.
 *   `-r`: **(Flag)** Process folders recursively.

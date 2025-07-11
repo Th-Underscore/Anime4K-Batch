@@ -264,7 +264,7 @@ begin {
             [Parameter(Mandatory = $true)]
             [string[]]$LanguagePriority,
 
-            [Parameter(Mandatory = $true)]
+            [Parameter(Mandatory = $true)][AllowEmptyCollection()]
             [string[]]$TitlePriority,
 
             [Parameter(Mandatory = $true)]

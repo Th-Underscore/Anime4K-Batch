@@ -14,7 +14,7 @@
 ::   -suffix <string>   : Suffix to append to output filenames (default: %OUTPUT_SUFFIX%)
 ::   -slang <list>      : Comma-separated subtitle language priority for -set-subs-priority.
 ::   -stitle <list>     : Comma-separated subtitle title priority for -set-subs-priority.
-::   -sformat <string>  : Subtitle filename format for -extract-subs (default: %SUB_FORMAT%)
+::   -sformat <string>  : Subtitle filename format for -extract-subs (default: %SUB_FORMAT%). Placeholders: SOURCE, lang, title, dispo.
 ::   -alang <list>      : Comma-separated audio language priority for -set-audio-priority (default: %AUDIO_LANG_PRIORITY%). MUST be quoted if contains commas.
 ::   -atitle <list>     : Comma-separated audio title priority for -set-audio-priority.
 :: glsl-transcode.bat flags (place BEFORE file/folder paths):
@@ -40,7 +40,7 @@
 ::    - call "%~dp0\scripts\glsl-transcode.bat" -w 1920 -h 1080 -cqp 32 -container mp4 -shaderpath "C:\MyCustomShaders" -r -set-subs-priority -slang "eng" -stitle "Full,Signs" -extract-subs -set-audio-priority %* ^
 ::
 :: Upscale, extract subs without specifying language, and force overwrite:
-::    - call "%~dp0\scripts\glsl-transcode.bat" -extract-subs -sformat "FILE.title" -f %* ^
+::    - call "%~dp0\scripts\glsl-transcode.bat" -extract-subs -sformat "SOURCE.title" -f %* ^
 ::
 :: Upscale to 4K with CQP 24 and set default audio to English:
 ::    - call "%~dp0\scripts\glsl-transcode.bat" -w 3840 -h 2160 -cqp 24 -set-audio-priority -alang "eng" %* ^

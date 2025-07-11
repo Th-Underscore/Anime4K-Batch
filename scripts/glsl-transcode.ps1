@@ -41,7 +41,8 @@ Comma-separated subtitle language priority list for -SetSubsPriority (e.g., "jpn
 Comma-separated subtitle title priority list for -SetSubsPriority (e.g., "Full,Signs").
 
 .PARAMETER SubFormat
-Subtitle filename format for -ExtractSubs. Default: 'FILE.lang.title'.
+Subtitle filename format for -ExtractSubs. Default: 'SOURCE.lang.title.dispo'.
+Placeholders: SOURCE (base filename), lang (language code), title (stream title/tag), dispo (disposition i.e. 'default', 'forced').
 
 .PARAMETER AudioLangPriority
 Comma-separated audio language priority list for -SetAudioPriority (e.g., "jpn,eng"). Default: ''.
@@ -129,7 +130,7 @@ param(
     [string]$Suffix = '_upscaled',
 
     [Parameter()]
-    [string]$SubFormat = 'FILE.lang.title', # Default for Jellyfin
+    [string]$SubFormat = 'SOURCE.lang.title.dispo', # Default for Jellyfin
 
     [Parameter()]
     [string]$AudioLangPriority = '', # Default: Use script default

@@ -9,11 +9,11 @@ Scans video files or directories for subtitle streams and extracts them into sep
 One or more input video file paths or directory paths to process.
 
 .PARAMETER Format
-Output filename format string. Placeholders: FILE (base filename), lang (language code), title (stream title/tag).
-Default: 'FILE.lang.title' (Jellyfin compatible).
+Output filename format string. Placeholders: SOURCE (base filename), lang (language code), title (stream title/tag), dispo (disposition i.e. 'default', 'forced').
+Default: 'SOURCE.lang.title.dispo' (Jellyfin compatible).
 
 .PARAMETER Suffix
-Suffix to append *after* the base filename (FILE placeholder) but *before* language/title placeholders in the Format string. Default: ''.
+Suffix to append *after* the base filename (SOURCE placeholder) but *before* language/title placeholders in the Format string. Default: ''.
 
 .PARAMETER Recurse
 Process folders recursively.
@@ -34,15 +34,15 @@ Disable searching for ffmpeg/ffprobe in PATH using 'where.exe' or 'Get-Command'.
 Concise output (only progress shown).
 
 .EXAMPLE
-.\extract-subs.ps1 -Path "C:\videos\movie.mkv" -Format "FILE.lang"
+.\extract-subs.ps1 -Path "C:\videos\movie.mkv" -Format "SOURCE.lang"
 
 .EXAMPLE
-.\extract-subs.ps1 -Path "C:\videos\series_folder" -Recurse -Force -Suffix "_upscaled" -Format "FILE.lang.title"
+.\extract-subs.ps1 -Path "C:\videos\series_folder" -Recurse -Force -Suffix "_upscaled" -Format "SOURCE.lang.title"
 
 .NOTES
 Requires ffmpeg and ffprobe.
 The -Suffix parameter is applied to the base filename *before* the -Format placeholders are processed.
-For example, with -Suffix "_UHD" and -Format "FILE.lang", input "video.mkv" becomes "video_UHD.eng.srt".
+For example, with -Suffix "_UHD" and -Format "SOURCE.lang", input "video.mkv" becomes "video_UHD.eng.srt".
 #>
 
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')] # Possible file creation
@@ -51,10 +51,10 @@ param(
     [string[]]$Path,
 
     [Parameter()]
-    [string]$Format = 'FILE.lang.title',
+    [string]$Format = 'SOURCE.lang.title.dispo',
 
     [Parameter()]
-    [string]$Suffix = '', # Suffix applied to the base filename *before* format placeholders
+    [string]$Suffix = '',
 
     [Parameter()]
     [switch]$Recurse,
@@ -282,8 +282,8 @@ begin {
             [System.IO.FileInfo]$FileInput,
 
             [Parameter()]
-            [string]$OutputFormatString = 'FILE.lang.title', # Jellyfin compatible format string
-            # Placeholders: FILE (base filename), lang (language code), title (stream title/tag)
+            [string]$OutputFormatString = 'SOURCE.lang.title', # Jellyfin compatible format string
+            # Placeholders: SOURCE (base filename), lang (language code), title (stream title/tag)
 
             [Parameter()]
             [string]$OutputSuffix = '', # Suffix applied to base filename
@@ -311,7 +311,8 @@ begin {
             $ffprobeArgs = @(
                 '-v', 'error',
                 '-select_streams', 's', # Select only subtitle streams
-                '-show_entries', 'stream=index,codec_name:stream_tags=language,title',
+                '-show_streams',
+                '-show_entries', 'stream=index,codec_name,disposition:stream_tags=language,title',
                 '-of', 'json',
                 "`"$inputFileFullPath`""
             )
@@ -368,11 +369,20 @@ begin {
             $subLang = if ($stream.tags -and $stream.tags.language -and $stream.tags.language -ne 'und') { $stream.tags.language } else { 'und' }
             $subTitle = if ($stream.tags -and $stream.tags.title) { $stream.tags.title } else { $null }
 
+            $subDispo = ''
+            if ($stream.PSObject.Properties.Name -contains 'disposition') {
+               $dispoParts = [System.Collections.Generic.List[string]]@()
+               if ($stream.disposition.default -gt 0) { $dispoParts.Add('default') }
+               if ($stream.disposition.forced -gt 0) { $dispoParts.Add('forced') }
+               $subDispo = $dispoParts -join '.'
+            }
+
             if (-not $Concise) {
                 Write-Host " Processing Stream Index: $subIndex"
                 Write-Host "   Codec: $subCodec"
                 Write-Host "   Lang:  $subLang"
                 Write-Host "   Title: $(If ($subTitle) {$subTitle} Else {'<none>'})" # Display title or placeholder
+                Write-Host "   Dispo: $(If ($subDispo) {$subDispo} Else {'<none>'})"
             }
 
             # Determine output extension
@@ -401,11 +411,9 @@ begin {
             # Construct output filename based on format string
             $formattedName = $OutputFormatString
 
-            # 1. Replace FILE placeholder with base name + suffix
             $baseNameWithSuffix = $inputName + $OutputSuffix
-            $formattedName = $formattedName -replace [regex]::Escape('FILE'), $baseNameWithSuffix
+            $formattedName = $formattedName -replace [regex]::Escape('SOURCE'), $baseNameWithSuffix
 
-            # 2. Replace title placeholder
             if ($formattedName -match [regex]::Escape('title')) {
                 if (-not [string]::IsNullOrWhiteSpace($subTagSafe)) {
                     # Use the sanitized tag derived above (which might be title, lang, or index)
@@ -416,13 +424,21 @@ begin {
                 }
             }
 
-            # 3. Replace lang placeholder
             if ($formattedName -match [regex]::Escape('lang')) {
                 if ($subLang -ne 'und') {
                     $formattedName = $formattedName -replace [regex]::Escape('lang'), $subLang
                 } else {
                     # Remove placeholder and preceding/following dot if lang is missing/und
                     $formattedName = $formattedName -replace '\.?lang\.?', '.'
+                }
+            }
+
+            if ($formattedName -match [regex]::Escape('dispo')) {
+                if (-not [string]::IsNullOrWhiteSpace($subDispo)) {
+                    $formattedName = $formattedName -replace [regex]::Escape('dispo'), $subDispo
+                } else {
+                    # Remove placeholder and preceding/following dot if dispo is missing
+                    $formattedName = $formattedName -replace '\.?dispo\.?', '.'
                 }
             }
 
