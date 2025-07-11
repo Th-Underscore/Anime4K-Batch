@@ -42,6 +42,11 @@ REG ADD "%ROOT_STORE%\Ani4K.SetAudioPriority\command" /ve /d "\"%BASE_DIR%\scrip
 REG ADD "%ROOT_STORE%\Ani4K.SetAudioPriority" /v MUIVerb /t REG_SZ /d "Set audio priority" /f
 REG ADD "%ROOT_STORE%\Ani4K.SetAudioPriority" /v Icon /t REG_SZ /d "%SystemRoot%\System32\imageres.dll,109" /f
 
+REM Ani4K.SetSubsPriority (File)
+REG ADD "%ROOT_STORE%\Ani4K.SetSubsPriority\command" /ve /d "\"%BASE_DIR%\scripts\set-subs-priority.bat\" -replace \"%%1\" & pause" /f
+REG ADD "%ROOT_STORE%\Ani4K.SetSubsPriority" /v MUIVerb /t REG_SZ /d "Set subtitle priority" /f
+REG ADD "%ROOT_STORE%\Ani4K.SetSubsPriority" /v Icon /t REG_SZ /d "%SystemRoot%\System32\imageres.dll,109" /f
+
 echo Adding registry entries for directory context menus (HKLM)...
 
 REM Delete existing directory entries first (ignore errors if they don't exist)
@@ -50,6 +55,7 @@ REG DELETE "%ROOT_STORE%\Ani4K.ExtractDir" /f > nul 2>&1
 REG DELETE "%ROOT_STORE%\Ani4K.RemuxDir" /f > nul 2>&1
 REG DELETE "%ROOT_STORE%\Ani4K.TranscodeAudioDir" /f > nul 2>&1
 REG DELETE "%ROOT_STORE%\Ani4K.SetAudioPriorityDir" /f > nul 2>&1
+REG DELETE "%ROOT_STORE%\Ani4K.SetSubsPriorityDir" /f > nul 2>&1
 
 REM Copy file entries to create directory entries
 REG COPY "%ROOT_STORE%\Ani4K.Transcode" "%ROOT_STORE%\Ani4K.TranscodeDir" /s /f
@@ -57,6 +63,7 @@ REG COPY "%ROOT_STORE%\Ani4K.Extract" "%ROOT_STORE%\Ani4K.ExtractDir" /s /f
 REG COPY "%ROOT_STORE%\Ani4K.Remux" "%ROOT_STORE%\Ani4K.RemuxDir" /s /f
 REG COPY "%ROOT_STORE%\Ani4K.TranscodeAudio" "%ROOT_STORE%\Ani4K.TranscodeAudioDir" /s /f
 REG COPY "%ROOT_STORE%\Ani4K.SetAudioPriority" "%ROOT_STORE%\Ani4K.SetAudioPriorityDir" /s /f
+REG COPY "%ROOT_STORE%\Ani4K.SetSubsPriority" "%ROOT_STORE%\Ani4K.SetSubsPriorityDir" /s /f
 
 REM Update icons for directory entries
 REG ADD "%ROOT_STORE%\Ani4K.TranscodeDir" /v Icon /t REG_SZ /d "%BASE_DIR%\assets\icons\TranscodeDir_32.ico" /f
@@ -64,17 +71,18 @@ REG ADD "%ROOT_STORE%\Ani4K.ExtractDir" /v Icon /t REG_SZ /d "%BASE_DIR%\assets\
 REG ADD "%ROOT_STORE%\Ani4K.RemuxDir" /v Icon /t REG_SZ /d "%BASE_DIR%\assets\icons\RemuxDir_32.ico" /f
 REG ADD "%ROOT_STORE%\Ani4K.TranscodeAudioDir" /v Icon /t REG_SZ /d "%BASE_DIR%\assets\icons\TranscodeDir_32.ico" /f
 REG ADD "%ROOT_STORE%\Ani4K.SetAudioPriorityDir" /v Icon /t REG_SZ /d "%SystemRoot%\System32\imageres.dll,109" /f
+REG ADD "%ROOT_STORE%\Ani4K.SetSubsPriorityDir" /v Icon /t REG_SZ /d "%SystemRoot%\System32\imageres.dll,109" /f
 
 echo Adding main context menu entries (HKCU)...
 
 REM Main entry for Files (*)
 REG ADD "%ROOT_CLASS%\*\shell\Anime4K-Batch" /v MUIVerb /t REG_SZ /d "Anime4K-Batch" /f
-REG ADD "%ROOT_CLASS%\*\shell\Anime4K-Batch" /v SubCommands /t REG_SZ /d "Ani4K.Transcode;Ani4K.Extract;Ani4K.Remux;Ani4K.TranscodeAudio;Ani4K.SetAudioPriority" /f
+REG ADD "%ROOT_CLASS%\*\shell\Anime4K-Batch" /v SubCommands /t REG_SZ /d "Ani4K.Transcode;Ani4K.Extract;Ani4K.Remux;Ani4K.TranscodeAudio;Ani4K.SetAudioPriority;Ani4K.SetSubsPriority" /f
 REG ADD "%ROOT_CLASS%\*\shell\Anime4K-Batch" /v Icon /t REG_SZ /d "%BASE_DIR%\assets\icons\cmd_16.ico" /f
 
 REM Main entry for Directories
 REG ADD "%ROOT_CLASS%\Directory\shell\Anime4K-Batch" /v MUIVerb /t REG_SZ /d "Anime4K-Batch" /f
-REG ADD "%ROOT_CLASS%\Directory\shell\Anime4K-Batch" /v SubCommands /t REG_SZ /d "Ani4K.TranscodeDir;Ani4K.ExtractDir;Ani4K.RemuxDir;Ani4K.TranscodeAudioDir;Ani4K.SetAudioPriorityDir" /f
+REG ADD "%ROOT_CLASS%\Directory\shell\Anime4K-Batch" /v SubCommands /t REG_SZ /d "Ani4K.TranscodeDir;Ani4K.ExtractDir;Ani4K.RemuxDir;Ani4K.TranscodeAudioDir;Ani4K.SetAudioPriorityDir;Ani4K.SetSubsPriorityDir" /f
 REG ADD "%ROOT_CLASS%\Directory\shell\Anime4K-Batch" /v Icon /t REG_SZ /d "%BASE_DIR%\assets\icons\cmd_16.ico" /f
 
 echo Registry entries added successfully.
