@@ -187,7 +187,7 @@ begin {
     $effectiveConfigPath = $ConfigPath
     if ([string]::IsNullOrEmpty($effectiveConfigPath)) {
         # Default to config file named after script in the same directory
-        $effectiveConfigPath = Join-Path $PSScriptRoot ($MyInvocation.MyCommand.Name -replace '\.ps1$', '-config.json')
+        $effectiveConfigPath = Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..\config\$($MyInvocation.MyCommand.Name -replace '\.ps1$', '-config.json')")
         Write-Verbose "No -ConfigPath specified, attempting default: $effectiveConfigPath"
     }
 
@@ -246,7 +246,7 @@ begin {
     # --- Assign Default ShaderBasePath if not provided ---
     if ([string]::IsNullOrEmpty($ShaderBasePath)) {
         if (-not [string]::IsNullOrEmpty($PSScriptRoot)) {
-            $ShaderBasePath = Join-Path (Split-Path -LiteralPath $PSScriptRoot) 'shaders'
+            $ShaderBasePath = Join-Path (Split-Path -LiteralPath (Split-Path -LiteralPath $PSScriptRoot)) 'shaders'
             Write-Verbose "Using default ShaderBasePath: $ShaderBasePath"
         } else {
             # Fallback if PSScriptRoot is somehow still empty (e.g., running selection in ISE)

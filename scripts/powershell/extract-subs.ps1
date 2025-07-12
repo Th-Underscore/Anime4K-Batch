@@ -84,7 +84,7 @@ begin {
     $effectiveConfigPath = $ConfigPath
     if ([string]::IsNullOrEmpty($effectiveConfigPath)) {
         # Default to config file named after script in the same directory
-        $effectiveConfigPath = Join-Path $PSScriptRoot ($MyInvocation.MyCommand.Name -replace '\.ps1$', '-config.json')
+        $effectiveConfigPath = Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..\config\$($MyInvocation.MyCommand.Name -replace '\.ps1$', '-config.json')")
         Write-Verbose "No -ConfigPath specified, attempting default: $effectiveConfigPath"
     }
 

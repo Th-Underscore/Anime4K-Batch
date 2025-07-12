@@ -15,10 +15,10 @@ Example: "~~/shaders/file1.glsl;~~/shaders/file2.glsl" (Mandatory)
 The name for the combined output file. Defaults to 'combined_output.glsl'.
 
 .EXAMPLE
-.\combine_shaders_dynamic.ps1 -BaseDir "C:\MyShaders" -FileListString "~~/shaders/Anime4K_Clamp_Highlights.glsl;~~/shaders/Anime4K_Restore_CNN_M.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl"
+.\Join-Shaders.ps1 -BaseDir "C:\MyShaders" -FileListString "~~/shaders/Anime4K_Clamp_Highlights.glsl;~~/shaders/Anime4K_Restore_CNN_M.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl"
 
 .EXAMPLE
-.\combine_shaders_dynamic.ps1 -BaseDir "C:\Projects\Shaders" -FileListString "~~/core/common.glsl;~~/effects/blur.glsl" -OutputFile "final_shader.glsl"
+.\Join-Shaders.ps1 -BaseDir "C:\Projects\Shaders" -FileListString "~~/core/common.glsl;~~/effects/blur.glsl" -OutputFile "final_shader.glsl"
 #>
 param(
     [Parameter(Mandatory=$true)]

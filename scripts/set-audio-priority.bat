@@ -4,7 +4,7 @@ REM --- Wrapper script to call set-audio-priority.ps1 ---
 REM Parses original batch arguments and maps them to PowerShell parameters.
 
 set "SCRIPT_DIR=%~dp0"
-set "POWERSHELL_SCRIPT_PATH=%SCRIPT_DIR%set-audio-priority.ps1"
+set "POWERSHELL_SCRIPT_PATH=%SCRIPT_DIR%powershell\set-audio-priority.ps1"
 
 REM Check if the PowerShell script exists
 if not exist "%POWERSHELL_SCRIPT_PATH%" (

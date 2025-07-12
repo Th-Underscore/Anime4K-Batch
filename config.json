@@ -10,7 +10,7 @@
     "TargetResolutionW": 3840, // Target output width.
     "TargetResolutionH": 2160, // Target output height.
     "ShaderFile": "Anime4K_ModeA_A-fast.glsl", // Shader filename located in ShaderBasePath.
-    "ShaderBasePath": "", // Optional: Path to the shaders folder. Defaults to script's 'shaders' subdirectory if empty or omitted.
+    "ShaderBasePath": "", // Optional: Path to the shaders folder. Defaults to 'shaders' path if empty or omitted.
     "EncoderProfile": "nvidia_h265", // Encoder profile (cpu_h264, cpu_h265, cpu_av1, nvidia_h264, nvidia_h265, nvidia_av1, amd_h264, amd_h265, amd_av1).
     "CQP": 24, // Constant Quantization Parameter (0-51 for H.264/H.265, 0-63 for AV1; lower is better quality).
   

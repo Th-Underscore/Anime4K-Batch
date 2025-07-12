@@ -81,7 +81,7 @@ begin {
     $effectiveConfigPath = $ConfigPath
     if ([string]::IsNullOrEmpty($effectiveConfigPath)) {
         # Default to config file named after script in the same directory
-        $effectiveConfigPath = Join-Path $PSScriptRoot ($MyInvocation.MyCommand.Name -replace '\.ps1$', '-config.json')
+        $effectiveConfigPath = Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..\config\$($MyInvocation.MyCommand.Name -replace '\.ps1$', '-config.json')")
         Write-Verbose "No -ConfigPath specified, attempting default: $effectiveConfigPath"
     }
 
@@ -302,37 +302,9 @@ begin {
         if (-not ($inputLimitations -contains 'no_subs' -or $outputLimitations -contains 'no_subs')) {
             Write-Verbose "Mapping subtitle streams (copying)."
             $mapArgs += '-map', '0:s?', '-c:s', 'copy'
+            # $mapArgs += '-map', '0:d?'
         } else {
             if (-not $Concise) { Write-Host "Skipping subtitle streams due to container limitations ($inputExt -> $OutputExt)." }
-        }
-
-        # Video Stream Mapping
-        if ($outputConds -contains 'no_copy_video') {
-            Write-Warning "Video stream codec copy is disabled for container '$OutputExt'. Transcoding first video stream."
-            $ffmpegArgs += '-map', '0:v:0' # Map only the first video stream
-            # No '-c:v' argument, let ffmpeg choose default encoder
-        } else {
-            Write-Verbose "Mapping video streams (copy codec) for '$OutputExt'."
-            $ffmpegArgs += '-map', '0:v:0'
-            $ffmpegArgs += '-c:v', 'copy'  # Copy video codec
-        }
-
-        # Audio Stream Mapping
-        if ($outputConds -contains 'no_audio') {
-            Write-Warning "Audio stream copying is disabled for container '$OutputExt'. Audio will not be included."
-        } else {
-            Write-Verbose "Mapping audio streams (copy codec) for '$OutputExt'."
-            $ffmpegArgs += '-map', '0:a?'  # Map all existing audio streams
-            $ffmpegArgs += '-c:a', 'copy' # Copy audio codec
-        }
-
-        # Subtitle Stream Mapping
-        if ($outputConds -contains 'no_subs') {
-            Write-Warning "Subtitle stream copying is disabled for container '$OutputExt'. Subtitles will not be included."
-        } else {
-            Write-Verbose "Mapping subtitle streams (copy codec) for '$OutputExt'."
-            $ffmpegArgs += '-map', '0:s?'  # Map all existing subtitle streams
-            $ffmpegArgs += '-c:s', 'copy' # Copy subtitle codec
         }
 
         # Check if any map arguments were actually added (excluding the initial base args)
