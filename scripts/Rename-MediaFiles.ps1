@@ -16,8 +16,9 @@
 
 .PARAMETER CustomRegex
     (Optional) Your own regular expression to find the episode number.
-    Default: "(?i)(?:S?\d+[\s_]*(?:E|x)|(?:Season[\s_]*\d+)?(?:e|ep|Episode|-)|(?:Season[\s_]*\d+))?[\s_]*(\d+\.\d+|\d+)(.*)"
+    Default: "(?i)(?:S?\d+[\s_\.]*(?:E|x)|(?:Season[\s_\.]*\d+)?(?:e|ep|Episode|-)|(?:Season[\s_\.]*\d+))[\s_\.]*(\d+\.\d+|\d+)(.*)"
     IMPORTANT: The episode number MUST be the first capture group in your regex (i.e., enclosed in the first set of parentheses), and the rest of the filename in the second capture group. Set capture group 2 to () to be empty.
+    The loose regex is always applied as a fallback if the custom regex does not match: "(?i)(\d+\.\d+|\d+)(.*)"
 
 .PARAMETER Extensions
     (Optional) The list of file extensions to process.
@@ -34,9 +35,10 @@
     e.g., "My Show - 1.5 Special.mkv" -> "S01E1.5 Special.mkv"
 
 .EXAMPLE
-    .\Rename-MediaFiles.ps1 -SeasonNumber 1 -CustomRegex 'Episode_(\d+)(.*)' -Path "D:\Videos\MyShow"
-    Use a custom regex for files named like "Show_Name_Episode_05.mp4"
+    .\Rename-MediaFiles.ps1 -SeasonNumber 1 -CustomRegex 'Episode_(\d+)(.*)' -Path "D:\Videos\MyShow" -Extensions "mkv, jpg, nfo"
+    Use a custom regex for files named like "Show_Name_Episode_05.mp4", including generated thumbnails and metadata files (skips 'season.nfo').
     The '(\d+)' part is the required capture group 1, and capture group 2 will be the rest of the filename.
+    For Jellyfin-generated files like thumbnails in particular, the '(.*)' captures the '-thumb' part of the filename.
 
 .NOTES
     This script uses the -WhatIf parameter for safe testing. ALWAYS run with -WhatIf first!
@@ -51,30 +53,30 @@ param(
     [string]$Path = (Get-Location).Path,
 
     [Parameter(Mandatory = $false, HelpMessage = "Provide a custom regex. The episode number must be in the first capture group `()` and the rest of the filename in the second capture group `()`. Set capture group 2 to `()` to be empty.")]
-    [string]$CustomRegex = '(?i)(?:S?\d+[\s_]*(?:E|x)|(?:Season[\s_]*\d+)?(?:e|ep|Episode|-)|(?:Season[\s_]*\d+))?[\s_]*(\d+\.\d+|\d+)(.*)',
+    [string]$CustomRegex = '(?i)(?:S?\d+[\s_\.]*(?:E|x)|(?:Season[\s_\.]*\d+)?(?:e|ep|Episode|-)|(?:Season[\s_\.]*\d+))[\s_\.]*(\d+\.\d+|\d+)(.*)',
 
     [Parameter(Mandatory = $false, HelpMessage = "List of file extensions to process. Defaults to .mkv, .mp4, .avi, .mov, .webm.")]
     [string]$Extensions = '.mkv, .mp4, .avi, .mov, .webm'
 )
 
 # --- Script Configuration ---
-# Default Regex
+# Default (Strict) Regex
 # (?i)                  - Makes the entire match case-insensitive.
-# (?:...)?              - An optional, non-capturing group for the entire prefix before the episode number.
+# (?:...)               - The non-capturing group for the entire prefix before the episode number.
 #                       - This group contains three main alternatives, separated by | (OR).
 #   --- Alternative 1 ---
-#   S?\d+                 - Matches a season number (e.g., "S01", "1") optionally preceeded by 'S'.
-#   [\s_]*                - Matches any space or underscore separators.
-#   (?:E|x)               - Matches 'E' or 'x' as an episode indicator (e.g., "S01E", "1x").
+#   S?\d+                  - Matches a season number (e.g., "S01", "1") optionally preceeded by 'S'.
+#   [\s_\.]*               - Matches any space or alternative separators.
+#   (?:E|x)                - Matches 'E' or 'x' as an episode indicator (e.g., "S01E", "1x").
 #   - OR -
 #   --- Alternative 2 ---
-#   (?:Season[\s_]*\d+)?  - Optionally matches "Season" followed by a number (e.g., "Season 01", "season_1").
-#   (?:e|ep|Episode|-)    - Matches an episode indicator like "e", "ep", "Episode", or "-".
+#   (?:Season[\s_\.]*\d+)? - Optionally matches "Season" followed by a number (e.g., "Season 01", "season_1").
+#   (?:e|ep|Episode|-)     - Matches an episode indicator like "e", "ep", "Episode", or "-".
 #   - OR -
 #   --- Alternative 3 ---
-#   (?:Season[\s_]*\d+)   - Matches "Season" followed by a number (e.g., "Season 01", "season_1").
+#   (?:Season[\s_\.]*\d+)  - Matches "Season" followed by a number (e.g., "Season 01", "season_1").
 #
-# [\s_]*                - Matches any space or underscore separators.
+# [\s_\.]*              - Matches any space or underscore separators.
 #
 # (\d+\.\d+|\d+)        - Capture Group 1: The episode number.
 #                         Matches a decimal (e.g., 1.5) or a whole number (e.g., 1, 01).
@@ -83,9 +85,16 @@ param(
 # (.*)                  - Capture Group 2: The rest of the string.
 #                         This greedily captures any remaining characters, which usually includes the
 #                         episode title.
+#
+# Alternate (Loose) Regex
+# (?i)              - Makes the entire match case-insensitive.
+# (\d+\.\d+|\d+)    - Capture Group 1: Matches a decimal or a whole number.
+# (.*)              - Capture Group 2: The rest of the string.
+
+$looseRegex = '(?i)(\d+\.\d+|\d+)(.*)'
 
 # List of file extensions to process.
-$videoExtensions = $Extensions -split ',\s*' | ForEach-Object { $_.Trim().ToLower() }
+$videoExtensions = $Extensions -split ',\s*' | ForEach-Object { $ext = $_.Trim().ToLower(); if (-not $ext.StartsWith('.')) { '.' + $ext } else { $ext } }
 if ($videoExtensions.Count -eq 0) {
     Write-Error "No valid video extensions provided. Please specify at least one extension."
     return
@@ -123,7 +132,7 @@ if (-not $files) {
 
 # Start loop
 foreach ($file in $files) {
-    if ($file.BaseName -match $regexToUse) {
+    if ($file.BaseName -match $regexToUse -or $file.BaseName -match $looseRegex) {
         $episodeString = $matches[1]
         $trailingText = $matches[2]
         $source = ""
