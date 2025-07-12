@@ -25,7 +25,7 @@
     Default: ".mkv, .mp4, .avi, .mov, .webm"
 
 .EXAMPLE
-    .\Rename-MediaFiles.ps1 -SeasonNumber 1 -WhatIf
+    .\Rename-MediaFiles.ps1 -Season 1 -WhatIf
     DRY RUN: See what changes would be made for season 1 in the current directory.
 
 .EXAMPLE
@@ -35,7 +35,7 @@
     e.g., "My Show - 1.5 Special.mkv" -> "S01E1.5 Special.mkv"
 
 .EXAMPLE
-    .\Rename-MediaFiles.ps1 -SeasonNumber 1 -CustomRegex 'Episode_(\d+)(.*)' -Path "D:\Videos\MyShow" -Extensions "mkv, jpg, nfo"
+    .\Rename-MediaFiles.ps1 -S 1 -C 'Episode_(\d+)(.*)' -Path "D:\Videos\MyShow" -E "mkv, jpg, nfo"
     Use a custom regex for files named like "Show_Name_Episode_05.mp4", including generated thumbnails and metadata files (skips 'season.nfo').
     The '(\d+)' part is the required capture group 1, and capture group 2 will be the rest of the filename.
     For Jellyfin-generated files like thumbnails in particular, the '(.*)' captures the '-thumb' part of the filename.
@@ -62,11 +62,11 @@ param(
 # --- Script Configuration ---
 # Default (Strict) Regex
 # (?i)                  - Makes the entire match case-insensitive.
-# (?:...)               - The non-capturing group for the entire prefix before the episode number.
-#                       - This group contains three main alternatives, separated by | (OR).
+# (?:...)               - Matches the entire prefix before the episode number.
+#                       - This non-capturing group contains three main alternatives, separated by | (OR).
 #   --- Alternative 1 ---
 #   S?\d+                  - Matches a season number (e.g., "S01", "1") optionally preceeded by 'S'.
-#   [\s_\.]*               - Matches any space or alternative separators.
+#   [\s_\.]*               - Matches any space or possible separators.
 #   (?:E|x)                - Matches 'E' or 'x' as an episode indicator (e.g., "S01E", "1x").
 #   - OR -
 #   --- Alternative 2 ---
@@ -76,7 +76,7 @@ param(
 #   --- Alternative 3 ---
 #   (?:Season[\s_\.]*\d+)  - Matches "Season" followed by a number (e.g., "Season 01", "season_1").
 #
-# [\s_\.]*              - Matches any space or underscore separators.
+# [\s_\.]*              - Matches any space or possible separators.
 #
 # (\d+\.\d+|\d+)        - Capture Group 1: The episode number.
 #                         Matches a decimal (e.g., 1.5) or a whole number (e.g., 1, 01).
@@ -88,7 +88,7 @@ param(
 #
 # Alternate (Loose) Regex
 # (?i)              - Makes the entire match case-insensitive.
-# (\d+\.\d+|\d+)    - Capture Group 1: Matches a decimal or a whole number.
+# (\d+\.\d+|\d+)    - Capture Group 1: Matches the first decimal or whole number.
 # (.*)              - Capture Group 2: The rest of the string.
 
 $looseRegex = '(?i)(\d+\.\d+|\d+)(.*)'
