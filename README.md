@@ -33,7 +33,7 @@ This batch script enhances the resolution of videos using GLSL shaders like [Ani
 *   Optional default audio track prioritization using [`set-audio-priority.bat`](./scripts/set-audio-priority.bat).
 *   Standalone audio transcoding using [`transcode-audio.bat`](./scripts/transcode-audio.bat).
 *   Standalone file remuxing using [`remux.bat`](./scripts/remux.bat) (separate functionality also included in [`glsl-transcode.bat`](./scripts/glsl-transcode.bat)).
-*   Advanced episode file renaming using [`Rename-MediaFiles.ps1`](./scripts/Rename-MediaFiles.ps1).
+*   Advanced episode file renaming using [`Rename-MediaFiles.ps1`](./scripts/utils/Rename-MediaFiles.ps1).
 
 ## Requirements
 
@@ -335,9 +335,9 @@ Similar to subtitle extraction, setting the default audio track priority using [
 ## Extra Utilities
 
 <details>
-<summary><b><code>Append-Shaders.ps1</code></b></summary>
+<summary><b><code>Join-Shaders.ps1</code></b></summary>
 
-This PowerShell script ([`Append-Shaders.ps1`](./scripts/Append-Shaders.ps1)) allows you to combine multiple GLSL shaders into a single file compatible with `ffmpeg`'s `glsl` filter (and potentially other applications like MPV). This is useful if you want to chain multiple shader effects for the `SHADER_FILE` setting in [`glsl-transcode.bat`](./scripts/glsl-transcode.bat).
+This PowerShell script ([`Join-Shaders.ps1`](./scripts/utils/Join-Shaders.ps1)) allows you to combine multiple GLSL shaders into a single file compatible with `ffmpeg`'s `glsl` filter (and other applications like MPV). This is useful if you want to chain multiple shader effects for the `SHADER_FILE` setting in [`glsl-transcode.bat`](./scripts/glsl-transcode.bat).
 
 **MPV Shaderlist Format:** `~~/shader1.glsl;~~/shader2.glsl;~~/shader3.glsl`
 
@@ -345,7 +345,7 @@ This PowerShell script ([`Append-Shaders.ps1`](./scripts/Append-Shaders.ps1)) al
 
 ```powershell
 # Combine several Anime4K shaders from MPV's config folder into one file
-C:\path\to\Append-Shaders.ps1 -BaseDir "$env:AppData\mpv\" -FileListString "~~/shaders/Anime4K_Clamp_Highlights.glsl;~~/shaders/Anime4K_Restore_CNN_M.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl;~~/shaders/Anime4K_AutoDownscalePre_x2.glsl;~~/shaders/Anime4K_AutoDownscalePre_x4.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_S.glsl" -OutputFile ".\shaders\Anime4K_ComplexChain.glsl"
+C:\path\to\Join-Shaders.ps1 -BaseDir "$env:AppData\mpv\" -FileListString "~~/shaders/Anime4K_Clamp_Highlights.glsl;~~/shaders/Anime4K_Restore_CNN_M.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl;~~/shaders/Anime4K_AutoDownscalePre_x2.glsl;~~/shaders/Anime4K_AutoDownscalePre_x4.glsl;~~/shaders/Anime4K_Upscale_CNN_x2_S.glsl" -OutputFile ".\shaders\Anime4K_ComplexChain.glsl"
 ```
 
 You could then use the flag `-shader Anime4K_ComplexChain.glsl` or set `SHADER_FILE=Anime4K_ComplexChain.glsl` in `scripts/glsl-transcode.bat`.
@@ -461,7 +461,7 @@ C:\path\to\transcode-audio.bat [options] [flags] "path\to\folder" "path\to\video
 <details>
 <summary><b><code>Rename-MediaFiles.ps1</code></b></summary>
 
-This PowerShell script ([`Rename-MediaFiles.ps1`](./scripts/Rename-MediaFiles.ps1)) renames media files into a standard TV series format (`SxxExx`), which is useful for media servers like Plex or Jellyfin. It intelligently finds episode numbers (including decimals for some specials) in existing filenames and reformats them based on a provided season number.
+This PowerShell script ([`Rename-MediaFiles.ps1`](./scripts/utils/Rename-MediaFiles.ps1)) renames media files into a standard TV series format (`SxxExx`), which is useful for media servers like Plex or Jellyfin. It intelligently finds episode numbers (including decimals for some specials) in existing filenames and reformats them based on a provided season number.
 
 **Standalone Usage / Command Line Options:**
 
@@ -471,7 +471,8 @@ C:\path\to\Rename-MediaFiles.ps1 -SeasonNumber 1 -Path "D:\TV Shows\My Series" -
 
 *   `-SeasonNumber <number>`: **(Required)** The season number to use for renaming (e.g., `1`, `2`).
 *   `-Path <path>`: The directory containing the files to rename. Defaults to the current directory.
-*   `-CustomRegex <pattern>`: Provide your own regular expression to find the episode number in filenames. The episode number must be the first capture group.
+*   `-CustomRegex <pattern>`: Provide your own regular expression to find the episode number in filenames. The episode number must be the first capture group and the second must be the rest of the filename.
+*   `-Extensions <exts>`: Comma-separated list of file extensions to count in the renaming.
 *   `-WhatIf`: **(Flag)** Preview changes without actually renaming files. **Always use this first!**
 
 **This is purely a PowerShell script and is not wrapped by a `.bat` file.**
