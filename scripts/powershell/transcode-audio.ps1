@@ -18,7 +18,7 @@ The target audio codec for transcoding. Examples: 'ac3', 'aac', 'eac3', 'dts'. D
 The target audio bitrate (e.g., '640k', '384k'). If not specified, ffmpeg's default for the codec will be used.
 
 .PARAMETER Channels
-The number of audio channels for the output (e.g., 6 for 5.1 surround). If not specified, channels will not be changed.
+The number of audio channels for the output (e.g., 6 or '5.1' for 5.1 surround). If not specified, channels will not be changed.
 
 .PARAMETER Suffix
 Suffix for the output filename when not using -Replace. Default: '_transcoded'. Ignored if -Replace is used.
@@ -69,11 +69,10 @@ param(
     [string]$Bitrate = '',
 
     [Parameter()]
-    [ValidateRange(0, 16)]
-    [int]$Channels = 0, # 0 means "not specified"
+    [string]$Channels = '0', # Can be a number (e.g., 6) or layout (e.g., '5.1'). '0' or empty means "not specified".
 
     [Parameter()]
-    [string]$Suffix = '_transcoded', # Used only if -Replace is not specified
+    [string]$Suffix = '_a-transcoded', # Used only if -Replace is not specified
 
     [Parameter()]
     [switch]$Recurse,
@@ -134,6 +133,30 @@ begin {
     # --- Parameter Validation ---
     if ($Delete -and $Replace) { Write-Error "-Delete and -Replace parameters are mutually exclusive."; exit 1 }
 
+    # --- Process Channels Parameter ---
+    $ffmpegChannels = 0
+    if (-not ([string]::IsNullOrWhiteSpace($Channels) -or $Channels -eq '0')) {
+        $channelMap = @{
+            'mono'   = 1;
+            'stereo' = 2;
+            '5.1'    = 6;
+            '6.1'    = 7;
+            '7.1'    = 8
+        }
+        $lookupChannel = $Channels.ToLowerInvariant()
+        if ($channelMap.ContainsKey($lookupChannel)) {
+            $ffmpegChannels = $channelMap[$lookupChannel]
+        } else {
+            if ([int]::TryParse($Channels, [ref]$outInt)) {
+                $ffmpegChannels = $outInt
+            } else {
+                Write-Warning "Invalid Channels value '$Channels'. It must be an integer or a known layout (e.g., '5.1', 'stereo'). Defaulting to 'auto'."
+                $ffmpegChannels = 0
+            }
+        }
+    }
+    if ($ffmpegChannels -gt 0) { Write-Verbose "Processed Channels parameter: '$Channels' -> $ffmpegChannels" }
+
     # --- Determine File Action ---
     $FileAction = 0; if ($Delete) { $FileAction = 1 }; if ($Replace) { $FileAction = 2 }
     Write-Verbose "File Action Mode: $FileAction (0=Suffix, 1=Delete, 2=Replace)"
@@ -173,7 +196,7 @@ begin {
         if (-not $Concise) {
             Write-Host "`n-----------------------------------------------------"
             Write-Host "Processing Audio for: $inputFileFullPath"
-            Write-Host "Target Codec: $Codec, Bitrate: $($Bitrate | ForEach-Object {if ([string]::IsNullOrWhiteSpace($_)) {'auto'} else {$_}}), Channels: $($Channels | ForEach-Object {if ($_ -eq 0) {'auto'} else {$_}})"
+            Write-Host "Target Codec: $Codec, Bitrate: $($Bitrate | ForEach-Object {if ([string]::IsNullOrWhiteSpace($_)) {'auto'} else {$_}}), Channels: $(if ([string]::IsNullOrWhiteSpace($Channels) -or $Channels -eq '0') {'auto'} else {$Channels})"
             Write-Host "Action: $CurrentFileAction (0=Suffix, 1=Delete, 2=Replace)"
             if ($CurrentFileAction -ne 2) { Write-Host "Suffix: $OutputSuffix" }
             Write-Host "Force: $ForceProcessing"
@@ -228,7 +251,7 @@ begin {
             '-c:a', $Codec       # Transcode audio stream(s) to target codec
         )
         if (-not [string]::IsNullOrWhiteSpace($Bitrate)) { $ffmpegArgs += '-b:a', $Bitrate }
-        if ($Channels -gt 0) { $ffmpegArgs += '-ac', $Channels }
+        if ($ffmpegChannels -gt 0) { $ffmpegArgs += '-ac', $ffmpegChannels }
         $ffmpegArgs += "`"$ffmpegTargetFile`""
 
         # --- Check Temporary File in Replace Mode ---
