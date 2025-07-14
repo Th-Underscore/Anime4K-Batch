@@ -16,6 +16,10 @@ This batch script enhances the resolution of videos using GLSL shaders like [Ani
 *   [Limitations](#limitations)
 *   [Credits](#credits)
 
+### TL;DR
+
+Run `install_registry.bat` as admin, edit `config.json`, and right-click files in File Explorer.
+
 ## Features
 
 *   Video upscaling using configurable GLSL shaders (e.g., Anime4K, FSRCNNX).
@@ -469,18 +473,31 @@ C:\path\to\transcode-audio.bat [options] [flags] "path\to\folder" "path\to\video
 <details>
 <summary><b><code>Rename-MediaFiles.ps1</code></b></summary>
 
-This PowerShell script ([`Rename-MediaFiles.ps1`](./scripts/utils/Rename-MediaFiles.ps1)) renames media files into a standard TV series format (`SxxExx`), which is useful for media servers like Plex or Jellyfin. It intelligently finds episode numbers (including decimals for some specials) in existing filenames and reformats them based on a provided season number.
+This PowerShell script ([`Rename-MediaFiles.ps1`](./scripts/utils/Rename-MediaFiles.ps1)) renames media files into a standard TV series format (`SxxExx`), which is useful for media servers like Plex or Jellyfin. It intelligently finds episode numbers (including decimals for specials) in existing filenames and reformats them.
+
+The script can automatically detect the **season number** from the parent folder name (e.g., `My Show Season 1`) and the **starting episode number** from the files themselves (e.g., for absolute-ordered seasons that start at episode `25`). These can also be manually overridden.
 
 **Standalone Usage / Command Line Options:**
 
 ```powershell
-C:\path\to\Rename-MediaFiles.ps1 -SeasonNumber 1 -Path "D:\TV Shows\My Series" -WhatIf
+# Preview a rename for files in 'D:\TV Shows\My Series', auto-detecting the season and first episode.
+C:\path\to\Rename-MediaFiles.ps1 -Path "D:\TV Shows\My Series" -WhatIf
+
+# Rename files in current directory, auto-detecting the season and first episode.
+C:\path\to\Rename-MediaFiles.ps1
+
+# Rename files for Season 2, where the first episode is 25.
+C:\path\to\Rename-MediaFiles.ps1 -SeasonNumber 2 -FirstEpisode 25 -Path "D:\TV Shows\My Series"
 ```
 
-*   `-SeasonNumber <number>`: **(Required)** The season number to use for renaming (e.g., `1`, `2`).
-*   `-Path <path>`: The directory containing the files to rename. Defaults to the current directory.
-*   `-CustomRegex <pattern>`: Provide your own regular expression to find the episode number in filenames. The episode number must be the first capture group and the second must be the rest of the filename.
-*   `-Extensions <exts>`: Comma-separated list of file extensions to count in the renaming.
+*   `-SeasonNumber <number>`: **(Optional)** The season number to use. If not provided, it's auto-detected from the parent folder name (`Season X` or `S_X_`).
+*   `-Path <path>`: **(Optional)** The directory containing the files to rename. Defaults to the current directory.
+*   `-Regex <pattern>` **(Optional)**: Provide a custom regex to find the episode number. The episode number must be the first capture group and the rest of the filename must be the second.
+*   `-Extensions <exts>` **(Optional)**: Comma-separated list of file extensions to process.
+*   `-FirstEpisode <number>`: **(Optional)** Sets the starting episode number for absolute numbering. Overrides auto-detection.
+*   `-UseTitle`: **(Flag)** Use the video's title metadata instead of its filename to find the episode number. Requires `ffprobe`.
+*   `-OrderByAlphabet`: **(Flag)** Ignore episode detection and rename files sequentially based on alphabetical order.
+*   `-NoDetectFirstEpisode`: **(Flag)** Disables auto-detection of the first episode, assuming the first episode is `1`.
 *   `-WhatIf`: **(Flag)** Preview changes without actually renaming files. **Always use this first!**
 
 **This is purely a PowerShell script and is not wrapped by a `.bat` file.**
