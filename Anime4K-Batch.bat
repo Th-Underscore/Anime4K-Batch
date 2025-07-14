@@ -4,19 +4,22 @@
 ::
 :: --- Settings ---
 :: glsl-transcode.bat options (place BEFORE file/folder paths):
-::   -w <width>         : Target output width (default: %TARGET_RESOLUTION_W%)
-::   -h <height>        : Target output height (default: %TARGET_RESOLUTION_H%)
-::   -shader <file>     : Shader filename (default: %SHADER_FILE%)
-::   -shaderpath <path> : Path to shaders folder (default: %SHADER_BASE_PATH%)
+::   -w <width>         : Target output width
+::   -h <height>        : Target output height
+::   -shader <file>     : Shader filename
+::   -shaderpath <path> : Path to shaders folder
 ::   -codec-prof <type> : Encoder profile (e.g., nvidia_h265, cpu_av1; default: %ENCODER_PROFILE%)
 ::   -cqp <value>       : Constant Quantization Parameter (0-51, lower is better; default: %CQP%) (24 is virtually lossless for double the file size)
 ::   -container <type>  : Output container format (avi, mkv, mp4; default: %OUTPUT_FORMAT%)
-::   -suffix <string>   : Suffix to append to output filenames (default: %OUTPUT_SUFFIX%)
+::   -suffix <string>   : Suffix to append to output filenames
 ::   -slang <list>      : Comma-separated subtitle language priority for -set-subs-priority.
 ::   -stitle <list>     : Comma-separated subtitle title priority for -set-subs-priority.
-::   -sformat <string>  : Subtitle filename format for -extract-subs (default: %SUB_FORMAT%). Placeholders: SOURCE, lang, title, dispo.
-::   -alang <list>      : Comma-separated audio language priority for -set-audio-priority (default: %AUDIO_LANG_PRIORITY%). MUST be quoted if contains commas.
+::   -sformat <string>  : Subtitle filename format for -extract-subs. Placeholders: SOURCE, lang, title, dispo.
+::   -alang <list>      : Comma-separated audio language priority for -set-audio-priority. MUST be quoted if contains commas.
 ::   -atitle <list>     : Comma-separated audio title priority for -set-audio-priority.
+::   -acodec <type>     : Audio codec for transcoding (e.g., aac, ac3, flac). If not specified, audio will be copied.
+::   -abitrate <value>  : Audio bitrate for transcoding (e.g., 192k, 256k). Only applies if -acodec is specified.
+::   -achannels <value> : Number of audio channels (e.g., 2 for stereo, 6 for 5.1). Only applies if -acodec is specified.
 :: glsl-transcode.bat flags (place BEFORE file/folder paths):
 ::   -r                 : Recursive search in folders
 ::   -f                 : Force overwrite existing output
@@ -43,7 +46,7 @@
 ::    - call "%~dp0\scripts\glsl-transcode.bat" -extract-subs -sformat "SOURCE.title" -f %* ^
 ::
 :: Upscale to 4K with CQP 24 and set default audio to English:
-::    - call "%~dp0\scripts\glsl-transcode.bat" -w 3840 -h 2160 -cqp 24 -set-audio-priority -alang "eng" %* ^
+::    - call "%~dp0\scripts\glsl-transcode.bat" -w 3840 -h 2160 -cqp 24 -set-audio-priority -alang "eng" -acodec aac %* ^
 ::
 :: Use default settings from glsl-transcode.bat but process folders recursively and extract subs:
 ::    - call "%~dp0\scripts\glsl-transcode.bat" -r -extract-subs %* ^
@@ -53,6 +56,9 @@
 ::
 :: Prioritize Japanese audio with "Commentary" in the title, and English "Full" subtitles, then extract them:
 ::    - call "%~dp0\scripts\glsl-transcode.bat" -set-audio-priority -alang "jpn" -atitle "Commentary" -set-subs-priority -slang "eng" -stitle "Full" -extract-subs %* ^
+::
+:: Transcode audio to AAC with a bitrate of 192k and 2 channels, while upscaling to 4K:
+::    - call "%~dp0\scripts\glsl-transcode.bat" -w 3840 -h 2160 -acodec aac -abitrate 192k -achannels 2 %* ^
 ::
 :: --- Usage ---
 :: CLI (check the README for better usage recommendations):

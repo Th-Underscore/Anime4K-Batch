@@ -31,8 +31,8 @@ This batch script enhances the resolution of videos using GLSL shaders like [Ani
 *   Optional subtitle extraction using [`extract-subs.bat`](./scripts/extract-subs.bat).
 *   Optional default subtitle track prioritization using [`set-subs-priority.bat`](./scripts/set-subs-priority.bat).
 *   Optional default audio track prioritization using [`set-audio-priority.bat`](./scripts/set-audio-priority.bat).
-*   Standalone audio transcoding using [`transcode-audio.bat`](./scripts/transcode-audio.bat).
-*   Standalone file remuxing using [`remux.bat`](./scripts/remux.bat) (separate functionality also included in [`glsl-transcode.bat`](./scripts/glsl-transcode.bat)).
+*   Optional audio transcoding using [`transcode-audio.bat`](./scripts/transcode-audio.bat).
+*   Optional video remuxing using [`remux.bat`](./scripts/remux.bat).
 *   Advanced episode file renaming using [`Rename-MediaFiles.ps1`](./scripts/utils/Rename-MediaFiles.ps1).
 
 ## Requirements
@@ -148,6 +148,9 @@ Using these options/flags override settings defined inside the script(s) *for th
 *   `-suffix <string>`: Suffix to append after the base filename part (default: `_upscaled`).
 *   `-sformat <string>`: Alias of `-format` option for `extract-subs.bat`.
 *   `-alang <list>`: Comma-separated audio language priority for `-set-audio-priority` (e.g., "jpn,eng").
+*   `-acodec <type>`: Audio codec for transcoding (e.g., `aac`, `ac3`, `flac`). If not specified, audio will be copied.
+*   `-abitrate <value>`: Audio bitrate for transcoding (e.g., `192k`, `256k`). Only applies if `-acodec` is specified.
+*   `-achannels <value>`: Number of audio channels (e.g., `2` for stereo, `6` for 5.1). Only applies if `-acodec` is specified.
 *   `-atitle <list>`: Comma-separated audio title priority for `-set-audio-priority`.
 *   `-slang <list>`: Comma-separated subtitle language priority for `-set-subs-priority`.
 *   `-stitle <list>`: Comma-separated subtitle title priority for `-set-subs-priority`.
@@ -172,9 +175,14 @@ These examples demonstrate various command-line possibilities. While some are ba
     Anime4K-Batch.bat -extract-subs -sformat "SOURCE.title" -f "C:\path\to\video.mkv"
     ```
 
-*   **Upscale to 4K with CQP 24 and set default audio to English:**
+*   **Upscale to 4K with CQP 24 and transcode audio to AAC with default English priority:**
     ```batch
-    Anime4K-Batch.bat -w 3840 -h 2160 -cqp 24 -set-audio-priority -alang "eng" "C:\path\to\video.mkv"
+    Anime4K-Batch.bat -w 3840 -h 2160 -cqp 24 -set-audio-priority -alang "eng" -acodec aac "C:\path\to\video.mkv"
+    ```
+
+*   **Transcode audio to AAC with a bitrate of 192k and 2 channels, while upscaling to 4K:**
+    ```batch
+    Anime4K-Batch.bat -w 3840 -h 2160 -acodec aac -abitrate 192k -achannels 2 "C:\path\to\video.mkv"
     ```
 
 *   **Use default settings from glsl-transcode.bat but process folders recursively and extract subs:**
