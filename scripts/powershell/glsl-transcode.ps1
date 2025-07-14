@@ -35,7 +35,7 @@ Output container format (e.g., 'mkv', 'mp4'). Default: 'mkv'.
 Suffix to append to output filenames. Default: '_upscaled'.
 
 .PARAMETER SubsLangPriority
-Comma-separated subtitle language priority list for -SetSubsPriority (e.g., "jpn,eng").
+Comma-separated subtitle language priority list for -SetSubsPriority (e.g., "jpn,chi,kor,eng").
 
 .PARAMETER SubsTitlePriority
 Comma-separated subtitle title priority list for -SetSubsPriority (e.g., "Full,Signs").
@@ -68,7 +68,7 @@ Force overwrite existing output files.
 Set default subtitle track on the *input* file using set-subs-priority.ps1 before transcoding. This modifies the source file in-place.
 
 .PARAMETER ExtractSubs
-Extract subtitles from the *input* file using extract-subs.ps1 before transcoding.
+Extract subtitles from the *input* file using extract-subs.ps1 before transcoding. Accounts for set sub priority.
 
 .PARAMETER SetAudioPriority
 Set default audio track on the *output* file using set-audio-priority.ps1 after transcoding.
