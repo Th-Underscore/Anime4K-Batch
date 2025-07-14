@@ -49,6 +49,14 @@ Comma-separated audio language priority list for -SetAudioPriority (e.g., "jpn,e
 
 .PARAMETER AudioTitlePriority
 Comma-separated audio title priority list for -SetAudioPriority (e.g., "Commentary,Surround").
+.PARAMETER AudioCodec
+Audio codec for transcoding (e.g., 'aac', 'ac3', 'flac'). Defaults to the original value (copied).
+
+.PARAMETER AudioBitrate
+Audio bitrate for transcoding (e.g., '192k', '256k'). Defaults to the original value. Only applies if AudioCodec is specified.
+
+.PARAMETER AudioChannels
+Number of audio channels (e.g., '2' for stereo, '6' for 5.1). Defaults to the original value. Only applies if AudioCodec is specified.
 
 .PARAMETER Recurse
 Process folders recursively.
@@ -123,7 +131,7 @@ param(
     [int]$CQP = 24,
 
     [Parameter()]
-    [ValidateSet('mkv', 'mp4', 'avi')] # Add more if needed
+    [ValidateSet('mkv', 'mp4', 'avi', 'mov', 'gif')] # Add more if needed
     [string]$Container = 'mkv',
 
     [Parameter()]
@@ -133,10 +141,19 @@ param(
     [string]$SubFormat = 'SOURCE.lang.title.dispo', # Default for Jellyfin
 
     [Parameter()]
-    [string]$AudioLangPriority = '', # Default: Use script default
+    [string]$AudioLangPriority = '',
 
     [Parameter()]
     [string]$AudioTitlePriority = '',
+
+    [Parameter()]
+    [string]$AudioCodec = '',
+
+    [Parameter()]
+    [string]$AudioBitrate = '',
+
+    [Parameter()]
+    [string]$AudioChannels = '',
 
     [Parameter()]
     [switch]$Recurse,
@@ -318,7 +335,6 @@ begin {
     }
 
     # --- Locate FFMPEG and FFPROBE ---
-    # Correctly pass the switch parameter using -SwitchName:$BooleanVariable syntax
     $ffmpeg = Find-Executable -Name 'ffmpeg' -ExplicitPath $FfmpegPath -DisableWhere:$DisableWhereSearch
     $ffprobe = Find-Executable -Name 'ffprobe' -ExplicitPath $FfprobePath -DisableWhere:$DisableWhereSearch
 
@@ -415,17 +431,20 @@ begin {
     $outputExt = ".$Container"
 
     # --- Script Paths for Sub-tasks ---
+    $remuxScript = Join-Path $PSScriptRoot "remux.ps1"
     $setSubsPriorityScript = Join-Path $PSScriptRoot "set-subs-priority.ps1"
     $extractSubsScript = Join-Path $PSScriptRoot "extract-subs.ps1"
     $setAudioPriorityScript = Join-Path $PSScriptRoot "set-audio-priority.ps1"
+    $transcodeAudioScript = Join-Path $PSScriptRoot "transcode-audio.ps1"
 
     # --- Container Compatibility Rules ---
     # Define conditions where certain stream types should NOT be copied.
     # Key: Container extension (e.g., '.mp4')
     # Value: Array of strings ('no_video', 'no_audio', 'no_subs')
     $containerLimitations = @{
-        '.gif' = @('no_audio', 'no_subs') # GIF only contains video
-        '.mp4' = @('no_subs')             # MP4 subtitle copy is often problematic
+        '.gif' = @('no_audio', 'no_subs', 'no_ttf', 'no_data') # GIF needs video transcode, no audio/subs
+        '.mp4' = @('no_subs', 'no_ttf') # MP4 subtitle copy is often problematic
+        # !! TTF and Data filtering not yet implemented !!
         # Add more container rules as needed
         # '.avi' = @('no_subs') # Example
         # '.mov' = @('no_subs') # Example
@@ -441,36 +460,117 @@ begin {
             [hashtable]$Parameters,
 
             [Parameter(Mandatory = $false)]
-            [string]$TaskDescription = "External script" # For logging
+            [string]$TaskDescription = "External script", # For logging
+
+            [Parameter(Mandatory = $false)]
+            [switch]$CaptureOutput
         )
 
         if (-not (Test-Path -LiteralPath $ScriptPath -PathType Leaf)) {
             Write-Warning "$TaskDescription script not found: $ScriptPath. Skipping execution."
-            return -1
+            return if ($CaptureOutput) { [PSCustomObject]@{ ExitCode = -1; Output = $null } } else { -1 }
         }
 
         # Escape square brackets to avoid wildcard expansion
         $escapedScriptPath = $ScriptPath -replace '\[', '`[' -replace '\]', '`]'
 
-        if (-not $Concise) {
-            Write-Host "$TaskDescription..."
-        }
+        if (-not $Concise) { Write-Host "$TaskDescription..." }
         $exitCode = -1 # Default to error
+        $output = $null
         try {
-            & $escapedScriptPath @Parameters *> $null
+            if ($CaptureOutput) {
+                $output = & $escapedScriptPath @Parameters 2>$null 3>$null 4>$null 5>$null 6>$null
+            } else {
+                & $escapedScriptPath @Parameters *> $null
+            }
             $exitCode = $LASTEXITCODE
         } catch {
             Write-Warning "Error starting $TaskDescription process for '$ScriptPath': $($_.Exception.Message)"
-            # Keep $exitCode as -1 (or other non-zero)
+            # Keep $exitCode as -1
         }
 
         Write-Verbose "$TaskDescription completed with Exit Code: $exitCode for '$ScriptPath'."
 
-        return $exitCode
+        if ($CaptureOutput) {
+            return [PSCustomObject]@{
+                ExitCode = $exitCode
+                Output   = $output
+            }
+        } else {
+            return $exitCode
+        }
+    }
+
+    # --- Function to Select/Reject ffmpeg parameter pairs ---
+    function Select-ParameterPairs {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+            [string[]]$ArgumentList,
+
+            [Parameter(Mandatory = $true, Position = 0)]
+            [string[]]$Filter,
+
+            [Parameter()]
+            [switch]$Whitelist, # If present, select only matching. Default is to remove matching (blacklist).
+
+            [Parameter()]
+            [switch]$Regex # Use regex for matching filter values
+        )
+        $i = 0
+        $max = $ArgumentList.Count
+        $result = while ($i -lt $max) {
+            $param = $ArgumentList[$i]
+            # A value is the next item, as long as it doesn't start with a hyphen
+            $value = if (($i + 1) -lt $max -and -not $ArgumentList[$i + 1].StartsWith('-')) {
+                $ArgumentList[$i + 1]
+            } else {
+                $null
+            }
+
+            $isMatch = $false
+            # Create a string to test against, e.g., "-param value" or just "-param"
+            $testString = if ($null -ne $value) { "$param $value" } else { $param }
+
+            foreach ($f in $Filter) {
+                if ($Regex.IsPresent) {
+                    # With regex, we test against the combined "param value" string
+                    if ($testString -match $f) {
+                        $isMatch = $true
+                        break
+                    }
+                } else {
+                    # Without regex, we only test the parameter name for an exact match
+                    if ($param -eq $f) {
+                        $isMatch = $true
+                        break
+                    }
+                }
+            }
+
+            # XOR logic determines if we keep the pair
+            $keep = $Whitelist.IsPresent -eq $isMatch
+
+            if ($keep) {
+                $param
+                if ($null -ne $value) {
+                    $value
+                }
+            }
+
+            # Advance index past parameter and value if it exists
+            if ($null -ne $value) {
+                $i += 2
+            } else {
+                $i += 1
+            }
+        }
+
+        return @($result)
     }
 
     # --- Function to Process a Single File ---
-    function Process-SingleFile {
+    function New-TranscodedVideo {
         param(
             [Parameter(Mandatory = $true)]
             [System.IO.FileInfo]$FileInput,
@@ -495,10 +595,8 @@ begin {
 
             [Parameter()]
             [switch]$DoSetAudioPriority,
-
             [Parameter()]
             [string]$SubsLangPriorityForSet,
-
             [Parameter()]
             [string]$SubsTitlePriorityForSet,
 
@@ -507,9 +605,15 @@ begin {
 
             [Parameter()]
             [string]$AudioLangPriorityForSet,
+            [Parameter()]
+            [string]$AudioTitlePriorityForSet,
 
             [Parameter()]
-            [string]$AudioTitlePriorityForSet
+            [string]$AudioCodecForTranscode,
+            [Parameter()]
+            [string]$AudioBitrateForTranscode,
+            [Parameter()]
+            [string]$AudioChannelsForTranscode
         )
 
         $inputFileFullPath = $FileInput.FullName
@@ -540,43 +644,6 @@ begin {
             return
         }
 
-        # --- Set Default Subtitle on INPUT if Flag is Set ---
-        if ($DoSetSubsPriority) {
-            if (-not (Test-Path -LiteralPath $setSubsPriorityScript -PathType Leaf)) {
-                Write-Warning "SetSubsPriority flag is set, but script not found: $setSubsPriorityScript. Skipping subtitle prioritization."
-            } else {
-                if (-not $Concise) { Write-Host "`n--- Setting Default Subtitle Track (on Input) ---" }
-
-                if (([string]::IsNullOrWhiteSpace($SubsLangPriorityForSet)) -and ([string]::IsNullOrWhiteSpace($SubsTitlePriorityForSet)) -and (-not $Concise)) {
-                    Write-Host "SetSubsPriority flag is set, but no language or title priority specified. Using script default."
-                }
-                $setSubsParams = @{
-                    Path    = $inputFileFullPath
-                    Lang    = $SubsLangPriorityForSet
-                    Title   = $SubsTitlePriorityForSet
-                    Replace = $true
-                    Force   = $ForceProcessing
-                }
-
-                # Use the helper function to execute the script
-                $exitCode = Invoke-ExternalScript -ScriptPath $setSubsPriorityScript -Parameters $setSubsParams -TaskDescription "Set subtitle priority"
-
-                if ($Concise) {
-                    switch($exitCode) {
-                        0 { Write-Host "Subtitle priority configured successfully!" }
-                        -2 { Write-Host "Subtitle priority already configured." }
-                        default { Write-Warning "Set subtitle priority indicated failure (Exit Code: $exitCode) for '$inputFileFullPath'. Check script output for details." }
-                    }
-                } else {
-                    switch ($exitCode) {
-                        0 { Write-Host "Subtitle priority configured successfully for '$inputFileFullPath'." }
-                        -2 { Write-Host "No subtitle tracks found for '$inputFileFullPath', or it's already configured." }
-                        default { Write-Warning "Set subtitle priority indicated failure (Exit Code: $exitCode) for '$inputFileFullPath'. Check script output for details." }
-                    }
-                    Write-Host "--- End Set Default Subtitle ---`n"
-                }
-            }
-        }
 
         # --- Get Input Video Info (Pixel Format) ---
         if (-not $Concise) { Write-Host "Probing file details with ffprobe..." }
@@ -600,7 +667,6 @@ begin {
             } else {
                 Write-Warning "ffprobe did not return a pixel format for '$inputFileFullPath'. Exit Code: $exitCode. Output: $output"
                 # Attempt fallback or decide how to handle - maybe default to yuv420p?
-                # For now, error out if not found.
                 Write-Error "ffprobe failed to determine pixel format for '$inputFileFullPath'. Cannot proceed."
                 return
             }
@@ -615,40 +681,167 @@ begin {
         }
 
         # --- Collect Stream Mapping Arguments ---
-        $mapArgs = @('-map', '0:v:0') # Always map the first video stream
         $inputLimitations = if ($containerLimitations.ContainsKey($inputExt)) { $containerLimitations[$inputExt] } else { @() }
         $outputLimitations = if ($containerLimitations.ContainsKey($OutputExt)) { $containerLimitations[$OutputExt] } else { @() }
 
-        # Map Audio?
-        if (-not ($inputLimitations -contains 'no_audio' -or $outputLimitations -contains 'no_audio')) {
-            Write-Verbose "Mapping audio streams (copying)."
-            $mapArgs += '-map', '0:a?', '-c:a', 'copy'
-        } elseif (-not $Concise) {
-            Write-Host "Skipping audio streams due to container limitations ($inputExt -> $OutputExt)."
+        # --- Get Base Arguments ---
+        $containerName = $OutputExt
+        $remuxParams = @{
+            Path        = $inputFileFullPath
+            Container   = $containerName
+            FfmpegPath  = $ffmpeg
+            FfprobePath = $ffprobe
+            Concise     = $true
+            Verbose     = $false
+            PassThru    = $true
         }
 
-        # Map Subtitles?
-        if (-not ($inputLimitations -contains 'no_subs' -or $outputLimitations -contains 'no_subs')) {
-            Write-Verbose "Mapping subtitle streams (copying)."
-            $mapArgs += '-map', '0:s?', '-c:s', 'copy'
-        } elseif (-not $Concise) {
-            Write-Host "Skipping subtitle streams due to container limitations ($inputExt -> $OutputExt)."
-            if (-not $DoExtractSubs) {
-                Write-Host "Consider using -ExtractSubs flag."
+        $remuxResult = Invoke-ExternalScript -ScriptPath $remuxScript -Parameters $remuxParams -TaskDescription "Retrieving remux args" -CaptureOutput
+        $streamArgs = @()
+        if ($remuxResult.ExitCode -eq 0 -and $remuxResult.Output) {
+            $streamArgs = $remuxResult.Output
+            Write-Verbose "Base arguments from remux.ps1: $($streamArgs -join ' ')"
+        } else {
+            if ($remuxResult.ExitCode -ne -2) { Write-Warning "Failed to get base arguments from remux.ps1 (Exit Code: $($remuxResult.ExitCode)). Stream mapping may be incorrect." }
+            $streamArgs = @(
+                '-map', '0:v:0',
+                '-map', '0:a?',
+                '-map', '0:s?',
+                '-map', '0:d?',
+                '-map', '0:t?',
+                '-c:a', 'copy',
+                '-c:s', 'copy'
+            )
+        }
+
+        $ALL_STREAMS = '^-c .*' + '^-map 0'
+
+        # --- Handle Audio Overrides ---
+        $allowAudio = -not ($inputLimitations -contains 'no_audio' -or $outputLimitations -contains 'no_audio')
+        if ($allowAudio) {
+            $transcodeAudioRequested = (-not [string]::IsNullOrWhiteSpace($AudioCodecForTranscode))
+            if ($transcodeAudioRequested -or $DoSetAudioPriority) {
+                $transcodeAudioArgs = @()
+                $priorityDispositionArgs = @()
+
+                # --- Transcode Audio ---
+                if ($transcodeAudioRequested) {
+                    $transcodeParams = @{
+                        Path        = $inputFileFullPath
+                        Codec       = $AudioCodecForTranscode
+                        Bitrate     = $AudioBitrateForTranscode
+                        Channels    = $AudioChannelsForTranscode
+                        FfmpegPath  = $ffmpeg
+                        FfprobePath = $ffprobe
+                        Concise     = $true
+                        Verbose     = $false
+                        PassThru    = $true
+                    }
+                    $transcodeResult = Invoke-ExternalScript -ScriptPath $transcodeAudioScript -Parameters $transcodeParams -TaskDescription "Retrieving audio transcode args" -CaptureOutput
+                    if ($transcodeResult.ExitCode -eq 0 -and $transcodeResult.Output) {
+                        $transcodeAudioArgs = $transcodeResult.Output
+                    } else {
+                        if ($priorityResult.ExitCode -ne -2) { Write-Warning "Failed to get audio transcode args (Exit Code: $($transcodeResult.ExitCode))." }
+                    }
+                }
+
+                # --- Set Audio Track Priority ---
+                if ($DoSetAudioPriority) {
+                    $priorityParams = @{
+                        Path        = $inputFileFullPath
+                        Lang        = $AudioLangPriorityForSet
+                        Title       = $AudioTitlePriorityForSet
+                        FfmpegPath  = $ffmpeg
+                        FfprobePath = $ffprobe
+                        Concise     = $true
+                        Verbose     = $false
+                        PassThru    = $true
+                    }
+                    $priorityResult = Invoke-ExternalScript -ScriptPath $setAudioPriorityScript -Parameters $priorityParams -TaskDescription "Retrieving audio disposition args" -CaptureOutput
+                    if ($priorityResult.ExitCode -eq 0 -and $priorityResult.Output) {
+                        $priorityDispositionArgs = $priorityResult.Output
+                    } else {
+                        if ($priorityResult.ExitCode -ne -2) { Write-Warning "Failed to get audio disposition args (Exit Code: $($priorityResult.ExitCode))." }
+                    }
+                }
+
+                # Combine and replace
+                $audioArgs = $transcodeAudioArgs + $priorityDispositionArgs
+                if ($audioArgs.Count -gt 0) {
+                    Write-Verbose "Overriding remux audio arguments. New args: $($audioArgs -join ' ')"
+                    # Remove all previous audio-related arguments
+                    $audioFilter = '^-map 0:a.*', '^-c:a .*', '^-disposition:a.* .+', '^-b:a .*', '^-ac .*', '^-ar .*', '^-af .*'
+                    $streamArgs = Select-ParameterPairs -ArgumentList $streamArgs -Filter ($audioFilter + $ALL_STREAMS) -Regex
+                    $streamArgs += Select-ParameterPairs -ArgumentList $audioArgs -Filter ($audioFilter + '^-map 0:\d+') -Regex -Whitelist
+                }
             }
+        } else {
+            if (-not $Concise) { Write-Host "Skipping audio streams due to container limitations ($inputExt -> $OutputExt)." }
         }
 
-        # --- Extract Subtitles if Flag is Set ---
+        # --- Handle Subtitle Overrides ---
+        $allowInputSubs = -not ($inputLimitations -contains 'no_subs')
+        $allowOutputSubs = -not ($outputLimitations -contains 'no_subs')
+        $prioritizedSubStreamIndex = -1
+
+        if ($allowInputSubs -and $DoSetSubsPriority) {
+            Write-Verbose "Setting subtitle priority."
+            $setSubsParams = @{
+                Path        = $inputFileFullPath
+                Lang        = $SubsLangPriorityForSet
+                Title       = $SubsTitlePriorityForSet
+                FfmpegPath  = $ffmpeg
+                FfprobePath = $ffprobe
+                Concise     = $true
+                Verbose     = $false
+                PassThru    = $true
+            }
+            $result = Invoke-ExternalScript -ScriptPath $setSubsPriorityScript -Parameters $setSubsParams -TaskDescription "Retrieving subtitle prioritization args" -CaptureOutput
+            if ($result.ExitCode -eq 0 -and $result.Output) {
+                $newSubsArgs = $result.Output
+
+                # Retrieve prioritized stream index from output
+                $prioritizedMap = Select-ParameterPairs -ArgumentList $result.Output -Filter "-map 0:\d+" -Regex -Whitelist
+                if ($DoExtractSubs -and $prioritizedMap.Count -gt 0 -and $prioritizedMap[1] -match '^0:(\d+)$') {
+                    $prioritizedSubStreamIndex = $matches[1]
+                    Write-Verbose "Found prioritized subtitle stream index for extraction: $prioritizedSubStreamIndex"
+                }
+
+                Write-Verbose "Overriding remux subtitle arguments. New args: $($newSubsArgs -join ' ')"
+                # Remove all previous subtitle-related arguments
+                $subsFilter = '^-map 0:s.*', '^-c:s .+', '^-disposition:s.* .+'
+                $streamArgs = Select-ParameterPairs -ArgumentList $streamArgs -Filter ($subsFilter + $ALL_STREAMS) -Regex
+                if ($allowOutputSubs) {
+                    Write-Verbose "Setting subtitle priority for output container with arguments: $($newSubsArgs -join ' ')"
+                    $streamArgs += Select-ParameterPairs -ArgumentList $newSubsArgs -Filter ($subsFilter + '^-map 0:\d+$') -Regex -Whitelist
+                }
+            } else {
+                Write-Warning "Failed to get subtitle arguments from set-subs-priority.ps1 (Exit Code: $($result.ExitCode)). Subtitle handling may be incorrect."
+            }
+            if (-not $Concise) { Write-Host "Skipping subtitle stream mapping due to output container limitations ($OutputExt), but extraction may still occur." }
+        } elseif (-not $allowInputSubs) {
+            if (-not $Concise) { Write-Host "Skipping subtitle streams due to input container limitations ($inputExt)." }
+        }
+
+        # --- Extract Subtitles ---
         if ($DoExtractSubs) {
             if (-not (Test-Path -LiteralPath $extractSubsScript -PathType Leaf)) {
                 Write-Warning "ExtractSubs flag is set, but script not found: $extractSubsScript. Skipping subtitle extraction."
             } else {
                 if (-not $Concise) { Write-Host "`n--- Extracting Subtitles ---" }
                 $extractParams = @{
-                    Path    = $inputFileFullPath
-                    Format  = $SubFormatForExtract
-                    Suffix  = $OutputSuffix
-                    Force   = $ForceProcessing
+                    Path        = $inputFileFullPath
+                    Format      = $SubFormatForExtract
+                    Suffix      = $OutputSuffix
+                    Force       = $ForceProcessing
+                    FfmpegPath  = $ffmpeg
+                    FfprobePath = $ffprobe
+                    Concise     = $true
+                    Verbose     = $false
+                }
+
+                if ($prioritizedSubStreamIndex -ge 0) {
+                    $extractParams['OverrideDefault'] = $prioritizedSubStreamIndex
                 }
 
                 $exitCode = Invoke-ExternalScript -ScriptPath $extractSubsScript -Parameters $extractParams -TaskDescription "Subtitle extraction"
@@ -667,10 +860,20 @@ begin {
                     }
                     Write-Host "--- End Subtitle Extraction ---`n"
                 }
-
-                if (-not $Concise) { Write-Host "--- End Subtitle Extraction ---`n" }
             }
         }
+
+        # --- Reorder Stream Maps ---
+        $attachmentMaps = Select-ParameterPairs -ArgumentList $streamArgs -Filter '^-map 0:t.*' -Regex -Whitelist
+        if ($attachmentMaps.Count -gt 0) {
+            Write-Verbose "Found attachment maps to move to end: $($attachmentMaps -join ', ')"
+            # Remove existing attachment maps from streamArgs and add them back at the end
+            $streamArgs = Select-ParameterPairs -ArgumentList $streamArgs -Filter '^-map 0:t.*' -Regex
+            $streamArgs += $attachmentMaps
+        } else {
+            Write-Verbose "No attachment maps found in stream arguments."
+        }
+
         # --- Construct FFMPEG Command Arguments ---
         # Start with -y for overwrite, then add logging based on $Concise
         $ffmpegArgs = @('-y')
@@ -686,7 +889,7 @@ begin {
         # The filtergraph needs careful quoting, especially the shader path
         $filterGraph = "format=$pixFmt,hwupload,libplacebo=w=$TargetResolutionW`:h=$TargetResolutionH`:upscaler=bilinear`:custom_shader_path='$escapedShaderPath',format=$pixFmt"
         $ffmpegArgs += '-vf', "`"$filterGraph`""
-        $ffmpegArgs += $mapArgs # Add stream mapping args
+        $ffmpegArgs += $streamArgs # Add stream mapping args
         $ffmpegArgs += '-c:v', $videoCodec # Video codec
         $ffmpegArgs += '-qp', $CQP # Quality parameter
         if (-not [string]::IsNullOrWhiteSpace($presetParam)) { $ffmpegArgs += $presetParam.Split(' ') } # Preset
@@ -744,46 +947,7 @@ begin {
             return # Don't proceed with post-processing if -WhatIf
         }
 
-
-        # --- Set Default Audio if Flag is Set ---
-        if ($DoSetAudioPriority -and (Test-Path -LiteralPath $outputFileFullPath -PathType Leaf)) {
-            if (-not (Test-Path -LiteralPath $setAudioPriorityScript -PathType Leaf)) {
-                Write-Warning "SetAudioPriority flag is set, but script not found: $setAudioPriorityScript. Skipping setting default audio."
-            } else {
-                if (-not $Concise) { Write-Host "`n--- Setting Default Audio Track ---" }
-
-                if ([string]::IsNullOrWhiteSpace($AudioLangPriorityForSet) -and (-not $Concise)) {
-                    Write-Host "SetAudioPriority flag is set, but no language priority specified via -AudioLangPriority. Using default."
-                }
-                $setAudioParams = @{
-                    Path    = $outputFileFullPath
-                    Lang    = $AudioLangPriorityForSet
-                    Title   = $AudioTitlePriorityForSet
-                    Replace = $true
-                    Force   = $ForceProcessing
-                }
-
-                # Use the helper function to execute the script
-                $exitCode = Invoke-ExternalScript -ScriptPath $setAudioPriorityScript -Parameters $setAudioParams -TaskDescription "Set audio priority"
-
-                if ($Concise) {
-                    switch($exitCode) {
-                        0 { Write-Host "Audio priority configured successfully!" }
-                        -2 { Write-Host "Audio priority already configured." }
-                        default { Write-Warning "Set audio priority indicated failure (Exit Code: $exitCode) for '$outputFileFullPath'. Check script output for details." }
-                    }
-                } else {
-                    switch ($exitCode) {
-                        0 { Write-Host "Audio priority configured successfully for '$outputFileFullPath'." }
-                        -2 { Write-Host "No audio tracks found for '$outputFileFullPath', or it's already configured." }
-                        default { Write-Warning "Set audio priority indicated failure (Exit Code: $exitCode) for '$outputFileFullPath'. Check script output for details." }
-                    }
-                    Write-Host "--- End Set Default Audio ---`n"
-                }
-            }
-        }
-
-        # --- Delete Original File if Flag is Set ---
+        # --- Delete Original File ---
         if ($DeleteOriginalFlag -and (Test-Path -LiteralPath $outputFileFullPath -PathType Leaf)) {
             if (-not $Concise) { Write-Host "Deleting original file: '$inputFileFullPath'" }
             if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Delete original file after successful transcode")) {
@@ -798,7 +962,7 @@ begin {
                 Write-Warning "Skipping deletion of '$inputFileFullPath' due to -WhatIf."
             }
         }
-    } # End Function Process-SingleFile
+    } # End Function New-TranscodedVideo
 
 } # End Begin block
 
@@ -807,7 +971,7 @@ process {
         Write-Verbose "Processing argument: $itemPath"
         try {
             $item = Get-Item -LiteralPath $itemPath -ErrorAction Stop
-            $videoExtensions = @(".mkv", ".mp4", ".avi", ".gif") # Add more if needed
+            $videoExtensions = @('.mkv', '.mp4', '.avi', '.mov', '.gif') # Add more if needed
             if ($item -is [System.IO.DirectoryInfo]) {
                 if (-not $Concise) { Write-Host "`nProcessing directory: $($item.FullName) (Recursive: $Recurse)" }
                 # Filter out already processed files *before* counting
@@ -832,19 +996,22 @@ process {
                         Write-Verbose "Skipping already processed file: $($file.FullName)"
                         continue
                     }
-                    Process-SingleFile -FileInput $file `
-                                       -OutputExt $outputExt `
-                                       -OutputSuffix $Suffix `
-                                       -ForceProcessing:$Force `
-                                       -DeleteOriginalFlag:$Delete `
-                                       -DoExtractSubs:$ExtractSubs `
-                                       -DoSetAudioPriority:$SetAudioPriority `
-                                       -AudioLangPriorityForSet $AudioLangPriority `
-                                       -AudioTitlePriorityForSet $AudioTitlePriority `
-                                       -SubFormatForExtract $SubFormat `
-                                       -DoSetSubsPriority:$SetSubsPriority `
-                                       -SubsLangPriorityForSet $SubsLangPriority `
-                                       -SubsTitlePriorityForSet $SubsTitlePriority
+                    New-TranscodedVideo -FileInput $file `
+                                        -OutputExt $outputExt `
+                                        -OutputSuffix $Suffix `
+                                        -ForceProcessing:$Force `
+                                        -DeleteOriginalFlag:$Delete `
+                                        -DoExtractSubs:$ExtractSubs `
+                                        -DoSetAudioPriority:$SetAudioPriority `
+                                        -AudioLangPriorityForSet $AudioLangPriority `
+                                        -AudioTitlePriorityForSet $AudioTitlePriority `
+                                        -SubFormatForExtract $SubFormat `
+                                        -DoSetSubsPriority:$SetSubsPriority `
+                                        -SubsLangPriorityForSet $SubsLangPriority `
+                                        -SubsTitlePriorityForSet $SubsTitlePriority `
+                                        -AudioCodecForTranscode $AudioCodec `
+                                        -AudioBitrateForTranscode $AudioBitrate `
+                                        -AudioChannelsForTranscode $AudioChannels
                     # Add check here if $script:StopProcessing was set inside the function
                 }
             } elseif ($item -is [System.IO.FileInfo]) {
@@ -860,19 +1027,22 @@ process {
                 # Always show progress for single files too
                 Write-Host "Progress: 1 / 1 - Processing '$($item.Name)'"
 
-                Process-SingleFile -FileInput $item `
-                                   -OutputExt $outputExt `
-                                   -OutputSuffix $Suffix `
-                                   -ForceProcessing:$Force `
-                                   -DeleteOriginalFlag:$Delete `
-                                   -DoExtractSubs:$ExtractSubs `
-                                   -DoSetAudioPriority:$SetAudioPriority `
-                                   -AudioLangPriorityForSet $AudioLangPriority `
-                                   -AudioTitlePriorityForSet $AudioTitlePriority `
-                                   -SubFormatForExtract $SubFormat `
-                                   -DoSetSubsPriority:$SetSubsPriority `
-                                   -SubsLangPriorityForSet $SubsLangPriority `
-                                   -SubsTitlePriorityForSet $SubsTitlePriority
+                New-TranscodedVideo -FileInput $item `
+                                    -OutputExt $outputExt `
+                                    -OutputSuffix $Suffix `
+                                    -ForceProcessing:$Force `
+                                    -DeleteOriginalFlag:$Delete `
+                                    -DoExtractSubs:$ExtractSubs `
+                                    -DoSetAudioPriority:$SetAudioPriority `
+                                    -AudioLangPriorityForSet $AudioLangPriority `
+                                    -AudioTitlePriorityForSet $AudioTitlePriority `
+                                    -SubFormatForExtract $SubFormat `
+                                    -DoSetSubsPriority:$SetSubsPriority `
+                                    -SubsLangPriorityForSet $SubsLangPriority `
+                                    -SubsTitlePriorityForSet $SubsTitlePriority `
+                                    -AudioCodecForTranscode $AudioCodec `
+                                    -AudioBitrateForTranscode $AudioBitrate `
+                                    -AudioChannelsForTranscode $AudioChannels
                 # Add check here if $script:StopProcessing was set inside the function
             } else {
                 Write-Warning "Path '$itemPath' is not a file or directory. Skipping."

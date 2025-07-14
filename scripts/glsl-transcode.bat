@@ -44,6 +44,9 @@ if /i "%~1"=="-stitle"              ( set "PS_ARGS=%PS_ARGS% -SubsTitlePriority 
 if /i "%~1"=="-sub-format"          ( set "PS_ARGS=%PS_ARGS% -SubFormat '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-alang"               ( set "PS_ARGS=%PS_ARGS% -AudioLangPriority '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-atitle"              ( set "PS_ARGS=%PS_ARGS% -AudioTitlePriority '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-acodec"              ( set "PS_ARGS=%PS_ARGS% -AudioCodec '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-abitrate"            ( set "PS_ARGS=%PS_ARGS% -AudioBitrate '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-achannels"           ( set "PS_ARGS=%PS_ARGS% -AudioChannels '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-config"              ( set "PS_ARGS=%PS_ARGS% -ConfigPath '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 
 :handle_path

@@ -75,7 +75,10 @@ param(
     [switch]$Concise,
 
     [Parameter()]
-    [string]$ConfigPath = ''
+    [string]$ConfigPath = '',
+
+    [Parameter()]
+    [int]$OverrideDefault = -1
 )
 
 begin {
@@ -289,7 +292,10 @@ begin {
             [string]$OutputSuffix = '', # Suffix applied to base filename
 
             [Parameter()]
-            [switch]$ForceProcessing
+            [switch]$ForceProcessing,
+
+            [Parameter()]
+            [int]$OverrideDefault = -1
         )
 
         $inputFileFullPath = $FileInput.FullName
@@ -369,13 +375,23 @@ begin {
             $subLang = if ($stream.tags -and $stream.tags.language -and $stream.tags.language -ne 'und') { $stream.tags.language } else { 'und' }
             $subTitle = if ($stream.tags -and $stream.tags.title) { $stream.tags.title } else { $null }
 
-            $subDispo = ''
-            if ($stream.PSObject.Properties.Name -contains 'disposition') {
-               $dispoParts = [System.Collections.Generic.List[string]]@()
-               if ($stream.disposition.default -gt 0) { $dispoParts.Add('default') }
-               if ($stream.disposition.forced -gt 0) { $dispoParts.Add('forced') }
-               $subDispo = $dispoParts -join '.'
+            $dispoParts = [System.Collections.Generic.List[string]]@()
+            if ($OverrideDefault -ge 0) { # Only set the specified stream as default
+                if ($stream.index -eq $OverrideDefault) {
+                    $dispoParts.Add('default')
+                }
+
+                if ($stream.PSObject.Properties.Name -contains 'disposition' -and $stream.disposition.forced -gt 0) {
+                    $dispoParts.Add('forced')
+                }
             }
+            else {
+                if ($stream.PSObject.Properties.Name -contains 'disposition') {
+                    if ($stream.disposition.default -gt 0) { $dispoParts.Add('default') }
+                    if ($stream.disposition.forced -gt 0) { $dispoParts.Add('forced') }
+                }
+            }
+            $subDispo = $dispoParts -join '.'
 
             if (-not $Concise) {
                 Write-Host " Processing Stream Index: $subIndex"
@@ -531,7 +547,8 @@ process {
                     Extract-SubtitlesLogic -FileInput $file `
                                            -OutputFormatString $Format `
                                            -OutputSuffix $Suffix `
-                                           -ForceProcessing:$Force
+                                           -ForceProcessing:$Force `
+                                           -OverrideDefault $OverrideDefault
                 }
             } elseif ($item -is [System.IO.FileInfo]) {
                 # Check if the file extension is in our list (basic check)
@@ -540,7 +557,8 @@ process {
                     Extract-SubtitlesLogic -FileInput $item `
                                            -OutputFormatString $Format `
                                            -OutputSuffix $Suffix `
-                                           -ForceProcessing:$Force
+                                           -ForceProcessing:$Force `
+                                           -OverrideDefault $OverrideDefault
                 } else {
                     Write-Warning "Skipping file '$($item.FullName)' as its extension '$($item.Extension)' is not in the recognized list of video formats."
                 }

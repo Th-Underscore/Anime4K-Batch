@@ -23,6 +23,9 @@
     "SetAudioPriority": false, // Set default audio track on the *output* file after transcoding.
     "AudioLangPriority": "jpn,eng", // Comma-separated audio language priority list for -SetAudioPriority (e.g., "jpn,eng").
     "AudioTitlePriority": "", // Comma-separated audio title priority list (e.g., "Commentary,Surround").
+    "AudioCodec": "", // Audio codec for transcoding (e.g., 'aac', 'ac3', 'flac'). If not specified, audio will be copied.
+    "AudioBitrate": "", // Audio bitrate for transcoding (e.g., '192k', '256k'). Only applies if AudioCodec is specified.
+    "AudioChannels": "", // Number of audio channels (e.g., '2' for stereo, '6' for 5.1). Only applies if AudioCodec is specified.
   
     // --- Executable Paths (Optional) ---
     "FfmpegPath": "", // Optional: Path to ffmpeg.exe. Auto-detected if empty or omitted.

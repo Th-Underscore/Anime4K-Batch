@@ -44,6 +44,9 @@ Path to ffprobe executable. Auto-detected if not provided.
 .PARAMETER Concise
 Concise output (only progress shown).
 
+.PARAMETER PassThru
+Returns the ffmpeg command arguments instead of executing them. Useful for compiling commands for later execution.
+
 .EXAMPLE
 .\transcode-audio.ps1 -Path "C:\videos\movie.mkv" -Codec ac3 -Bitrate 640k -Channels 6 -Replace
 
@@ -99,7 +102,10 @@ param(
     [switch]$Concise,
 
     [Parameter()]
-    [string]$ConfigPath = ''
+    [string]$ConfigPath = '',
+
+    [Parameter()]
+    [switch]$PassThru
 )
 
 begin {
@@ -162,14 +168,66 @@ begin {
     Write-Verbose "File Action Mode: $FileAction (0=Suffix, 1=Delete, 2=Replace)"
 
     # --- Helper Function to Find Executables ---
-    function Find-Executable { param([string]$Name, [string]$ExplicitPath, [switch]$DisableWhere)
-        Write-Verbose "Searching for $Name..."; if (-not [string]::IsNullOrEmpty($ExplicitPath)) { if (Test-Path -LiteralPath $ExplicitPath -PathType Leaf) { Write-Verbose "Using explicit path: $ExplicitPath"; return (Get-Item -LiteralPath $ExplicitPath).FullName } else { Write-Warning "Explicit path for $Name not found: $ExplicitPath" } }
-        $scriptDir = $PSScriptRoot; $localPath = Join-Path $scriptDir "$Name.exe"; if (Test-Path -LiteralPath $localPath) { Write-Verbose "Found $Name in script directory: $localPath"; return $localPath }
-        $parentDir = Split-Path -LiteralPath $scriptDir; $parentLocalPath = Join-Path $parentDir "$Name.exe"; if (Test-Path -LiteralPath $parentLocalPath) { Write-Verbose "Found $Name in parent directory: $parentLocalPath"; return $parentLocalPath }
-        if (-not $DisableWhere) { try { $foundPath = (Get-Command $Name -EA SilentlyContinue).Source; if ($foundPath) { Write-Verbose "Found $Name via Get-Command: $foundPath"; return $foundPath } } catch { }
-            try { $whereOutput = where.exe $Name 2>&1; if ($LASTEXITCODE -eq 0 -and $whereOutput) { $foundPath = $whereOutput | Select-Object -First 1; Write-Verbose "Found $Name via where.exe: $foundPath"; return $foundPath } } catch { }
+    function Find-Executable {
+        param(
+            [string]$Name,
+            [string]$ExplicitPath,
+            [switch]$DisableWhere
+        )
+        Write-Verbose "Searching for $Name..."
+        # 1. Explicit Path
+        if (-not [string]::IsNullOrEmpty($ExplicitPath)) {
+            if (Test-Path -LiteralPath $ExplicitPath -PathType Leaf) {
+                Write-Verbose "Using explicit path: $ExplicitPath"
+                return (Get-Item -LiteralPath $ExplicitPath).FullName
+            } else {
+                Write-Warning "Explicit path for $Name not found: $ExplicitPath"
+            }
         }
-        if ($Name -in ('ffmpeg', 'ffprobe')) { Write-Error "$Name could not be located."; return $null } else { Write-Warning "$Name could not be located."; return $null }
+
+        # 2. Script Directory (Check parent if running from .\scripts)
+        $scriptDir = $PSScriptRoot
+        $localPath = Join-Path $scriptDir "$Name.exe"
+        if (Test-Path -LiteralPath $localPath -PathType Leaf) {
+            Write-Verbose "Found $Name in script directory: $localPath"
+            return $localPath
+        }
+        $parentDir = Split-Path $scriptDir -Parent
+        $parentLocalPath = Join-Path $parentDir "$Name.exe"
+        if (Test-Path -LiteralPath $parentLocalPath -PathType Leaf) {
+            Write-Verbose "Found $Name in parent directory: $parentLocalPath"
+            return $parentLocalPath
+        }
+
+        # 3. PATH (where.exe / Get-Command)
+        if (-not $DisableWhere) {
+            try {
+                $foundPath = (Get-Command $Name -ErrorAction SilentlyContinue).Source
+                if ($foundPath) {
+                    Write-Verbose "Found $Name via Get-Command: $foundPath"
+                    return $foundPath
+                } else { Write-Verbose "$Name not found via Get-Command." }
+            } catch { Write-Verbose "Get-Command failed for ${Name}: $($_.Exception.Message)" }
+            try {
+                $whereOutput = where.exe $Name 2>&1
+                if ($LASTEXITCODE -eq 0 -and $whereOutput) {
+                    $foundPath = $whereOutput | Select-Object -First 1
+                    Write-Verbose "Found $Name via where.exe: $foundPath"
+                    return $foundPath
+                } else { Write-Verbose "$Name not found via where.exe." }
+            } catch { Write-Verbose "where.exe failed for ${Name}: $($_.Exception.Message)" }
+        } else {
+            Write-Verbose "Skipping PATH search for $Name due to -DisableWhereSearch."
+        }
+
+        # Only error if ffmpeg is not found
+        if ($Name -eq 'ffmpeg') {
+            Write-Error "$Name could not be located. Please provide the path using -FfmpegPath or ensure it's in the script/parent directory or PATH."
+            return $null # Indicate failure
+        } else {
+            Write-Warning "$Name could not be located, but may not be essential for this script."
+            return $null # Indicate not found, but don't error
+        }
     }
 
     # --- Locate FFMPEG and FFPROBE ---
@@ -183,12 +241,13 @@ begin {
     $tempSuffix = ".tmp_transcode"
 
     # --- Function to Process a Single File ---
-    function Transcode-AudioLogic {
+    function Convert-AudioTracks {
         param(
             [Parameter(Mandatory = $true)] [System.IO.FileInfo]$FileInput,
             [Parameter(Mandatory = $true)] [int]$CurrentFileAction,
             [Parameter(Mandatory = $true)] [string]$OutputSuffix,
-            [Parameter()] [switch]$ForceProcessing
+            [Parameter()] [switch]$ForceProcessing,
+            [Parameter()] [switch]$PassThru
         )
         $inputFileFullPath = $FileInput.FullName
         $inputPath = $FileInput.DirectoryName; $inputName = $FileInput.BaseName; $inputExt = $FileInput.Extension
@@ -230,8 +289,10 @@ begin {
             if ($LASTEXITCODE -ne 0) { Write-Warning "ffprobe failed for '$inputFileFullPath'. Skipping codec check."; throw "ffprobe failed" }
 
             $probeData = $jsonOutput | ConvertFrom-Json -ErrorAction SilentlyContinue
-            if ($probeData.streams.Count -eq 0) { if (-not $Concise) { Write-Host "No audio streams found. Skipping file."; return } }
-            
+            if ($probeData.streams.Count -eq 0) {
+                if (-not $Concise) { Write-Host "No audio streams found. Skipping file." };
+                return
+            }
             $streamsToConvert = $probeData.streams | Where-Object { $_.codec_name -ne $Codec.ToLower() }
             if ($streamsToConvert.Count -eq 0) {
                 if (-not $Concise) { Write-Host "All audio streams are already in '$Codec' format. No transcoding needed. Skipping." }
@@ -240,19 +301,30 @@ begin {
             if (-not $Concise) { Write-Host "Found $($streamsToConvert.Count) audio stream(s) that need transcoding." }
         } catch { Write-Warning "Could not determine audio codecs for '$inputFileFullPath'. Proceeding with transcode attempt. Error: $($_.Exception.Message)" }
 
-        # --- Construct Full FFMPEG Command ---
+        # --- Construct FFMPEG Command ---
         $ffmpegArgs = @(
-            '-hide_banner', '-v', 'warning', '-stats',
-            '-y', # Overwrite temp/final file
-            '-i', "`"$inputFileFullPath`"",
-            '-map', '0',         # Map all streams from input 0
-            '-c:v', 'copy',      # Copy video stream(s)
-            '-c:s', 'copy',      # Copy subtitle stream(s)
-            '-c:a', $Codec       # Transcode audio stream(s) to target codec
+            '-map', '0',    # Map all streams from input 0
+            '-c:v', 'copy', # Copy video stream(s)
+            '-c:s', 'copy', # Copy subtitle stream(s)
+            '-c:a', $Codec  # Transcode audio stream(s) to target codec
         )
         if (-not [string]::IsNullOrWhiteSpace($Bitrate)) { $ffmpegArgs += '-b:a', $Bitrate }
         if ($ffmpegChannels -gt 0) { $ffmpegArgs += '-ac', $ffmpegChannels }
-        $ffmpegArgs += "`"$ffmpegTargetFile`""
+
+        # --- PassThru Mode: Return arguments instead of executing ---
+        if ($PassThru) {
+            Write-Verbose "PassThru enabled. Returning ffmpeg arguments as a single string."
+            return $ffmpegArgs
+        }
+
+        # --- Construct Full FFMPEG Command for Execution ---
+        $fullFfmpegArgs = @(
+            '-hide_banner', '-v', 'warning', '-stats',
+            '-y',
+            '-i', "`"$inputFileFullPath`""
+        )
+        $fullFfmpegArgs += $ffmpegArgs
+        $fullFfmpegArgs += "`"$ffmpegTargetFile`""
 
         # --- Check Temporary File in Replace Mode ---
         if ($CurrentFileAction -eq 2 -and (Test-Path -LiteralPath $ffmpegTargetFile) -and (-not $ForceProcessing)) {
@@ -261,12 +333,12 @@ begin {
         }
 
         # --- Execute FFMPEG ---
-        if (-not $Concise) { Write-Host "Starting ffmpeg transcode command:`n$ffmpeg $($ffmpegArgs -join ' ')" }
+        if (-not $Concise) { Write-Host "Starting ffmpeg transcode command:`n$ffmpeg $($fullFfmpegArgs -join ' ')" }
 
         if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Transcode audio to $Codec (Output: $ffmpegTargetFile)")) {
             $success = $false
             try {
-                & $ffmpeg @ffmpegArgs
+                & $ffmpeg @fullFfmpegArgs
                 if (-not $Concise) { Write-Host "" }
                 if ($LASTEXITCODE -ne 0) {
                     Write-Error "ffmpeg process failed (Exit Code: $LASTEXITCODE) for '$inputFileFullPath'."
@@ -297,7 +369,7 @@ begin {
                 }
             }
         } else { Write-Warning "Skipping ffmpeg execution due to -WhatIf."; $script:anyFileTranscoded = $true }
-    } # End Function Transcode-AudioLogic
+    } # End Function Convert-AudioTracks
 } # End Begin block
 
 process {
@@ -318,12 +390,22 @@ process {
                 foreach ($file in $filesToProcess) {
                     $processedCount++
                     Write-Host "Progress: $processedCount / $totalFiles - Transcoding audio for '$($file.Name)'"
-                    Transcode-AudioLogic -FileInput $file -CurrentFileAction $FileAction -OutputSuffix $Suffix -ForceProcessing:$Force
+                    $result = Convert-AudioTracks -FileInput $file -CurrentFileAction $FileAction -OutputSuffix $Suffix -ForceProcessing:$Force -PassThru:$PassThru
+                    if ($PassThru -and $result) {
+                        $script:anyFileTranscoded = $true
+                        return $result
+                        exit 0
+                    }
                 }
             } elseif ($item -is [System.IO.FileInfo]) {
                 if ($videoExtensions -contains $item.Extension) {
                     Write-Host "Progress: 1 / 1 - Transcoding audio for '$($item.Name)'"
-                    Transcode-AudioLogic -FileInput $item -CurrentFileAction $FileAction -OutputSuffix $Suffix -ForceProcessing:$Force
+                    $result = Convert-AudioTracks -FileInput $item -CurrentFileAction $FileAction -OutputSuffix $Suffix -ForceProcessing:$Force -PassThru:$PassThru
+                    if ($PassThru -and $result) {
+                        $script:anyFileTranscoded = $true
+                        return $result
+                        exit 0
+                    }
                 } else { Write-Warning "Skipping file '$($item.FullName)', unsupported extension." }
             } else { Write-Warning "Path '$itemPath' is not a file or directory. Skipping." }
         } catch { Write-Error "Error processing path '$itemPath': $($_.Exception.Message)"; $script:fatalErrorOccurred = $true }

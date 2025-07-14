@@ -45,6 +45,9 @@ Disable searching for ffmpeg/ffprobe in PATH using 'where.exe' or 'Get-Command'.
 .PARAMETER Concise
 Concise output (only progress shown).
 
+.PARAMETER PassThru
+Returns the ffmpeg command arguments instead of executing them. Useful for compiling commands for later execution.
+
 .EXAMPLE
 .\set-audio-priority.ps1 -Path "C:\videos\anime.mkv" -Lang "jpn,eng" -Replace
 
@@ -102,7 +105,10 @@ param(
     [switch]$Concise,
 
     [Parameter()]
-    [string]$ConfigPath = ''
+    [string]$ConfigPath = '',
+
+    [Parameter()]
+    [switch]$PassThru
 )
 
 begin {
@@ -251,25 +257,15 @@ begin {
 
 
     # --- Function to Process a Single File ---
-    function Set-DefaultAudioLogic {
+    function Format-AudioPriority {
         param(
-            [Parameter(Mandatory = $true)]
-            [System.IO.FileInfo]$FileInput,
-
-            [Parameter(Mandatory = $true)]
-            [string[]]$LanguagePriority,
-
-            [Parameter(Mandatory = $true)][AllowEmptyCollection()]
-            [string[]]$TitlePriority,
-
-            [Parameter(Mandatory = $true)]
-            [int]$CurrentFileAction, # 0, 1, or 2
-
-            [Parameter(Mandatory = $true)]
-            [string]$OutputSuffix, # Used for action 0, 1
-
-            [Parameter()]
-            [switch]$ForceProcessing
+            [Parameter(Mandatory = $true)] [System.IO.FileInfo]$FileInput,
+            [Parameter(Mandatory = $true)] [string[]]$LanguagePriority,
+            [Parameter(Mandatory = $true)][AllowEmptyCollection()] [string[]]$TitlePriority,
+            [Parameter(Mandatory = $true)] [int]$CurrentFileAction, # 0, 1, or 2
+            [Parameter(Mandatory = $true)] [string]$OutputSuffix, # Used for action 0, 1
+            [Parameter()] [switch]$ForceProcessing,
+            [Parameter()] [switch]$PassThru
         )
 
         Write-Host "Processing Audio for: $inputFileFullPath"
@@ -353,6 +349,7 @@ begin {
                     Lang      = if ($_.tags -and $_.tags.language) { $_.tags.language.ToLowerInvariant() } else { 'und' }
                     Title     = if ($_.tags -and $_.tags.title) { $_.tags.title } else { '' }
                     IsDefault = $_.disposition -and [System.Convert]::ToInt32($_.disposition.default) -ne 0
+                    IsForced = $_.disposition -and [System.Convert]::ToInt32($_.disposition.forced) -ne 0
                 }
             }
 
@@ -470,7 +467,7 @@ begin {
             Write-Host "Proceeding with ffmpeg remux..."
         }
 
-        # --- Construct ffmpeg map arguments ---
+        # --- Construct FFMPEG Command ---
         $mapArgs = @(
             '-map', '0:v?',  # Map all video streams (optional)
             '-map', '0:s?',  # Map all subtitle streams (optional)
@@ -479,32 +476,36 @@ begin {
         )
         # Add the default audio stream first
         $mapArgs += '-map', "0:$($defaultAudioStream.Index)"
+        $mapArgs += '-disposition:a:0', 'default'
 
         # Add remaining audio streams
+        $i = 0
         foreach ($stream in $audioStreams) {
             if ($stream.Index -ne $defaultAudioStream.Index) {
+                $i += 1
                 $mapArgs += '-map', "0:$($stream.Index)"
+                $mapArgs += "-disposition:a:$i", $(if ($stream.IsForced) { 'forced' } else { '0' })
             }
         }
 
-        # Add other stream types if necessary (e.g., data) - '-map 0:d?'
-        # $mapArgs += '-map', '0:d?'
+        # Combine map and disposition arguments
+        $ffmpegArgs = $mapArgs
+        $ffmpegArgs += '-c', 'copy'
+
+        # --- PassThru Mode: Return arguments instead of executing ---
+        if ($PassThru.IsPresent) {
+            Write-Verbose "PassThru enabled. Returning ffmpeg arguments as a single string."
+            return $ffmpegArgs
+        }
 
         # --- Construct Full FFMPEG Command ---
-        $ffmpegArgs = @(
+        $fullFfmpegArgs = @(
             '-v', 'warning', '-stats',
             '-y', # Overwrite temporary file or final file if -Force is used
             '-i', "`"$inputFileFullPath`""
         )
-        $ffmpegArgs += $mapArgs
-        $ffmpegArgs += '-c', 'copy' # Copy all mapped streams
-
-        # Reset disposition for ALL output audio streams to 0 (none)
-        $ffmpegArgs += '-disposition:a', '0'
-        $ffmpegArgs += '-disposition:a:0', 'default'
-        # Note: The order matters here. Reset all first, then set the specific one. This will cause an ffmpeg warning, but it's ignorable.
-
-        $ffmpegArgs += "`"$ffmpegTargetFile`"" # Output (temporary or final)
+        $fullFfmpegArgs += $ffmpegArgs
+        $fullFfmpegArgs += "`"$ffmpegTargetFile`"" # Output (temporary or final)
 
         # --- Check Temporary File in Replace Mode ---
         if ($CurrentFileAction -eq 2 -and (Test-Path -LiteralPath $ffmpegTargetFile -PathType Leaf) -and (-not $ForceProcessing)) {
@@ -515,13 +516,13 @@ begin {
         }
 
         # --- Execute FFMPEG ---
-        if (-not $Concise) { Write-Host "Starting ffmpeg reorder command:`n$ffmpeg $($ffmpegArgs -join ' ')" }
+        if (-not $Concise) { Write-Host "Starting ffmpeg reorder command:`n$ffmpeg $($fullFfmpegArgs -join ' ')" }
 
         if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Set default audio track (Output: $ffmpegTargetFile)")) {
             $success = $false
             try {
-                Write-Verbose "Running: $ffmpeg $($ffmpegArgs -join ' ')"
-                & $ffmpeg @ffmpegArgs
+                Write-Verbose "Running: $ffmpeg $($fullFfmpegArgs -join ' ')"
+                & $ffmpeg @fullFfmpegArgs
                 $exitCode = $LASTEXITCODE
                 if (-not $Concise) { Write-Host "" }
 
@@ -586,12 +587,11 @@ begin {
             # No post-processing needed for -WhatIf
         }
 
-    } # End Function Set-DefaultAudioLogic
+    } # End Function Format-AudioPriority
 
 } # End Begin block
 
 process {
-    # Define common video extensions
     $videoExtensions = @(".mkv", ".mp4", ".avi", ".mov", ".wmv", ".flv", ".ts", ".webm", ".mpg", ".mpeg", ".m2ts") # Add more as needed
 
     foreach ($itemPath in $Path) {
@@ -633,12 +633,20 @@ process {
                         continue
                     }
 
-                    Set-DefaultAudioLogic -FileInput $file `
+                    $result = Format-AudioPriority -FileInput $file `
                                           -LanguagePriority $LangPriorityList `
                                           -TitlePriority $TitlePriorityList `
                                           -CurrentFileAction $FileAction `
                                           -OutputSuffix $Suffix `
-                                          -ForceProcessing:$Force
+                                          -ForceProcessing:$Force `
+                                          -PassThru:$PassThru
+                    if (-not $script:anyAudioSet) {
+                        $script:anyAudioSet = $null -ne $result
+                    }
+                    if ($PassThru -and $result) {
+                        $script:anyAudioSet = $true
+                        return $result
+                    }
                 }
 
             } elseif ($item -is [System.IO.FileInfo]) {
@@ -656,12 +664,18 @@ process {
                     }
 
                     Write-Host "Progress: 1 / 1 - Setting audio for '$($item.Name)'"
-                    Set-DefaultAudioLogic -FileInput $item `
+                    $result = Format-AudioPriority -FileInput $item `
                                         -LanguagePriority $LangPriorityList `
                                         -TitlePriority $TitlePriorityList `
                                         -CurrentFileAction $FileAction `
                                         -OutputSuffix $Suffix `
-                                        -ForceProcessing:$Force
+                                        -ForceProcessing:$Force `
+                                        -PassThru:$PassThru
+                    if ($PassThru -and $result) {
+                        $script:anyAudioSet = $true
+                        return $result
+                    }
+                    $script:anyAudioSet = $null -ne $result
                 } else {
                     Write-Warning "Skipping file '$($item.FullName)' as its extension '$($item.Extension)' is not in the recognized list of video formats."
                 }

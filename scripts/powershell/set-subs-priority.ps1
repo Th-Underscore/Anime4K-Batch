@@ -46,6 +46,9 @@ Disable searching for ffmpeg/ffprobe in PATH using 'where.exe' or 'Get-Command'.
 .PARAMETER Concise
 Concise output (only progress shown).
 
+.PARAMETER PassThru
+Returns the ffmpeg command arguments instead of executing them. Useful for compiling commands for later execution.
+
 .EXAMPLE
 .\set-subs-priority.ps1 -Path "C:\videos\anime.mkv" -Lang "fra,eng" -Replace
 
@@ -107,7 +110,10 @@ param(
     [switch]$Concise,
 
     [Parameter()]
-    [string]$ConfigPath = ''
+    [string]$ConfigPath = '',
+
+    [Parameter()]
+    [switch]$PassThru
 )
 
 begin {
@@ -256,25 +262,15 @@ begin {
 
 
     # --- Function to Process a Single File ---
-    function Set-DefaultSubtitleLogic {
+    function Format-SubtitlePriority {
         param(
-            [Parameter(Mandatory = $true)]
-            [System.IO.FileInfo]$FileInput,
-
-            [Parameter(Mandatory = $true)]
-            [string[]]$LanguagePriority,
-
-            [Parameter(Mandatory = $true)][AllowEmptyCollection()]
-            [string[]]$TitlePriority,
-
-            [Parameter(Mandatory = $true)]
-            [int]$CurrentFileAction, # 0, 1, or 2
-
-            [Parameter(Mandatory = $true)]
-            [string]$OutputSuffix, # Used for action 0, 1
-
-            [Parameter()]
-            [switch]$ForceProcessing
+            [Parameter(Mandatory = $true)] [System.IO.FileInfo]$FileInput,
+            [Parameter(Mandatory = $true)] [string[]]$LanguagePriority,
+            [Parameter(Mandatory = $true)][AllowEmptyCollection()] [string[]]$TitlePriority,
+            [Parameter(Mandatory = $true)] [int]$CurrentFileAction, # 0, 1, or 2
+            [Parameter(Mandatory = $true)] [string]$OutputSuffix, # Used for action 0, 1
+            [Parameter()] [switch]$ForceProcessing,
+            [Parameter()] [switch]$PassThru
         )
 
         $inputFileFullPath = $FileInput.FullName
@@ -474,39 +470,45 @@ begin {
             Write-Host "Proceeding with ffmpeg remux..."
         }
 
-        # --- Construct ffmpeg map arguments ---
+        # --- Construct FFMPEG Command ---
         $mapArgs = @(
             '-map', '0:v?', # Map video streams (optional)
-            '-map', '0:a?',  # Map audio streams (optional)
-            '-map', '0:t?',  # Map all attachment streams (e.g., fonts) (optional)
-            '-map', '0:d?' # Map data streams (optional)
-            # Data streams? Attachments? Map all metadata?
+            '-map', '0:a?', # Map audio streams (optional)
+            '-map', '0:t?', # Map all attachment streams (e.g., fonts) (optional)
+            '-map', '0:d?'  # Map data streams (optional)
         )
         # Add the default subtitle stream first
         $mapArgs += '-map', "0:$($defaultSubtitleStream.Index)"
+        $mapArgs += '-disposition:s:0', 'default'
 
         # Add remaining subtitle streams
+        $i = 0
         foreach ($stream in $subtitleStreams) {
             if ($stream.Index -ne $defaultSubtitleStream.Index) {
+                $i += 1
                 $mapArgs += '-map', "0:$($stream.Index)"
+                $mapArgs += "-disposition:s:$i", $(if ($stream.IsForced) { 'forced' } else { '0' })
             }
         }
 
+        $ffmpegArgs = $mapArgs
+        $ffmpegArgs += '-c:s', 'copy'
+        $ffmpegArgs += '-c', 'copy'
+
+        # --- PassThru Mode: Return arguments instead of executing ---
+        if ($PassThru) {
+            Write-Verbose "PassThru enabled. Returning ffmpeg arguments as a single string."
+            return $ffmpegArgs
+        }
+
         # --- Construct Full FFMPEG Command ---
-        $ffmpegArgs = @(
+        $fullFfmpegArgs = @(
             '-v', 'warning', '-stats',
-            '-y', # Overwrite temporary file or final file if -Force is used
+            '-y', # Overwrite temp/final file
             '-i', "`"$inputFileFullPath`""
         )
-        $ffmpegArgs += $mapArgs
-        $ffmpegArgs += '-c', 'copy' # Copy all mapped streams
-
-        # Reset disposition for ALL output subtitle streams to 0 (none)
-        $ffmpegArgs += '-disposition:s', '0'
-        $ffmpegArgs += '-disposition:s:0', 'default'
-        # Note: The order matters here. Reset all first, then set the specific one. This will cause an ffmpeg warning, but it's ignorable.
-
-        $ffmpegArgs += "`"$ffmpegTargetFile`"" # Output (temporary or final)
+        $fullFfmpegArgs += $ffmpegArgs
+        $fullFfmpegArgs += "`"$ffmpegTargetFile`"" # Output (temporary or final)
 
         # --- Check Temporary File in Replace Mode ---
         if ($CurrentFileAction -eq 2 -and (Test-Path -LiteralPath $ffmpegTargetFile -PathType Leaf) -and (-not $ForceProcessing)) {
@@ -517,13 +519,13 @@ begin {
         }
 
         # --- Execute FFMPEG ---
-        if (-not $Concise) { Write-Host "Starting ffmpeg reorder command:`n$ffmpeg $($ffmpegArgs -join ' ')" }
+        if (-not $Concise) { Write-Host "Starting ffmpeg reorder command:`n$ffmpeg $($fullFfmpegArgs -join ' ')" }
 
         if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Set default subtitle track (Output: $ffmpegTargetFile)")) {
             $success = $false
             try {
-                Write-Verbose "Running: $ffmpeg $($ffmpegArgs -join ' ')"
-                & $ffmpeg @ffmpegArgs
+                Write-Verbose "Running: $ffmpeg $($fullFfmpegArgs -join ' ')"
+                & $ffmpeg @fullFfmpegArgs
                 $exitCode = $LASTEXITCODE
                 if (-not $Concise) { Write-Host "" }
 
@@ -588,12 +590,11 @@ begin {
             # No post-processing needed for -WhatIf
         }
 
-    } # End Function Set-DefaultSubtitleLogic
+    } # End Function Format-SubtitlePriority
 
 } # End Begin block
 
 process {
-    # Define common video extensions
     $videoExtensions = @(".mkv", ".mp4", ".avi", ".mov", ".wmv", ".flv", ".ts", ".webm", ".mpg", ".mpeg", ".m2ts") # Add more as needed
 
     foreach ($itemPath in $Path) {
@@ -635,12 +636,17 @@ process {
                         continue
                     }
 
-                    Set-DefaultSubtitleLogic -FileInput $file `
+                    $result = Format-SubtitlePriority -FileInput $file `
                                           -LanguagePriority $LangPriorityList `
                                           -TitlePriority $TitlePriorityList `
                                           -CurrentFileAction $FileAction `
-                                          -OutputSuffix $Suffix `
-                                          -ForceProcessing:$Force
+                                          -OutputSuffix $Suffix `#
+                                          -ForceProcessing:$Force `
+                                          -PassThru:$PassThru
+                    if ($PassThru -and $result) {
+                        $script:anySubsSet = $true
+                        return $result
+                    }
                 }
 
             } elseif ($item -is [System.IO.FileInfo]) {
@@ -658,12 +664,17 @@ process {
                     }
 
                     Write-Host "Progress: 1 / 1 - Setting subtitles for '$($item.Name)'"
-                    Set-DefaultSubtitleLogic -FileInput $item `
+                    $result = Format-SubtitlePriority -FileInput $item `
                                         -LanguagePriority $LangPriorityList `
                                         -TitlePriority $TitlePriorityList `
                                         -CurrentFileAction $FileAction `
                                         -OutputSuffix $Suffix `
-                                        -ForceProcessing:$Force
+                                        -ForceProcessing:$Force `
+                                        -PassThru:$PassThru
+                    if ($PassThru -and $result) {
+                        $script:anySubsSet = $true
+                        return $result
+                    }
                 } else {
                     Write-Warning "Skipping file '$($item.FullName)' as its extension '$($item.Extension)' is not in the recognized list of video formats."
                 }

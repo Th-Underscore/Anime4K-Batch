@@ -29,6 +29,9 @@ Disable searching for ffmpeg in PATH using 'where.exe' or 'Get-Command'.
 .PARAMETER Concise
 Concise output (only progress shown).
 
+.PARAMETER PassThru
+Returns the ffmpeg command arguments instead of executing them. Useful for compiling commands for later execution.
+
 .EXAMPLE
 .\remux.ps1 -Path "C:\videos\input.avi" -Container mkv
 
@@ -72,7 +75,10 @@ param(
     [switch]$Concise,
 
     [Parameter()]
-    [string]$ConfigPath = ''
+    [string]$ConfigPath = '',
+
+    [Parameter()]
+    [switch]$PassThru
 )
 
 begin {
@@ -132,6 +138,18 @@ begin {
         } else {
             Write-Verbose "Default configuration file '$effectiveConfigPath' not found. Using command-line parameters and script defaults."
         }
+    }
+
+    # --- Container Compatibility Rules ---
+    # Define conditions where certain stream types should NOT be copied.
+    # Key: Container extension (e.g., '.mp4')
+    # Value: Array of strings ('no_video', 'no_audio', 'no_subs')
+    $containerLimitations = @{
+        '.gif' = @('no_copy_video', 'no_audio', 'no_subs', 'no_ttf', 'no_data') # GIF needs video transcode, no audio/subs
+        '.mp4' = @('no_subs', 'no_ttf') # MP4 subtitle copy is often problematic
+        # Add more container rules as needed
+        # '.avi' = @('no_subs') # Example
+        # '.mov' = @('no_subs') # Example
     }
 
     # --- Script Status Tracking ---
@@ -217,20 +235,8 @@ begin {
     $outputExt = "." + $Container.TrimStart('.')
     if (-not $Concise) { Write-Host "Target Container Extension: $outputExt" }
 
-    # --- Container Compatibility Rules ---
-    # Define conditions where certain stream types should NOT be copied.
-    # Key: Container extension (e.g., '.mp4')
-    # Value: Array of strings ('no_video', 'no_audio', 'no_subs')
-    $containerLimitations = @{
-        '.gif' = @('no_copy_video', 'no_audio', 'no_subs') # GIF needs video transcode, no audio/subs
-        '.mp4' = @('no_subs')                              # MP4 subtitle copy is often problematic
-        # Add more container rules as needed
-        # '.avi' = @('no_subs') # Example
-        # '.mov' = @('no_subs') # Example
-    }
-
     # --- Function to Process a Single File ---
-    function Remux-SingleFile {
+    function Convert-VideoFile {
         param(
             [Parameter(Mandatory = $true)]
             [System.IO.FileInfo]$FileInput,
@@ -242,7 +248,10 @@ begin {
             [switch]$ForceProcessing,
 
             [Parameter()]
-            [switch]$DeleteOriginalFlag
+            [switch]$DeleteOriginalFlag,
+
+            [Parameter()]
+            [switch]$PassThru
         )
 
         $inputFileFullPath = $FileInput.FullName
@@ -302,16 +311,21 @@ begin {
         if (-not ($inputLimitations -contains 'no_subs' -or $outputLimitations -contains 'no_subs')) {
             Write-Verbose "Mapping subtitle streams (copying)."
             $mapArgs += '-map', '0:s?', '-c:s', 'copy'
-            # $mapArgs += '-map', '0:d?'
         } else {
             if (-not $Concise) { Write-Host "Skipping subtitle streams due to container limitations ($inputExt -> $OutputExt)." }
+        }
+
+        # --- PassThru Mode: Return arguments instead of executing ---
+        if ($PassThru) {
+            Write-Verbose "PassThru enabled. Returning ffmpeg arguments as a single string."
+            return $mapArgs
         }
 
         # Check if any map arguments were actually added (excluding the initial base args)
         # A bit simplistic check: if only base args + output file exist, likely nothing was mapped.
         if ($mapArgs.Count -le 0) { # Count base args (-v, warning, -stats, -y, -i, input) + output file = 7? Let's use a safer lower bound.
             # Refine check: Look for at least one '-map' argument
-            if (-not ($ffmpegArgs -contains '-map')) {
+            if (-not ($mapArgs -contains '-map')) {
                 Write-Error "No streams could be mapped for '$inputFileFullPath' based on the rules for '$OutputExt'. Skipping remux."
                 return
             }
@@ -356,7 +370,7 @@ begin {
                         if (-not $Concise) { Write-Host "Deleting original file: '$inputFileFullPath'" }
                         if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Delete original file after successful remux")) {
                             try {
-                                Remove-Item -Path $inputFileFullPath -Force -ErrorAction Stop
+                                Remove-Item -LiteralPath $inputFileFullPath -Force -ErrorAction Stop
                                 if (-not $Concise) { Write-Host "Successfully deleted original file: '$inputFileFullPath'" }
                             } catch {
                                 Write-Warning "Failed to delete original file '$inputFileFullPath'. It might be in use or permissions denied. Error: $($_.Exception.Message)"
@@ -381,7 +395,7 @@ begin {
             $script:anyRemuxPerformed = $true
             return # Don't proceed with deletion if -WhatIf
         }
-    } # End Function Remux-SingleFile
+    } # End Function Convert-VideoFile
 
 } # End Begin block
 
@@ -412,20 +426,30 @@ process {
                 foreach ($file in $filesToProcess) {
                     $processedCount++
                     Write-Host "Progress: $processedCount / $totalFiles - Remuxing '$($file.Name)'"
-                    Remux-SingleFile -FileInput $file `
-                                     -OutputExt $outputExt `
-                                     -ForceProcessing:$Force `
-                                     -DeleteOriginalFlag:$Delete
+                    $result = Convert-VideoFile -FileInput $file `
+                        -OutputExt $outputExt `
+                        -ForceProcessing:$Force `
+                        -DeleteOriginalFlag:$Delete `
+                        -PassThru:$PassThru
+                    if ($PassThru -and $result) {
+                        $script:anyRemuxPerformed = $true
+                        return $result
+                    }
                 }
 
             } elseif ($item -is [System.IO.FileInfo]) {
                 # Check if the file extension is in our list (basic check)
                 if ($videoExtensions -contains $item.Extension) {
                     Write-Host "Progress: 1 / 1 - Remuxing '$($item.Name)'"
-                    Remux-SingleFile -FileInput $item `
-                                    -OutputExt $outputExt `
-                                    -ForceProcessing:$Force `
-                                    -DeleteOriginalFlag:$Delete
+                    $result = Convert-VideoFile -FileInput $item `
+                        -OutputExt $outputExt `
+                        -ForceProcessing:$Force `
+                        -DeleteOriginalFlag:$Delete `
+                        -PassThru:$PassThru
+                    if ($PassThru -and $result) {
+                        $script:anyRemuxPerformed = $true
+                        return $result
+                    }
                 } else {
                     Write-Warning "Skipping file '$($item.FullName)' as its extension '$($item.Extension)' is not in the recognized list of video formats for remuxing."
                 }
