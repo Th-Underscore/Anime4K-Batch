@@ -56,7 +56,7 @@ Audio codec for transcoding (e.g., 'aac', 'ac3', 'flac'). Defaults to the origin
 Audio bitrate for transcoding (e.g., '192k', '256k'). Defaults to the original value. Only applies if AudioCodec is specified.
 
 .PARAMETER AudioChannels
-Number of audio channels (e.g., '2' for stereo, '6' for 5.1). Defaults to the original value. Only applies if AudioCodec is specified.
+Number of audio channels (e.g., '2' for stereo, '6' or '5.1' for 5.1). Defaults to the original value. Only applies if AudioCodec is specified.
 
 .PARAMETER Recurse
 Process folders recursively.
