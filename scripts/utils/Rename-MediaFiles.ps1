@@ -66,7 +66,7 @@
 
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
-    [Parameter(Mandatory = $true, HelpMessage = "Enter the season number (e.g., 1, 01, 2).")]
+    [Parameter(Mandatory = $false, HelpMessage = "Enter the season number (e.g., 1, 01, 2). Auto-detected if not provided.")]
     [string]$SeasonNumber,
 
     [Parameter(Mandatory = $false, HelpMessage = "Path to the directory with files. Defaults to the current directory.")]
@@ -165,7 +165,25 @@ if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
     Write-Error "Error: The specified path '$Path' does not exist or is not a directory."
     return
 }
+# --- Season Number Detection ---
+if (-not $PSBoundParameters.ContainsKey('SeasonNumber')) {
+    $parentDirName = (Get-Item -LiteralPath $Path).Name
+    # Prioritize 'Season <number>' (strict) before falling back to 'S<number>' (loose)
+    # `Season[\s_\.]*(\d+)|S[\s_\.]*(\d+)`: $matches[1] -or $matches[2]
+    $seasonRegexStrict = 'Season[\s_\.]*(\d+)'
+    $seasonRegexLoose = 'S[\s_\.]*(\d+)'
 
+    if ($parentDirName -match $seasonRegexStrict) {
+        $SeasonNumber = $matches[1]
+        Write-Host "Auto-detected Season: $SeasonNumber" -ForegroundColor Yellow
+    } elseif ($parentDirName -match $seasonRegexLoose) {
+        $SeasonNumber = $matches[1]
+        Write-Host "Auto-detected Season: $SeasonNumber" -ForegroundColor Yellow
+    } else {
+        $SeasonNumber = "0"
+        Write-Host "Could not auto-detect season number. Defaulting to '0'." -ForegroundColor Yellow
+    }
+}
 # Format the season number to be two digits
 $paddedSeason = $SeasonNumber.PadLeft(2, '0')
 
