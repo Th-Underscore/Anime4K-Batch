@@ -12,9 +12,10 @@
     (Required) The season number to use for the files. It will be padded to two digits (e.g., '1' becomes '01').
 
 .PARAMETER Path
-    (Optional) The full path to the directory containing the media files. Defaults to the current directory.
+    (Optional) The full path to the directory containing the media files.
+    Default: . (current directory)
 
-.PARAMETER CustomRegex
+.PARAMETER Regex
     (Optional) Your own regular expression to find the episode number.
     Default: "(?i)(?:S?\d+[\s_\.]*(?:E|x)|(?:Season[\s_\.]*\d+)?(?:e|ep|Episode|-)|(?:Season[\s_\.]*\d+))[\s_\.]*(\d+\.\d+|\d+)(.*)"
     IMPORTANT: The episode number MUST be the first capture group in your regex (i.e., enclosed in the first set of parentheses), and the rest of the filename in the second capture group. Set capture group 2 to () to be empty.
@@ -23,6 +24,25 @@
 .PARAMETER Extensions
     (Optional) The list of file extensions to process.
     Default: ".mkv, .mp4, .avi, .mov, .webm"
+
+.PARAMETER FirstEpisode
+    (Optional) Sets the episode offset for this season, to work with absolute numbering.
+    e.g. Season 2 starts at "Episode 25" because Season 1 had 24 episodes.
+    Overrides auto-detection of the first episode number.
+    If you want to default to the episode number no matter what, use -NoDetectFirst.
+    Not compatible with -OrderByAlphabet.
+
+.PARAMETER UseTitle
+    (Switch) Uses the video title metadata instead of the file name.
+
+.PARAMETER OrderByAlphabet
+    (Switch) Orders the files alphabetically instead of using a detected episode number.
+    This follows -UseTitle if applied.
+
+.PARAMETER NoDetectFirstEpisode
+    (Switch) Disables auto-detection of the first episode number for calculating an offset.
+    Use this if you want to default to the episode number no matter what. -FirstEpisode always overrides this.
+    Not compatible with -OrderByAlphabet.
 
 .EXAMPLE
     .\Rename-MediaFiles.ps1 -Season 1 -WhatIf
@@ -53,11 +73,42 @@ param(
     [string]$Path = (Get-Location).Path,
 
     [Parameter(Mandatory = $false, HelpMessage = "Provide a custom regex. The episode number must be in the first capture group `()` and the rest of the filename in the second capture group `()`. Set capture group 2 to `()` to be empty.")]
-    [string]$CustomRegex = '(?i)(?:S?\d+[\s_\.]*(?:E|x)|(?:Season[\s_\.]*\d+)?(?:e|ep|Episode|-)|(?:Season[\s_\.]*\d+))[\s_\.]*(\d+\.\d+|\d+)(.*)',
+    [string]$Regex = '(?i)(?:S?\d+[\s_\.]*(?:E|x)|(?:Season[\s_\.]*\d+)?(?:e|ep|Episode|-)|(?:Season[\s_\.]*\d+))[\s_\.]*(\d+\.\d+|\d+)(.*)',
 
     [Parameter(Mandatory = $false, HelpMessage = "List of file extensions to process. Defaults to .mkv, .mp4, .avi, .mov, .webm.")]
-    [string]$Extensions = '.mkv, .mp4, .avi, .mov, .webm'
+    [string]$Extensions = '.mkv, .mp4, .avi, .mov, .webm',
+
+    [Parameter(Mandatory = $false, HelpMessage = "Sets the episode offset for this season, to work with absolute numbering.")]
+    [int]$FirstEpisode,
+
+    [Parameter(Mandatory = $false, HelpMessage = "Uses the video title metadata instead of the file name.")]
+    [switch]$UseTitle,
+
+    [Parameter(Mandatory = $false, HelpMessage = "Orders the files alphabetically instead of using a detected episode number.")]
+    [switch]$OrderByAlphabet,
+
+    [Parameter(Mandatory = $false, HelpMessage = "Disables auto-detection of the first episode number for calculating an offset.")]
+    [switch]$NoDetectFirstEpisode
 )
+
+# --- Parameter Validation ---
+if ($OrderByAlphabet -and $PSBoundParameters.ContainsKey('FirstEpisode')) {
+    Write-Error "'-OrderByAlphabet' and '-FirstEpisode' cannot be used together."
+    return
+}
+
+if ($OrderByAlphabet -and $PSBoundParameters.ContainsKey('NoDetectFirstEpisode')) {
+    Write-Error "'-OrderByAlphabet' and '-NoDetectFirstEpisode' cannot be used together."
+    return
+}
+
+if ($UseTitle) {
+    $ffprobePath = Get-Command ffprobe -ErrorAction SilentlyContinue
+    if (-not $ffprobePath) {
+        Write-Error "ffprobe.exe not found. Please ensure it is in your system's PATH."
+        return
+    }
+}
 
 # --- Script Configuration ---
 # Default (Strict) Regex
@@ -104,9 +155,9 @@ if ($PSBoundParameters.ContainsKey('Extensions')) {
 }
 # --- End Configuration ---
 
-$regexToUse = $CustomRegex
-if ($PSBoundParameters.ContainsKey('CustomRegex')) {
-    Write-Host "Using custom regex provided by user: '$CustomRegex'" -ForegroundColor Yellow
+$regexToUse = $Regex
+if ($PSBoundParameters.ContainsKey('Regex')) {
+    Write-Host "Using custom regex provided by user: '$Regex'" -ForegroundColor Yellow
 }
 
 # Validate the path exists
@@ -130,38 +181,95 @@ if (-not $files) {
     return
 }
 
-# Start loop
+# --- File Processing ---
+$fileQueue = [System.Collections.Generic.List[object]]::new()
+
 foreach ($file in $files) {
-    if ($file.BaseName -match $regexToUse -or $file.BaseName -match $looseRegex) {
-        $episodeString = $matches[1]
-        $trailingText = $matches[2]
-        $source = ""
-        $formattedEpisode = ""
-
-        if ($file.BaseName -match '^(\[.*?\])') {
-            $source = "$($matches[1]) "
+    $nameToParse = if ($UseTitle) {
+        try {
+            $title = ffprobe -v error -show_entries format_tags=title -of default=noprint_wrappers=1:nokey=1 -i $file.FullName
+            if ([string]::IsNullOrWhiteSpace($title)) { $file.BaseName } else { $title }
         }
-
-        if ($episodeString -like '*.*') {  # Don't pad decimals
-            $formattedEpisode = $episodeString
+        catch {
+            Write-Warning "Failed to get title for '$($file.Name)'. Falling back to filename."
+            $file.BaseName
         }
-        else {  # Pad integers
-            $formattedEpisode = $episodeString.PadLeft(2, '0')
-        }
+    } else {
+        $file.BaseName
+    }
+    $fileQueue.Add([pscustomobject]@{
+        OriginalFile = $file
+        NameToParse  = $nameToParse
+    })
+}
 
-        $newFileName = "$($source)S$($paddedSeason)E$($formattedEpisode)$trailingText$($file.Extension)"
+if ($OrderByAlphabet) {
+    $fileQueue = $fileQueue | Sort-Object NameToParse
+}
 
-        if ($file.Name -eq $newFileName) {
-            Write-Host "SKIP: '$($file.Name)' is already in the correct format." -ForegroundColor Green
-            continue
-        }
-
-        if ($pscmdlet.ShouldProcess($file.Name, "Rename to $newFileName")) {
-            Rename-Item -LiteralPath $file.FullName -NewName $newFileName
+# --- Episode Offset Calculation ---
+$episodeOffset = 0
+if ($PSBoundParameters.ContainsKey('FirstEpisode')) {
+    $episodeOffset = $FirstEpisode - 1
+    Write-Host "Using manual episode offset from -FirstEpisode: $episodeOffset" -ForegroundColor Yellow
+} elseif (-not $NoDetectFirstEpisode) {
+    $sortedFilesForDetection = $fileQueue | Sort-Object NameToParse
+    foreach ($item in $sortedFilesForDetection) {
+        if ($item.NameToParse -match $regexToUse -or $item.NameToParse -match $looseRegex) {
+            $detectedFirstEpisode = [decimal]$matches[1]
+            if ($detectedFirstEpisode -ge 1) {
+                $episodeOffset = $detectedFirstEpisode - 1
+                Write-Host "Auto-detected first episode: $detectedFirstEpisode. Using offset: $episodeOffset" -ForegroundColor Yellow
+                break
+            }
         }
     }
-    else {
-        Write-Warning "Could not find an episode number in '$($file.Name)'. Skipping."
+}
+
+$episodeCounter = 1
+foreach ($item in $fileQueue) {
+    $file = $item.OriginalFile
+    $nameToParse = $item.NameToParse
+    $episodeString = ""
+    $trailingText = ""
+
+    if ($OrderByAlphabet) {
+        $episodeString = $episodeCounter++
+        $trailingText = "" # No trailing text in alphabet mode
+    } elseif ($nameToParse -match $regexToUse -or $nameToParse -match $looseRegex) {
+        $episodeString = $matches[1]
+        $trailingText = $matches[2]
+
+        if ($episodeOffset -ne 0) {
+            $episodeNumber = [decimal]$episodeString - $episodeOffset
+            $episodeString = $episodeNumber.ToString()
+        }
+    } else {
+        Write-Warning "Could not find an episode number in '$($nameToParse)' for file '$($file.Name)'. Skipping."
+        continue
+    }
+
+    $source = ""
+    if ($file.BaseName -match '^(\[.*?\])') {
+        $source = "$($matches[1]) "
+    }
+
+    $formattedEpisode = ""
+    if ($episodeString -like '*.*') { # Don't pad decimals
+        $formattedEpisode = $episodeString
+    } else { # Pad integers
+        $formattedEpisode = $episodeString.PadLeft(2, '0')
+    }
+
+    $newFileName = "$($source)S$($paddedSeason)E$($formattedEpisode)$trailingText$($file.Extension)"
+
+    if ($file.Name -eq $newFileName) {
+        Write-Host "SKIP: '$($file.Name)' is already in the correct format." -ForegroundColor Green
+        continue
+    }
+
+    if ($pscmdlet.ShouldProcess($file.Name, "Rename to $newFileName")) {
+        Rename-Item -LiteralPath $file.FullName -NewName $newFileName
     }
 }
 
