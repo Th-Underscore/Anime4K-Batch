@@ -66,11 +66,11 @@
 
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
+    [Parameter(Mandatory = $false, Position = 0, ValueFromPipeline = $true, HelpMessage = "The path to a directory of media files, or a direct path to one or more media files. Defaults to the current directory.")]
+    [string[]]$Path = (Get-Location).Path,
+
     [Parameter(Mandatory = $false, HelpMessage = "Enter the season number (e.g., 1, 01, 2). Auto-detected if not provided.")]
     [string]$SeasonNumber,
-
-    [Parameter(Mandatory = $false, HelpMessage = "Path to the directory with files. Defaults to the current directory.")]
-    [string]$Path = (Get-Location).Path,
 
     [Parameter(Mandatory = $false, HelpMessage = "Provide a custom regex. The episode number must be in the first capture group `()` and the rest of the filename in the second capture group `()`. Set capture group 2 to `()` to be empty.")]
     [string]$Regex = '(?i)(?:S?\d+[\s_\.]*(?:E|x)|(?:Season[\s_\.]*\d+)?(?:e|ep|Episode|-)|(?:Season[\s_\.]*\d+))[\s_\.]*(\d+\.\d+|\d+)(.*)',
@@ -160,42 +160,62 @@ if ($PSBoundParameters.ContainsKey('Regex')) {
     Write-Host "Using custom regex provided by user: '$Regex'" -ForegroundColor Yellow
 }
 
-# Validate the path exists
-if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
-    Write-Error "Error: The specified path '$Path' does not exist or is not a directory."
-    return
+# --- Path Validation and File Gathering ---
+$files = @()
+$singlePath = $null
+
+if ($Path.Count -eq 1 -and (Test-Path -LiteralPath $Path[0] -PathType Container)) {
+    $singlePath = $Path[0]
 }
+
+foreach ($p in $Path) {
+    if (Test-Path -LiteralPath $p -PathType Container) {
+        $files += Get-ChildItem -LiteralPath $p -File | Where-Object { $videoExtensions -contains $_.Extension }
+    }
+    elseif (Test-Path -LiteralPath $p -PathType Leaf) {
+        $fileObject = Get-Item -LiteralPath $p
+        if ($videoExtensions -contains $fileObject.Extension) {
+            $files += $fileObject
+        }
+    }
+    else {
+        Write-Warning "Path '$p' is not a valid file or directory."
+    }
+}
+$files = $files | Sort-Object -Property FullName -Unique
+
 # --- Season Number Detection ---
 if (-not $PSBoundParameters.ContainsKey('SeasonNumber')) {
-    $parentDirName = (Get-Item -LiteralPath $Path).Name
-    # Prioritize 'Season <number>' (strict) before falling back to 'S<number>' (loose)
-    # `Season[\s_\.]*(\d+)|S[\s_\.]*(\d+)`: $matches[1] -or $matches[2]
-    $seasonRegexStrict = 'Season[\s_\.]*(\d+)'
-    $seasonRegexLoose = 'S[\s_\.]*(\d+)'
+    if ($singlePath) {
+        $parentDirName = (Get-Item -LiteralPath $singlePath).Name
+        # Prioritize 'Season <number>' (strict) before falling back to 'S<number>' (loose)
+        $seasonRegexStrict = 'Season[\s_\.]*(\d+)'
+        $seasonRegexLoose = 'S[\s_\.]*(\d+)'
 
-    if ($parentDirName -match $seasonRegexStrict) {
-        $SeasonNumber = $matches[1]
-        Write-Host "Auto-detected Season: $SeasonNumber" -ForegroundColor Yellow
-    } elseif ($parentDirName -match $seasonRegexLoose) {
-        $SeasonNumber = $matches[1]
-        Write-Host "Auto-detected Season: $SeasonNumber" -ForegroundColor Yellow
+        if ($parentDirName -match $seasonRegexStrict) {
+            $SeasonNumber = $matches[1]
+            Write-Host "Auto-detected Season: $SeasonNumber" -ForegroundColor Yellow
+        } elseif ($parentDirName -match $seasonRegexLoose) {
+            $SeasonNumber = $matches[1]
+            Write-Host "Auto-detected Season: $SeasonNumber" -ForegroundColor Yellow
+        } else {
+            $SeasonNumber = "0"
+            Write-Host "Could not auto-detect season number. Defaulting to '0'." -ForegroundColor Yellow
+        }
     } else {
         $SeasonNumber = "0"
-        Write-Host "Could not auto-detect season number. Defaulting to '0'." -ForegroundColor Yellow
+        Write-Host "Could not auto-detect season number from multiple paths or file paths. Defaulting to '0'." -ForegroundColor Yellow
     }
 }
 # Format the season number to be two digits
 $paddedSeason = $SeasonNumber.PadLeft(2, '0')
 
-Write-Host "Starting file rename process in directory: $Path" -ForegroundColor Cyan
+Write-Host "Starting file rename process." -ForegroundColor Cyan
 Write-Host "Using Season: S$paddedSeason" -ForegroundColor Cyan
 Write-Host "--------------------------------------------------"
 
-# Get all files in the directory that match the extensions
-$files = Get-ChildItem -LiteralPath $Path -File | Where-Object { $videoExtensions -contains $_.Extension }
-
 if (-not $files) {
-    Write-Warning "No video files with specified extensions found in '$Path'."
+    Write-Warning "No video files with specified extensions found in the provided path(s)."
     return
 }
 
