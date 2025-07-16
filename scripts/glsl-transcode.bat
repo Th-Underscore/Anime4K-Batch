@@ -70,17 +70,9 @@ if not defined PATHS_ARRAY_ELEMENTS (
     exit /b 1
 )
 
-REM Escape script path for PowerShell single quotes and brackets
-set "PS_ESCAPED_SCRIPT_PATH=%POWERSHELL_SCRIPT_PATH:'=''%"
-set "PS_ESCAPED_SCRIPT_PATH=%PS_ESCAPED_SCRIPT_PATH:[=`[%"
-set "PS_ESCAPED_SCRIPT_PATH=%PS_ESCAPED_SCRIPT_PATH:]=`]%"
-
-REM Construct and execute the full PowerShell command string
-echo Executing PowerShell command: '%PS_ESCAPED_SCRIPT_PATH%'%PS_ARGS:&=^&% -Path @^(%PATHS_ARRAY_ELEMENTS:&=^&%^)
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& '%PS_ESCAPED_SCRIPT_PATH%'%PS_ARGS% -Path @(%PATHS_ARRAY_ELEMENTS%)"
+call ./utils/exec_pwsh.cmd "%POWERSHELL_SCRIPT_PATH%" %PS_ARGS% -Path "%PATHS_ARRAY_ELEMENTS%"
 
 REM Capture the exit code from PowerShell
 set "EXIT_CODE=%ERRORLEVEL%"
 
-endlocal
 exit /b %EXIT_CODE%
