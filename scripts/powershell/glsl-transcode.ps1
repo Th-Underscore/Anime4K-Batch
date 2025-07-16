@@ -816,7 +816,7 @@ begin {
                     $streamArgs += Select-ParameterPairs -ArgumentList $newSubsArgs -Filter ($subsFilter + '^-map 0:\d+$') -Regex -Whitelist
                 }
             } else {
-                Write-Warning "Failed to get subtitle arguments from set-subs-priority.ps1 (Exit Code: $($result.ExitCode)). Subtitle handling may be incorrect."
+                if ($result.ExitCode -ne -2) { Write-Warning "Failed to get subtitle arguments from set-subs-priority.ps1 (Exit Code: $($result.ExitCode)). Subtitle handling may be incorrect." }
             }
             if (-not $Concise) { Write-Host "Skipping subtitle stream mapping due to output container limitations ($OutputExt), but extraction may still occur." }
         } elseif (-not $allowInputSubs) {
@@ -914,7 +914,6 @@ begin {
 
         if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Transcode to $outputFileFullPath")) {
             try {
-                # Use & operator for execution
                 Write-Verbose "Running: $ffmpeg $($ffmpegArgs -join ' ')"
                 & $ffmpeg @ffmpegArgs
                 $exitCode = $LASTEXITCODE
@@ -1055,4 +1054,4 @@ process {
 
 end {
     Write-Host "`nAll arguments processed."
-}
+} # End End block

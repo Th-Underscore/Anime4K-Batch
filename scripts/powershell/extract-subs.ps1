@@ -263,16 +263,10 @@ begin {
         # Basic replacements for common invalid characters
         $sanitized = $Text -replace '[:\\/\?\*"<>|]', '_' `
                            -replace '\s+', ' ' # Replace whitespace sequences with single space
-
-        # Remove leading/trailing underscores/dots/spaces
         $sanitized = $sanitized.Trim('_. ')
+        $sanitized = $sanitized -replace '_+', '_'
+        
 
-        # Replace multiple consecutive underscores with a single one
-        while ($sanitized -match '__') {
-            $sanitized = $sanitized -replace '__', '_'
-        }
-
-        # If sanitization results in empty string, return default
         if ([string]::IsNullOrWhiteSpace($sanitized)) { return "sanitized" }
 
         return $sanitized
