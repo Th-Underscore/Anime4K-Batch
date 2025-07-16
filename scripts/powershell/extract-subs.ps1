@@ -177,7 +177,6 @@ begin {
             Write-Verbose "Found $Name in script directory: $localPath"
             return $localPath
         }
-        # Check one level up if in 'scripts' subdir relative to potential ffmpeg location
         $parentDir = Split-Path -LiteralPath $scriptDir
         $parentLocalPath = Join-Path $parentDir "$Name.exe"
         if (Test-Path -LiteralPath $parentLocalPath -PathType Leaf) {

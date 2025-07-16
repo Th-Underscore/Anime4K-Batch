@@ -184,7 +184,7 @@ begin {
             Write-Verbose "Found $Name in script directory: $localPath"
             return $localPath
         }
-        $parentDir = Split-Path $scriptDir -Parent
+        $parentDir = Split-Path -LiteralPath $scriptDir -Parent
         $parentLocalPath = Join-Path $parentDir "$Name.exe"
         if (Test-Path -LiteralPath $parentLocalPath -PathType Leaf) {
             Write-Verbose "Found $Name in parent directory: $parentLocalPath"

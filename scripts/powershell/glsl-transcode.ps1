@@ -293,11 +293,18 @@ begin {
             }
         }
 
-        # 2. Script Directory
-        $localPath = Join-Path $PSScriptRoot "$Name.exe"
+        # 2. Script Directory (Check parent if running from .\scripts)
+        $scriptDir = $PSScriptRoot
+        $localPath = Join-Path $scriptDir "$Name.exe"
         if (Test-Path -LiteralPath $localPath -PathType Leaf) {
             Write-Verbose "Found $Name in script directory: $localPath"
             return $localPath
+        }
+        $parentDir = Split-Path -LiteralPath $scriptDir -Parent
+        $parentLocalPath = Join-Path $parentDir "$Name.exe"
+        if (Test-Path -LiteralPath $parentLocalPath -PathType Leaf) {
+            Write-Verbose "Found $Name in parent directory: $parentLocalPath"
+            return $parentLocalPath
         }
 
         # 3. PATH (where.exe / Get-Command)
@@ -307,31 +314,28 @@ begin {
                 if ($foundPath) {
                     Write-Verbose "Found $Name via Get-Command: $foundPath"
                     return $foundPath
-                } else {
-                    Write-Verbose "$Name not found via Get-Command."
-                }
-            } catch {
-                Write-Verbose "Get-Command failed for ${Name}: $($_.Exception.Message)"
-            }
-            # Fallback for systems where Get-Command might not work as expected for .exe
+                } else { Write-Verbose "$Name not found via Get-Command." }
+            } catch { Write-Verbose "Get-Command failed for ${Name}: $($_.Exception.Message)" }
             try {
                 $whereOutput = where.exe $Name 2>&1
                 if ($LASTEXITCODE -eq 0 -and $whereOutput) {
                     $foundPath = $whereOutput | Select-Object -First 1
                     Write-Verbose "Found $Name via where.exe: $foundPath"
                     return $foundPath
-                } else {
-                    Write-Verbose "$Name not found via where.exe."
-                }
-            } catch {
-                Write-Verbose "where.exe failed for ${Name}: $($_.Exception.Message)"
-            }
+                } else { Write-Verbose "$Name not found via where.exe." }
+            } catch { Write-Verbose "where.exe failed for ${Name}: $($_.Exception.Message)" }
         } else {
             Write-Verbose "Skipping PATH search for $Name due to -DisableWhereSearch."
         }
 
-        Write-Warning "$Name could not be located."
-        return $null
+        # Only error if ffmpeg is not found
+        if ($Name -eq 'ffmpeg') {
+            Write-Error "$Name could not be located. Please provide the path using -FfmpegPath or ensure it's in the script/parent directory or PATH."
+            return $null # Indicate failure
+        } else {
+            Write-Warning "$Name could not be located, but may not be essential for this script."
+            return $null # Indicate not found, but don't error
+        }
     }
 
     # --- Locate FFMPEG and FFPROBE ---
