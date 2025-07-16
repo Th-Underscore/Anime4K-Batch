@@ -44,6 +44,12 @@
     Use this if you want to default to the episode number no matter what. -FirstEpisode always overrides this.
     Not compatible with -OrderByAlphabet.
 
+.PARAMETER CombineData
+    (Switch) Retrieves data from both filename and title metadata. The priority of source/episode depends on the -UseTitle flag.
+
+.PARAMETER EditTitle
+    (Switch) Edits the file's title metadata instead of the filename itself.
+
 .EXAMPLE
     .\Rename-MediaFiles.ps1 -Season 1 -WhatIf
     DRY RUN: See what changes would be made for season 1 in the current directory.
@@ -88,7 +94,13 @@ param(
     [switch]$OrderByAlphabet,
 
     [Parameter(Mandatory = $false, HelpMessage = "Disables auto-detection of the first episode number for calculating an offset.")]
-    [switch]$NoDetectFirstEpisode
+    [switch]$NoDetectFirstEpisode,
+
+    [Parameter(Mandatory = $false, HelpMessage = "Combines retrieved data from both filename and title metadata.")]
+    [switch]$CombineData,
+
+    [Parameter(Mandatory = $false, HelpMessage = "Edits the file's title metadata instead of the filename.")]
+    [switch]$EditTitle
 )
 
 # --- Parameter Validation ---
@@ -102,10 +114,10 @@ if ($OrderByAlphabet -and $PSBoundParameters.ContainsKey('NoDetectFirstEpisode')
     return
 }
 
-if ($UseTitle) {
-    $ffprobePath = Get-Command ffprobe -ErrorAction SilentlyContinue
-    if (-not $ffprobePath) {
-        Write-Error "ffprobe.exe not found. Please ensure it is in your system's PATH."
+if ($EditTitle) {
+    $ffmpegPath = Get-Command ffmpeg -ErrorAction SilentlyContinue
+    if (-not $ffmpegPath) {
+        Write-Error "ffmpeg.exe not found. Please ensure it is in your system's PATH."
         return
     }
 }
@@ -222,22 +234,35 @@ if (-not $files) {
 # --- File Processing ---
 $fileQueue = [System.Collections.Generic.List[object]]::new()
 
+$shell = New-Object -ComObject Shell.Application
 foreach ($file in $files) {
-    $nameToParse = if ($UseTitle) {
+    $filename_text = $file.BaseName
+    $title_text = ""
+
+    if ($UseTitle -or $CombineData -or $EditTitle) {
         try {
-            $title = ffprobe -v error -show_entries format_tags=title -of default=noprint_wrappers=1:nokey=1 -i $file.FullName
-            if ([string]::IsNullOrWhiteSpace($title)) { $file.BaseName } else { $title }
+            $folder = $shell.NameSpace($file.DirectoryName)
+            $shellfile = $folder.ParseName($file.Name)
+            $title_text = $folder.GetDetailsOf($shellfile, 21)
+            if ([string]::IsNullOrWhiteSpace($title_text)) { $title_text = "" }
         }
         catch {
-            Write-Warning "Failed to get title for '$($file.Name)'. Falling back to filename."
-            $file.BaseName
+            Write-Warning "Failed to get title for '$($file.Name)'. It will be treated as empty."
+            $title_text = ""
         }
-    } else {
-        $file.BaseName
     }
+
+    $nameToParse = if ($UseTitle) {
+        if ([string]::IsNullOrEmpty($title_text)) { $file.BaseName } else { $title_text }
+    } else {
+        $filename_text
+    }
+
     $fileQueue.Add([pscustomobject]@{
         OriginalFile = $file
         NameToParse  = $nameToParse
+        FilenameText = $filename_text
+        TitleText    = $title_text
     })
 }
 
@@ -276,7 +301,21 @@ foreach ($item in $fileQueue) {
         $trailingText = "" # No trailing text in alphabet mode
     } elseif ($nameToParse -match $regexToUse -or $nameToParse -match $looseRegex) {
         $episodeString = $matches[1]
-        $trailingText = $matches[2]
+
+        if ($CombineData) {
+            $getTrailingText = {
+                param($text, $regex, $looseRegex)
+                if ($text -match $regex -or $text -match $looseRegex) {
+                    return $matches[2]
+                }
+                return ""
+            }
+            $trailingText_filename = & $getTrailingText -text $item.FilenameText -regex $regexToUse -looseRegex $looseRegex
+            $trailingText_title = & $getTrailingText -text $item.TitleText -regex $regexToUse -looseRegex $looseRegex
+            $trailingText = "$($trailingText_filename)$($trailingText_title)"
+        } else {
+            $trailingText = $matches[2]
+        }
 
         if ($episodeOffset -ne 0) {
             $episodeNumber = [decimal]$episodeString - $episodeOffset
@@ -299,15 +338,41 @@ foreach ($item in $fileQueue) {
         $formattedEpisode = $episodeString.PadLeft(2, '0')
     }
 
-    $newFileName = "$($source)S$($paddedSeason)E$($formattedEpisode)$trailingText$($file.Extension)"
+    $newBaseName = "$($source)S$($paddedSeason)E$($formattedEpisode)$trailingText"
 
-    if ($file.Name -eq $newFileName) {
-        Write-Host "SKIP: '$($file.Name)' is already in the correct format." -ForegroundColor Green
-        continue
+    if ($EditTitle) {
+        $currentTitle = if ([string]::IsNullOrEmpty($item.TitleText)) { "" } else { $item.TitleText }
+        if ($currentTitle -eq $newBaseName) {
+            Write-Host "SKIP: Title for '$($file.Name)' is already correct." -ForegroundColor Green
+            continue
+        }
+        if ($pscmdlet.ShouldProcess($file.FullName, "Set title to `"$newBaseName`"")) {
+            $tempFile = [System.IO.Path]::GetTempFileName() + $file.Extension
+            try {
+                & ffmpeg -hide_banner -y -v error -i $file.FullName -metadata "title=$newBaseName" -map 0 -c copy $tempFile
+                if ($LASTEXITCODE -ne 0) {
+                    throw "ffmpeg failed to process '$($file.Name)'"
+                }
+                Move-Item -LiteralPath $tempFile -Destination $file.FullName -Force
+            }
+            catch {
+                Write-Error "Failed to edit title for '$($file.Name)'. Error: $($_.Exception.Message)"
+            }
+            finally {
+                if (Test-Path -LiteralPath $tempFile) { Remove-Item -LiteralPath $tempFile }
+            }
+        }
     }
+    else {
+        $newFileName = "$($newBaseName)$($file.Extension)"
+        if ($file.Name -eq $newFileName) {
+            Write-Host "SKIP: '$($file.Name)' is already in the correct format." -ForegroundColor Green
+            continue
+        }
 
-    if ($pscmdlet.ShouldProcess($file.Name, "Rename to $newFileName")) {
-        Rename-Item -LiteralPath $file.FullName -NewName $newFileName
+        if ($pscmdlet.ShouldProcess($file.Name, "Rename to $newFileName")) {
+            Rename-Item -LiteralPath $file.FullName -NewName $newFileName
+        }
     }
 }
 
