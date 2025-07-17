@@ -327,7 +327,7 @@ foreach ($item in $fileQueue) {
     }
 
     $source = ""
-    if ($file.BaseName -match '^(\[.*?\])') {
+    if ((-not $EditTitle) -and $file.BaseName -match '^(\[.*?\])') {
         $source = "$($matches[1]) "
     }
 
