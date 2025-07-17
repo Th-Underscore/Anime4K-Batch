@@ -18,7 +18,7 @@ This batch script enhances the resolution of videos using GLSL shaders like [Ani
 
 ### TL;DR
 
-Run `install_registry.bat` as admin, edit `config.json`, and right-click files in File Explorer.
+Run [`install-registry.bat`](./install_registry.bat), edit [`config.json`](./config.json), and right-click files in File Explorer.
 
 ## Features
 
@@ -30,7 +30,7 @@ Run `install_registry.bat` as admin, edit `config.json`, and right-click files i
 *   Support for various video encoders: H.264, H.265, AV1 (CPU and GPU).
 *   Hardware acceleration via NVIDIA NVENC (CUDA) and AMD AMF (OpenCL).
 *   Preserves all audio and subtitle streams (requires MKV output for subtitles).
-*   Supports MP4, AVI, and MKV container formats for input/output.
+*   Supports MKV, MP4, and AVI container formats for input/output.
 *   Automatic detection of `ffmpeg`/`ffprobe` via system PATH (can be disabled).
 *   Optional subtitle extraction using [`extract-subs.bat`](./scripts/extract-subs.bat).
 *   Optional default subtitle track prioritization using [`set-subs-priority.bat`](./scripts/set-subs-priority.bat).
@@ -151,27 +151,27 @@ Using these options/flags override settings defined inside the script(s) *for th
 *   `-container <type>`: Override output container format (`avi`, `mkv`, `mp4`).
 *   `-suffix <string>`: Suffix to append after the base filename part (default: `_upscaled`).
 *   `-sformat <string>`: Alias of `-format` option for `extract-subs.bat`.
-*   `-alang <list>`: Comma-separated audio language priority for `-set-audio-priority` (e.g., "jpn,eng").
 *   `-acodec <type>`: Audio codec for transcoding (e.g., `aac`, `ac3`, `flac`). If not specified, audio will be copied.
 *   `-abitrate <value>`: Audio bitrate for transcoding (e.g., `192k`, `256k`). Only applies if `-acodec` is specified.
 *   `-achannels <value>`: Number of audio channels (e.g., `2` for stereo, `6` for 5.1). Only applies if `-acodec` is specified.
-*   `-atitle <list>`: Comma-separated audio title priority for `-set-audio-priority`.
-*   `-slang <list>`: Comma-separated subtitle language priority for `-set-subs-priority`.
-*   `-stitle <list>`: Comma-separated subtitle title priority for `-set-subs-priority`.
+*   `-alang <list>`: Comma-separated audio language priority for `-aprioritize` (e.g., "jpn,eng").
+*   `-atitle <list>`: Comma-separated audio title priority for `-aprioritize`.
+*   `-slang <list>`: Comma-separated subtitle language priority for `-sprioritize`.
+*   `-stitle <list>`: Comma-separated subtitle title priority for `-sprioritize`.
 *   `-r`: **(Flag)** Process folders recursively.
 *   `-f`: **(Flag)** Force overwrite if an output file with the target name already exists.
 *   `-delete`: **(Flag)** Delete original file after successful transcode (USE WITH CAUTION!).
-*   `-set-subs-priority`: **(Flag)** Set default subtitle track on the *input* file using `set-subs-priority.bat` before transcoding.
+*   `-sprioritize`: **(Flag)** Set default subtitle track on the *input* file using `set-subs-priority.bat` before transcoding.
 *   `-extract-subs`: **(Flag)** Extract subtitles using `extract-subs.bat` before transcoding.
-*   `-set-audio-priority`: **(Flag)** Set default audio track on the *output* file using `set-audio-priority.bat` after transcoding.
+*   `-aprioritize`: **(Flag)** Set default audio track on the *output* file using `set-audio-priority.bat` after transcoding.
 
 #### Command Line Examples
 
-These examples demonstrate various command-line possibilities. While some are based on the default settings, others showcase specific flags and options. Note that features like subtitle extraction and default audio setting require enabling them via flags (`-extract-subs`, `-set-audio-priority`) or modifying [`Anime4K-Batch.bat`](./Anime4K-Batch.bat) (see [Enabling Subtitle Extraction](#enabling-subtitle-extraction)). Note that, without editing the script, `Anime4K-Batch.bat` acts as an alias for [`glsl-transcode.bat`](./glsl-transcode.bat). Adjust paths and options as needed.
+These examples demonstrate various command-line possibilities. While some are based on the default settings, others showcase specific flags and options. Note that features like subtitle extraction and default audio setting require enabling them via flags (`-extract-subs`, `-aprioritize`, etc.) or modifying [`Anime4K-Batch.bat`](./Anime4K-Batch.bat) (see [Enabling Subtitle Extraction](#enabling-subtitle-extraction)). Note that, without editing the script, `Anime4K-Batch.bat` acts as an alias for [`glsl-transcode.bat`](./glsl-transcode.bat). Adjust paths and options as needed.
 
 *   **Upscale to 4K, set default subtitle to English "Full" track, extract it, then set default audio to Japanese "Commentary" track:**
     ```batch
-    Anime4K-Batch.bat -w 3840 -h 2160 -set-subs-priority -slang "eng" -stitle "Full" -extract-subs -set-audio-priority -alang "jpn" -atitle "Commentary" "C:\path\to\video.mkv"
+    Anime4K-Batch.bat -w 3840 -h 2160 -sprioritize -slang "eng" -stitle "Full" -extract-subs -aprioritize -alang "jpn" -atitle "Commentary" "C:\path\to\video.mkv"
     ```
 
 *   **Upscale, extract subs without specifying language, and force overwrite:**
@@ -181,7 +181,7 @@ These examples demonstrate various command-line possibilities. While some are ba
 
 *   **Upscale to 4K with CQP 24 and transcode audio to AAC with default English priority:**
     ```batch
-    Anime4K-Batch.bat -w 3840 -h 2160 -cqp 24 -set-audio-priority -alang "eng" -acodec aac "C:\path\to\video.mkv"
+    Anime4K-Batch.bat -w 3840 -h 2160 -cqp 24 -aprioritize -alang "eng" -acodec aac "C:\path\to\video.mkv"
     ```
 
 *   **Transcode audio to AAC with a bitrate of 192k and 2 channels, while upscaling to 4K:**
@@ -196,7 +196,7 @@ These examples demonstrate various command-line possibilities. While some are ba
 
 *   **Upscale recursively, extract subtitles, set default audio, and delete original files after successful transcode (USE WITH CAUTION!):**
     ```batch
-    Anime4K-Batch.bat -r -extract-subs -set-audio-priority -delete "C:\path\to\folder"
+    Anime4K-Batch.bat -r -extract-subs -aprioritize -delete "C:\path\to\folder"
     ```
 
 </details>
@@ -323,26 +323,23 @@ It's generally recommended to use `config.json` for configuration, as direct scr
 
 Subtitle handling is managed by two separate flags that perform actions in a specific order:
 
-1.  **`-set-subs-priority` (Optional, runs first):**
-    *   This flag triggers [`set-subs-priority.bat`](./scripts/set-subs-priority.bat) to modify the **input file** in-place.
+1.  **`-sprioritize` (Optional, runs first):**
+    *   This flag triggers [`set-subs-priority.ps1`](./scripts/powershell/set-subs-priority.ps1) to modify the **input file** in-place.
     *   It reorders the internal subtitle tracks based on language and title, marking the best match as default. This is useful for ensuring players select the correct subtitle track automatically.
     *   Use `-slang` and `-stitle` to specify priorities.
 
 2.  **`-extract-subs` (Optional, runs second):**
-    *   This flag triggers [`extract-subs.bat`](./scripts/extract-subs.bat) to save subtitle tracks as external `.srt`, `.ass`, etc., files.
+    *   This flag triggers [`extract-subs.bat`](./scripts/powershell/extract-subs.ps1) to save subtitle tracks as external `.srt`, `.ass`, etc., files.
     *   This is highly recommended if your output container is `mp4`, which has poor subtitle support.
-    *   If you ran `-set-subs-priority` first, the extracted files will reflect the new, correct track order.
+    *   If you ran `-sprioritize`, the extracted files will reflect the new, correct track order.
     *   Use `-sformat` to control the output filename pattern.
 
 ### Setting Default Audio Priority
 
 Similar to subtitle extraction, setting the default audio track priority using [`set-audio-priority.bat`](./scripts/set-audio-priority.bat) is primarily controlled via flags passed to [`glsl-transcode.bat`](./scripts/glsl-transcode.bat) (either directly or via [`Anime4K-Batch.bat`](./Anime4K-Batch.bat)).
 
-1.  **Use the `-set-audio-priority` Flag (Recommended):**
-    *   Pass the `-set-audio-priority` argument when calling [`Anime4K-Batch.bat`](./Anime4K-Batch.bat) or [`glsl-transcode.bat`](./scripts/glsl-transcode.bat). This tells `glsl-transcode.bat` to trigger `set-audio-priority.bat` internally *after* it finishes transcoding the output file.
-    *   Optionally, pass the `-alang "<list>"` and `-atitle "<list>"` flags to specify the language and title priority. If not provided, `set-audio-priority.bat` will use its internal defaults.
-
-*(Note: Unlike subtitle extraction, there isn't a simple modification to `Anime4K-Batch.bat` to* always *run `set-audio-priority.bat` after transcoding without using the flag, as the audio setting needs to operate on the* output *file from the transcode step.)*
+1.  **Use the `-aprioritize` Flag (Optional):**
+    *   Optionally, pass the `-alang "<list>"` and `-atitle "<list>"` flags to specify the language and title priority. If not provided, [`set-audio-priority.ps1`](./scripts/powershell/set-audio-priority.ps1) will use its internal defaults.
 
 ## Extra Utilities
 
@@ -415,7 +412,7 @@ C:\path\to\remux.bat [options] [flags] "path\to\folder" "path\to\video.mkv" ...
 
 This batch script ([`set-audio-priority.bat`](./scripts/set-audio-priority.bat)) sets the default track based on language priority using `ffprobe` and `ffmpeg`. It remuxes the file, placing the highest priority audio track first and marking it as default. This is useful for ensuring media players select the desired language automatically.
 
-It can be triggered automatically after transcoding by using the `-set-audio-priority` flag in [`glsl-transcode.bat`](./scripts/glsl-transcode.bat). The language priority can be specified using the `-alang` flag in `glsl-transcode.bat`.
+It can be triggered automatically after transcoding by using the `-aprioritize` flag in [`glsl-transcode.bat`](./scripts/glsl-transcode.bat). The language priority can be specified using the `-alang` flag in `glsl-transcode.bat`.
 
 **Standalone Usage / Command Line Options:**
 
@@ -438,7 +435,7 @@ C:\path\to\set-audio-priority.bat [options] [flags] "path\to\folder" "path\to\vi
 
 This batch script ([`set-subs-priority.bat`](./scripts/set-subs-priority.bat)) sets the default subtitle track based on language and title priority. It remuxes the file, placing the highest priority subtitle track first and marking it as default.
 
-It can be triggered automatically before transcoding by using the `-set-subs-priority` flag in [`glsl-transcode.bat`](./scripts/glsl-transcode.bat).
+It can be triggered automatically before transcoding by using the `-sprioritize` flag in [`glsl-transcode.bat`](./scripts/glsl-transcode.bat).
 
 **Standalone Usage / Command Line Options:**
 
