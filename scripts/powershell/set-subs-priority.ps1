@@ -20,7 +20,7 @@ Used as a tie-breaker for language matches, or as a primary selector if no langu
 Default: 'Full,Dialogue,Signs'.
 
 .PARAMETER Suffix
-Suffix for the output filename when not using -Replace. Default: '_reordered'. Ignored if -Replace is used.
+Suffix for the output filename when not using -Replace. Default: '_sreordered'. Ignored if -Replace is used.
 
 .PARAMETER Recurse
 Process folders recursively.
@@ -83,7 +83,7 @@ param(
     [string]$Title = '',
 
     [Parameter()]
-    [string]$Suffix = '_reordered', # Used only if -Replace is not specified
+    [string]$Suffix = '_sreordered', # Used only if -Replace is not specified
 
     [Parameter()]
     [switch]$Recurse,
