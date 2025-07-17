@@ -159,7 +159,7 @@ begin {
 
     Write-Verbose "Script Root: $PSScriptRoot"
 
-    # --- Helper Function to Find Executables (Adapted for remux) ---
+    # --- Helper Function to Find Executables ---
     function Find-Executable {
         param(
             [string]$Name,
@@ -177,14 +177,14 @@ begin {
             }
         }
 
-        # 2. Script Directory (Check parent if running from .\scripts)
+        # 2. Script Directory (Check parent if running from ./scripts/powershell)
         $scriptDir = $PSScriptRoot
         $localPath = Join-Path $scriptDir "$Name.exe"
         if (Test-Path -LiteralPath $localPath -PathType Leaf) {
             Write-Verbose "Found $Name in script directory: $localPath"
             return $localPath
         }
-        $parentDir = Split-Path -LiteralPath $scriptDir -Parent
+        $parentDir = Split-Path (Split-Path $scriptDir -Parent) -Parent
         $parentLocalPath = Join-Path $parentDir "$Name.exe"
         if (Test-Path -LiteralPath $parentLocalPath -PathType Leaf) {
             Write-Verbose "Found $Name in parent directory: $parentLocalPath"
@@ -333,13 +333,15 @@ begin {
 
         # Add output file path
         # --- Construct FFMPEG Command Arguments based on Container Compatibility ---
-        $ffmpegArgs = @(
-            '-v', 'warning', '-stats',     # Logging level and progress
-            '-y',                          # Overwrite output without asking (already checked with -Force)
-            '-i', "`"$inputFileFullPath`"" # Input file
-        )
+        $ffmpegArgs = @('-y') # Overwrite output without asking (already checked with -Force)
+        if ($Concise) { # Logging level and progress
+            $ffmpegArgs += '-v', 'fatal'
+        } else {
+            $ffmpegArgs += '-v', 'warning'
+        }
+        $ffmpegArgs += '-i', "$inputFileFullPath"
         $ffmpegArgs += $mapArgs
-        $ffmpegArgs += "`"$outputFileFullPath`""
+        $ffmpegArgs += "$outputFileFullPath"
 
         # --- Execute FFMPEG ---
         if (-not $Concise) { Write-Host "Starting ffmpeg remux command:`n$ffmpeg $($ffmpegArgs -join ' ')" }

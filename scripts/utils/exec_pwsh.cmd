@@ -1,7 +1,6 @@
 @echo off
 
 set POWERSHELL_SCRIPT_PATH=
-set PS_ESCAPED_SCRIPT_PATH=
 set PS_ARGS=
 set PATHS_ARRAY_ELEMENTS=
 
@@ -10,11 +9,11 @@ set PATHS_ARRAY_ELEMENTS=
 if not defined POWERSHELL_SCRIPT_PATH (
     set "POWERSHELL_SCRIPT_PATH=%~1" & goto :escape_1
     :escape_1
-    set "PS_ESCAPED_SCRIPT_PATH=%POWERSHELL_SCRIPT_PATH:'=''%" & goto :escape_2
+    set "POWERSHELL_SCRIPT_PATH=%POWERSHELL_SCRIPT_PATH:'=''%" & goto :escape_2
     :escape_2
-    set "PS_ESCAPED_SCRIPT_PATH=%PS_ESCAPED_SCRIPT_PATH:[=`[%" & goto :escape_3
+    set "POWERSHELL_SCRIPT_PATH=%POWERSHELL_SCRIPT_PATH:[=`[%" & goto :escape_3
     :escape_3
-    set "PS_ESCAPED_SCRIPT_PATH=%PS_ESCAPED_SCRIPT_PATH:]=`]%"
+    set "POWERSHELL_SCRIPT_PATH=%POWERSHELL_SCRIPT_PATH:]=`]%"
     shift
     goto :collect_args
 )
@@ -45,5 +44,5 @@ if not defined PATHS_ARRAY_ELEMENTS (
 )
 
 :args_done
-echo "Executing PowerShell command: '%PS_ESCAPED_SCRIPT_PATH%'%PS_ARGS% -Path @(%PATHS_ARRAY_ELEMENTS%)"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& '%PS_ESCAPED_SCRIPT_PATH%'%PS_ARGS% -Path @(%PATHS_ARRAY_ELEMENTS%)"
+echo "Executing PowerShell command: '%POWERSHELL_SCRIPT_PATH%' %PS_ARGS% -Path @(%PATHS_ARRAY_ELEMENTS%)"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& '%POWERSHELL_SCRIPT_PATH%' %PS_ARGS% -Path @(%PATHS_ARRAY_ELEMENTS%)"

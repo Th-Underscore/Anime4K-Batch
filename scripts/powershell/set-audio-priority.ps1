@@ -193,7 +193,7 @@ begin {
     if ($Replace) { $FileAction = 2 }
     Write-Verbose "File Action Mode: $FileAction (0=Suffix, 1=Delete, 2=Replace)"
 
-    # --- Helper Function to Find Executables (Adapted) ---
+    # --- Helper Function to Find Executables ---
     function Find-Executable {
         param(
             [string]$Name,
@@ -204,24 +204,56 @@ begin {
         # 1. Explicit Path
         if (-not [string]::IsNullOrEmpty($ExplicitPath)) {
             if (Test-Path -LiteralPath $ExplicitPath -PathType Leaf) {
-                Write-Verbose "Using explicit path: $ExplicitPath"; return (Get-Item -LiteralPath $ExplicitPath).FullName
-            } else { Write-Warning "Explicit path for $Name not found: $ExplicitPath" }
+                Write-Verbose "Using explicit path: $ExplicitPath"
+                return (Get-Item -LiteralPath $ExplicitPath).FullName
+            } else {
+                Write-Warning "Explicit path for $Name not found: $ExplicitPath"
+            }
         }
-        # 2. Script/Parent Directory
+
+        # 2. Script Directory (Check parent if running from ./scripts/powershell)
         $scriptDir = $PSScriptRoot
         $localPath = Join-Path $scriptDir "$Name.exe"
-        if (Test-Path -LiteralPath $localPath -PathType Leaf) { Write-Verbose "Found $Name in script directory: $localPath"; return $localPath }
-        $parentDir = Split-Path -LiteralPath $scriptDir
+        if (Test-Path -LiteralPath $localPath -PathType Leaf) {
+            Write-Verbose "Found $Name in script directory: $localPath"
+            return $localPath
+        }
+        $parentDir = Split-Path (Split-Path $scriptDir -Parent) -Parent
         $parentLocalPath = Join-Path $parentDir "$Name.exe"
-        if (Test-Path -LiteralPath $parentLocalPath -PathType Leaf) { Write-Verbose "Found $Name in parent directory: $parentLocalPath"; return $parentLocalPath }
-        # 3. PATH
+        if (Test-Path -LiteralPath $parentLocalPath -PathType Leaf) {
+            Write-Verbose "Found $Name in parent directory: $parentLocalPath"
+            return $parentLocalPath
+        }
+
+        # 3. PATH (where.exe / Get-Command)
         if (-not $DisableWhere) {
-            try { $foundPath = (Get-Command $Name -EA SilentlyContinue).Source; if ($foundPath) { Write-Verbose "Found $Name via Get-Command: $foundPath"; return $foundPath } else { Write-Verbose "$Name not found via Get-Command." } } catch { Write-Verbose "Get-Command failed: $($_.Exception.Message)"}
-            try { $whereOutput = where.exe $Name 2>&1; if ($LASTEXITCODE -eq 0 -and $whereOutput) { $foundPath = $whereOutput | Select-Object -First 1; Write-Verbose "Found $Name via where.exe: $foundPath"; return $foundPath } else { Write-Verbose "$Name not found via where.exe." } } catch { Write-Verbose "where.exe failed: $($_.Exception.Message)"}
-        } else { Write-Verbose "Skipping PATH search for $Name." }
-        # Error only if required executable not found
-        if ($Name -in ('ffmpeg', 'ffprobe')) { Write-Error "$Name could not be located."; return $null }
-        else { Write-Warning "$Name could not be located."; return $null }
+            try {
+                $foundPath = (Get-Command $Name -ErrorAction SilentlyContinue).Source
+                if ($foundPath) {
+                    Write-Verbose "Found $Name via Get-Command: $foundPath"
+                    return $foundPath
+                } else { Write-Verbose "$Name not found via Get-Command." }
+            } catch { Write-Verbose "Get-Command failed for ${Name}: $($_.Exception.Message)" }
+            try {
+                $whereOutput = where.exe $Name 2>&1
+                if ($LASTEXITCODE -eq 0 -and $whereOutput) {
+                    $foundPath = $whereOutput | Select-Object -First 1
+                    Write-Verbose "Found $Name via where.exe: $foundPath"
+                    return $foundPath
+                } else { Write-Verbose "$Name not found via where.exe." }
+            } catch { Write-Verbose "where.exe failed for ${Name}: $($_.Exception.Message)" }
+        } else {
+            Write-Verbose "Skipping PATH search for $Name due to -DisableWhereSearch."
+        }
+
+        # Only error if ffmpeg is not found
+        if ($Name -eq 'ffmpeg') {
+            Write-Error "$Name could not be located. Please provide the path using -FfmpegPath or ensure it's in the script/parent directory or PATH."
+            return $null # Indicate failure
+        } else {
+            Write-Warning "$Name could not be located, but may not be essential for this script."
+            return $null # Indicate not found, but don't error
+        }
     }
 
     # --- Locate FFMPEG and FFPROBE ---
@@ -320,7 +352,7 @@ begin {
                 # Request index, disposition flags, and language tag (doesn't properly retrieve disposition)
                 # '-show_entries', 'stream=index,disposition:stream_tags=language',
                 '-of', 'json',
-                "`"$inputFileFullPath`""
+                "$inputFileFullPath"
             )
             Write-Verbose "Running: $ffprobe $($ffprobeArgs -join ' ')"
             $jsonOutput = & $ffprobe @ffprobeArgs 2>&1 # Capture stdout and stderr
@@ -442,7 +474,7 @@ begin {
         foreach ($stream in $audioStreams) {
             if ($stream.Index -ne $defaultAudioStream.Index -and $stream.IsDefault) {
                 $otherStreamIsDefault = $true
-                Write-Warning "Found another audio stream (Index: $($stream.Index)) also marked as default."
+                Write-Verbose "Found another audio stream (Index: $($stream.Index)) also marked as default."
                 break # Found one, no need to check further
             }
         }
@@ -499,13 +531,15 @@ begin {
         }
 
         # --- Construct Full FFMPEG Command ---
-        $fullFfmpegArgs = @(
-            '-v', 'warning', '-stats',
-            '-y', # Overwrite temporary file or final file if -Force is used
-            '-i', "`"$inputFileFullPath`""
-        )
+        $fullFfmpegArgs = @('-y', '-stats') # Overwrite output without asking (already checked with -Force)
+        if ($Concise) { # Logging level and progress
+            $fullFfmpegArgs += '-v', 'fatal'
+        } else {
+            $fullFfmpegArgs += '-v', 'warning'
+        }
+        $fullFfmpegArgs += '-i', "$inputFileFullPath"
         $fullFfmpegArgs += $ffmpegArgs
-        $fullFfmpegArgs += "`"$ffmpegTargetFile`"" # Output (temporary or final)
+        $fullFfmpegArgs += "$ffmpegTargetFile" # Output (temporary or final)
 
         # --- Check Temporary File in Replace Mode ---
         if ($CurrentFileAction -eq 2 -and (Test-Path -LiteralPath $ffmpegTargetFile -PathType Leaf) -and (-not $ForceProcessing)) {

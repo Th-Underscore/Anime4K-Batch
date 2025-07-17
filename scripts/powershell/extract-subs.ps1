@@ -170,20 +170,19 @@ begin {
             }
         }
 
-        # 2. Script Directory (Check parent if running from .\scripts)
+        # 2. Script Directory (Check parent if running from ./scripts/powershell)
         $scriptDir = $PSScriptRoot
         $localPath = Join-Path $scriptDir "$Name.exe"
         if (Test-Path -LiteralPath $localPath -PathType Leaf) {
             Write-Verbose "Found $Name in script directory: $localPath"
             return $localPath
         }
-        $parentDir = Split-Path -LiteralPath $scriptDir
+        $parentDir = Split-Path (Split-Path $scriptDir -Parent) -Parent
         $parentLocalPath = Join-Path $parentDir "$Name.exe"
         if (Test-Path -LiteralPath $parentLocalPath -PathType Leaf) {
             Write-Verbose "Found $Name in parent directory: $parentLocalPath"
             return $parentLocalPath
         }
-
 
         # 3. PATH (where.exe / Get-Command)
         if (-not $DisableWhere) {
@@ -313,7 +312,7 @@ begin {
                 '-show_streams',
                 '-show_entries', 'stream=index,codec_name,disposition:stream_tags=language,title',
                 '-of', 'json',
-                "`"$inputFileFullPath`""
+                "$inputFileFullPath"
             )
             Write-Verbose "Running: $ffprobe $($ffprobeArgs -join ' ')"
             $jsonOutput = & $ffprobe @ffprobeArgs 2>&1
@@ -354,11 +353,14 @@ begin {
         if (-not $Concise) { Write-Host "Found $($subtitleStreams.Count) subtitle stream(s)." }
 
         # --- Prepare ffmpeg arguments for extraction ---
-        $ffmpegArgs = @(
-            '-v', 'error', # Less verbose for extraction
-            '-y', # Overwrite individual subtitle files if -Force is used (ffmpeg handles this per output)
-            '-i', "`"$inputFileFullPath`""
-        )
+        $ffmpegArgs = @('-y') # Overwrite output without asking (already checked with -Force)
+        if ($Concise) { # Logging level and progress
+            $ffmpegArgs += '-v', 'fatal'
+        } else {
+            $ffmpegArgs += '-v', 'warning'
+        }
+        $ffmpegArgs += '-i', "$inputFileFullPath"
+        
         $extractionNeeded = $false
 
         # --- Process Each Subtitle Stream ---
@@ -469,7 +471,7 @@ begin {
                 }
             }
 
-            $ffmpegArgs += '-map', "0:$subIndex", '-c', 'copy', "`"$subOutputFile`""
+            $ffmpegArgs += '-map', "0:$subIndex", '-c', 'copy', "$subOutputFile"
             $extractionNeeded = $true
             Write-Verbose "   Added map args for stream $subIndex."
         }

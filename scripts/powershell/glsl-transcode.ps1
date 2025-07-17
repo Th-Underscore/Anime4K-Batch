@@ -293,14 +293,14 @@ begin {
             }
         }
 
-        # 2. Script Directory (Check parent if running from .\scripts)
+        # 2. Script Directory (Check parent if running from ./scripts/powershell)
         $scriptDir = $PSScriptRoot
         $localPath = Join-Path $scriptDir "$Name.exe"
         if (Test-Path -LiteralPath $localPath -PathType Leaf) {
             Write-Verbose "Found $Name in script directory: $localPath"
             return $localPath
         }
-        $parentDir = Split-Path -LiteralPath $scriptDir -Parent
+        $parentDir = Split-Path (Split-Path $scriptDir -Parent) -Parent
         $parentLocalPath = Join-Path $parentDir "$Name.exe"
         if (Test-Path -LiteralPath $parentLocalPath -PathType Leaf) {
             Write-Verbose "Found $Name in parent directory: $parentLocalPath"
@@ -446,7 +446,7 @@ begin {
     # Key: Container extension (e.g., '.mp4')
     # Value: Array of strings ('no_video', 'no_audio', 'no_subs')
     $containerLimitations = @{
-        '.gif' = @('no_audio', 'no_subs', 'no_ttf', 'no_data') # GIF needs video transcode, no audio/subs
+        '.gif' = @('no_audio', 'no_subs', 'no_ttf', 'no_data') # GIF needs video transcode, no audio/subs, no fonts, no data streams
         '.mp4' = @('no_subs', 'no_ttf') # MP4 subtitle copy is often problematic
         # !! TTF and Data filtering not yet implemented !!
         # Add more container rules as needed
@@ -659,7 +659,7 @@ begin {
                 '-select_streams', 'v:0',
                 '-show_entries', 'stream=pix_fmt',
                 '-of', 'csv=p=0',
-                "`"$inputFileFullPath`""
+                "$inputFileFullPath"
             )
             Write-Verbose "Running: $ffprobe $($ffprobeArgs -join ' ')"
             $output = & $ffprobe @ffprobeArgs 2>&1 # Capture stdout and stderr
@@ -880,25 +880,24 @@ begin {
 
         # --- Construct FFMPEG Command Arguments ---
         # Start with -y for overwrite, then add logging based on $Concise
-        $ffmpegArgs = @('-y')
+        $ffmpegArgs = @('-y', '-stats')
         if ($Concise) {
             $ffmpegArgs += '-v', 'fatal'
         } else {
             $ffmpegArgs += '-v', 'warning'
         }
-        $ffmpegArgs += '-stats'
         $ffmpegArgs += $hwAccelParams # Add HWAccel params if any
-        $ffmpegArgs += '-i', "`"$inputFileFullPath`"" # Input file
+        $ffmpegArgs += '-i', "$inputFileFullPath" # Input file
         $ffmpegArgs += '-init_hw_device', 'vulkan' # Libplacebo needs Vulkan
         # The filtergraph needs careful quoting, especially the shader path
-        $filterGraph = "format=$pixFmt,hwupload,libplacebo=w=$TargetResolutionW`:h=$TargetResolutionH`:upscaler=bilinear`:custom_shader_path='$escapedShaderPath',format=$pixFmt"
-        $ffmpegArgs += '-vf', "`"$filterGraph`""
+        $filterGraph = "format=$pixFmt,hwupload,libplacebo=w=${TargetResolutionW}:h=${TargetResolutionH}:upscaler=bilinear:custom_shader_path='$escapedShaderPath',format=$pixFmt"
+        $ffmpegArgs += '-vf', "$filterGraph"
         $ffmpegArgs += $streamArgs # Add stream mapping args
         $ffmpegArgs += '-c:v', $videoCodec # Video codec
         $ffmpegArgs += '-qp', $CQP # Quality parameter
         if (-not [string]::IsNullOrWhiteSpace($presetParam)) { $ffmpegArgs += $presetParam.Split(' ') } # Preset
         if (-not [string]::IsNullOrWhiteSpace($threadParam)) { $ffmpegArgs += $threadParam.Split(' ') } # Threads
-        $ffmpegArgs += "`"$outputFileFullPath`"" # Output file
+        $ffmpegArgs += "$outputFileFullPath" # Output file
 
         # Last-second check
         $outputExists = Test-Path -LiteralPath $outputFileFullPath -PathType Leaf
@@ -971,8 +970,10 @@ begin {
 
 process {
     foreach ($itemPath in $Path) {
+        $itemPath = $itemPath.Trim()
         Write-Verbose "Processing argument: $itemPath"
         try {
+            Write-Verbose "PATH ----- $(Get-Item -LiteralPath $itemPath)"
             $item = Get-Item -LiteralPath $itemPath -ErrorAction Stop
             $videoExtensions = @('.mkv', '.mp4', '.avi', '.mov', '.gif') # Add more if needed
             if ($item -is [System.IO.DirectoryInfo]) {

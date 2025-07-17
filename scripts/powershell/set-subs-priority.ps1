@@ -216,14 +216,14 @@ begin {
             }
         }
 
-        # 2. Script Directory (Check parent if running from .\scripts)
+        # 2. Script Directory (Check parent if running from ./scripts/powershell)
         $scriptDir = $PSScriptRoot
         $localPath = Join-Path $scriptDir "$Name.exe"
         if (Test-Path -LiteralPath $localPath -PathType Leaf) {
             Write-Verbose "Found $Name in script directory: $localPath"
             return $localPath
         }
-        $parentDir = Split-Path -LiteralPath $scriptDir -Parent
+        $parentDir = Split-Path (Split-Path $scriptDir -Parent) -Parent
         $parentLocalPath = Join-Path $parentDir "$Name.exe"
         if (Test-Path -LiteralPath $parentLocalPath -PathType Leaf) {
             Write-Verbose "Found $Name in parent directory: $parentLocalPath"
@@ -355,7 +355,7 @@ begin {
                 # Request index, disposition flags, and language tag (doesn't properly retrieve disposition)
                 # '-show_entries', 'stream=index,disposition:stream_tags=language',
                 '-of', 'json',
-                "`"$inputFileFullPath`""
+                "$inputFileFullPath"
             )
             Write-Verbose "Running: $ffprobe $($ffprobeArgs -join ' ')"
             $jsonOutput = & $ffprobe @ffprobeArgs 2>&1 # Capture stdout and stderr
@@ -477,7 +477,7 @@ begin {
         foreach ($stream in $subtitleStreams) {
             if ($stream.Index -ne $defaultSubtitleStream.Index -and $stream.IsDefault) {
                 $otherStreamIsDefault = $true
-                Write-Warning "Found another subtitle stream (Index: $($stream.Index)) also marked as default."
+                Write-Verbose "Found another subtitle stream (Index: $($stream.Index)) also marked as default."
                 break # Found one, no need to check further
             }
         }
@@ -534,13 +534,15 @@ begin {
         }
 
         # --- Construct Full FFMPEG Command ---
-        $fullFfmpegArgs = @(
-            '-v', 'warning', '-stats',
-            '-y', # Overwrite temp/final file
-            '-i', "`"$inputFileFullPath`""
-        )
+        $fullFfmpegArgs = @('-y', '-stats') # Overwrite output without asking (already checked with -Force)
+        if ($Concise) { # Logging level and progress
+            $fullFfmpegArgs += '-v', 'fatal'
+        } else {
+            $fullFfmpegArgs += '-v', 'warning'
+        }
+        $fullFfmpegArgs += '-i', "$inputFileFullPath"
         $fullFfmpegArgs += $ffmpegArgs
-        $fullFfmpegArgs += "`"$ffmpegTargetFile`"" # Output (temporary or final)
+        $fullFfmpegArgs += "$ffmpegTargetFile" # Output (temporary or final)
 
         # --- Check Temporary File in Replace Mode ---
         if ($CurrentFileAction -eq 2 -and (Test-Path -LiteralPath $ffmpegTargetFile -PathType Leaf) -and (-not $ForceProcessing)) {
