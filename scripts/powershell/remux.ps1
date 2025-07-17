@@ -145,7 +145,7 @@ begin {
     # Key: Container extension (e.g., '.mp4')
     # Value: Array of strings ('no_video', 'no_audio', 'no_subs')
     $containerLimitations = @{
-        '.gif' = @('no_copy_video', 'no_audio', 'no_subs', 'no_ttf', 'no_data') # GIF needs video transcode, no audio/subs
+        '.gif' = @('no_copy_video', 'no_audio', 'no_subs', 'no_ttf', 'no_data') # GIF needs video transcode, no audio/subs, no fonts, no data streams
         '.mp4' = @('no_subs', 'no_ttf') # MP4 subtitle copy is often problematic
         # Add more container rules as needed
         # '.avi' = @('no_subs') # Example
@@ -313,6 +313,22 @@ begin {
             $mapArgs += '-map', '0:s?', '-c:s', 'copy'
         } else {
             if (-not $Concise) { Write-Host "Skipping subtitle streams due to container limitations ($inputExt -> $OutputExt)." }
+        }
+
+        # Map Fonts (TTF)?
+        if (-not ($inputLimitations -contains 'no_ttf' -or $outputLimitations -contains 'no_ttf')) {
+            Write-Verbose "Mapping font streams (copying)."
+            $mapArgs += '-map', '0:t?', '-c:t', 'copy'
+        } else {
+            if (-not $Concise) { Write-Host "Skipping font streams due to container limitations ($inputExt -> $OutputExt)." }
+        }
+
+        # Map Data?
+        if (-not ($inputLimitations -contains 'no_data' -or $outputLimitations -contains 'no_data')) {
+            Write-Verbose "Mapping data streams (copying)."
+            $mapArgs += '-map', '0:d?', '-c:d', 'copy'
+        } else {
+            if (-not $Concise) { Write-Host "Skipping data streams due to container limitations ($inputExt -> $OutputExt)." }
         }
 
         # --- PassThru Mode: Return arguments instead of executing ---
