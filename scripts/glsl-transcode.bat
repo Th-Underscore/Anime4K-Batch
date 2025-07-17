@@ -21,9 +21,9 @@ if "%~1"=="" goto :args_done
 REM --- Handle Flags (Switches) first ---
 if /i "%~1"=="-r"                   ( set "PS_ARGS=%PS_ARGS% -Recurse" & shift & goto :arg_loop )
 if /i "%~1"=="-f"                   ( set "PS_ARGS=%PS_ARGS% -Force" & shift & goto :arg_loop )
-if /i "%~1"=="-set-subs-priority"   ( set "PS_ARGS=%PS_ARGS% -SetSubsPriority" & shift & goto :arg_loop )
+if /i "%~1"=="-sprioritize"         ( set "PS_ARGS=%PS_ARGS% -SetSubsPriority" & shift & goto :arg_loop )
 if /i "%~1"=="-extract-subs"        ( set "PS_ARGS=%PS_ARGS% -ExtractSubs" & shift & goto :arg_loop )
-if /i "%~1"=="-set-audio-priority"  ( set "PS_ARGS=%PS_ARGS% -SetAudioPriority" & shift & goto :arg_loop )
+if /i "%~1"=="-aprioritize"         ( set "PS_ARGS=%PS_ARGS% -SetAudioPriority" & shift & goto :arg_loop )
 if /i "%~1"=="-delete"              ( set "PS_ARGS=%PS_ARGS% -Delete" & shift & goto :arg_loop )
 if /i "%~1"=="-concise"             ( set "PS_ARGS=%PS_ARGS% -Concise" & shift & goto :arg_loop )
 if /i "%~1"=="-v"                   ( set "PS_ARGS=%PS_ARGS% -Verbose" & shift & goto :arg_loop )
