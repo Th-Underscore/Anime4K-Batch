@@ -42,12 +42,12 @@ REG ADD "%ROOT_STORE%\Ani4K.TranscodeAudio" /v MUIVerb /t REG_SZ /d "Transcode a
 REG ADD "%ROOT_STORE%\Ani4K.TranscodeAudio" /v Icon /t REG_SZ /d "%BASE_DIR%\assets\icons\Transcode_32.ico" /f
 
 REM Ani4K.SetAudioPriority (File)
-REG ADD "%ROOT_STORE%\Ani4K.SetAudioPriority\command" /ve /d "\"%BASE_DIR%\scripts\set-audio-priority.bat\" \"%%1\" & pause" /f
+REG ADD "%ROOT_STORE%\Ani4K.SetAudioPriority\command" /ve /d "\"%BASE_DIR%\scripts\set-audio-priority.bat\" -replace \"%%1\" & pause" /f
 REG ADD "%ROOT_STORE%\Ani4K.SetAudioPriority" /v MUIVerb /t REG_SZ /d "Set audio priority" /f
 REG ADD "%ROOT_STORE%\Ani4K.SetAudioPriority" /v Icon /t REG_SZ /d "%SystemRoot%\System32\imageres.dll,109" /f
 
 REM Ani4K.SetSubsPriority (File)
-REG ADD "%ROOT_STORE%\Ani4K.SetSubsPriority\command" /ve /d "\"%BASE_DIR%\scripts\set-subs-priority.bat\" \"%%1\" & pause" /f
+REG ADD "%ROOT_STORE%\Ani4K.SetSubsPriority\command" /ve /d "\"%BASE_DIR%\scripts\set-subs-priority.bat\" -replace \"%%1\" & pause" /f
 REG ADD "%ROOT_STORE%\Ani4K.SetSubsPriority" /v MUIVerb /t REG_SZ /d "Set subtitle priority" /f
 REG ADD "%ROOT_STORE%\Ani4K.SetSubsPriority" /v Icon /t REG_SZ /d "%SystemRoot%\System32\imageres.dll,109" /f
 
