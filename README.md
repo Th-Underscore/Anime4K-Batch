@@ -421,12 +421,12 @@ C:\path\to\set-audio-priority.bat [options] [flags] "path\to\folder" "path\to\vi
 ```
 
 *   `-lang "<list>"`: Comma-separated language priority (default: `"jpn,chi,kor,eng"`). Must be quoted if it contains commas.
-*   `-suffix <string>`: Suffix for the output filename (default: `_reordered`). Only used if `-replace` is not active.
+*   `-title "<list>"`: Comma-separated title priority (e.g., `"Commentary,Surround"`).
+*   `-suffix <string>`: Suffix for the output filename (default: `_areordered`). Only used if `-replace` is not active.
 *   `-r`: **(Flag)** Process folders recursively.
 *   `-f`: **(Flag)** Force overwrite existing output files.
 *   `-delete`: **(Flag)** Delete original file after successful processing (mutually exclusive with `-replace`).
 *   `-replace`: **(Flag)** Replace original file with the processed version (enabled by default, mutually exclusive with `-delete`).
-*   `-atitle "<list>"`: Comma-separated title priority (e.g., `"Commentary,Surround"`).
 
 </details>
 
@@ -443,9 +443,13 @@ It can be triggered automatically before transcoding by using the `-sprioritize`
 C:\path\to\set-subs-priority.bat [options] [flags] "path\to\folder" "path\to\video.mkv" ...
 ```
 
-*   `-lang "<list>"`: Comma-separated language priority (e.g., `"eng,jpn"`).
-*   `-title "<list>"`: Comma-separated title priority (e.g., `"Full,Signs"`).
-*   `-replace`: **(Flag)** Replace original file (default behavior).
+*   `-lang "<list>"`: Comma-separated language priority (default: `"eng,jpn"`). Must be quoted if it contains commas.
+*   `-title "<list>"`: Comma-separated title priority (e.g., `"Full,Dialogue,Signs"`).
+*   `-suffix <string>`: Suffix for the output filename (default: `_sreordered`). Only used if `-replace` is not active.
+*   `-r`: **(Flag)** Process folders recursively.
+*   `-f`: **(Flag)** Force overwrite existing output files.
+*   `-delete`: **(Flag)** Delete original file after successful processing (mutually exclusive with `-replace`).
+*   `-replace`: **(Flag)** Replace original file with the processed version (enabled by default, mutually exclusive with `-delete`).
 
 </details>
 
