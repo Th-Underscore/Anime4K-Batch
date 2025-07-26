@@ -152,6 +152,56 @@ REG ADD "%ROOT_STORE%\Ani4K.SetAudioPriorityDir_Prompt" /v Icon /t REG_SZ /d "%S
 REG ADD "%ROOT_STORE%\Ani4K.SetSubsPriorityDir_Prompt" /v Icon /t REG_SZ /d "%SystemRoot%\System32\shell32.dll,108" /f
 REG ADD "%ROOT_STORE%\Ani4K.RenameFilesDir_Prompt" /v Icon /t REG_SZ /d "%SystemRoot%\System32\shell32.dll,110" /f
 
+echo Adding registry entries for background context menus (HKLM)...
+
+REM Delete existing background entries first (ignore errors if they don't exist)
+REG DELETE "%ROOT_STORE%\Ani4K.TranscodeBg" /f > nul 2>&1
+REG DELETE "%ROOT_STORE%\Ani4K.ExtractBg" /f > nul 2>&1
+REG DELETE "%ROOT_STORE%\Ani4K.RemuxBg" /f > nul 2>&1
+REG DELETE "%ROOT_STORE%\Ani4K.TranscodeAudioBg" /f > nul 2>&1
+REG DELETE "%ROOT_STORE%\Ani4K.SetAudioPriorityBg" /f > nul 2>&1
+REG DELETE "%ROOT_STORE%\Ani4K.SetSubsPriorityBg" /f > nul 2>&1
+REG DELETE "%ROOT_STORE%\Ani4K.RenameFilesBg" /f > nul 2>&1
+REG DELETE "%ROOT_STORE%\Ani4K.TranscodeBg_Prompt" /f > nul 2>&1
+REG DELETE "%ROOT_STORE%\Ani4K.ExtractBg_Prompt" /f > nul 2>&1
+REG DELETE "%ROOT_STORE%\Ani4K.RemuxBg_Prompt" /f > nul 2>&1
+REG DELETE "%ROOT_STORE%\Ani4K.TranscodeAudioBg_Prompt" /f > nul 2>&1
+REG DELETE "%ROOT_STORE%\Ani4K.SetAudioPriorityBg_Prompt" /f > nul 2>&1
+REG DELETE "%ROOT_STORE%\Ani4K.SetSubsPriorityBg_Prompt" /f > nul 2>&1
+REG DELETE "%ROOT_STORE%\Ani4K.RenameFilesBg_Prompt" /f > nul 2>&1
+
+REM Copy file entries to create background entries
+REG COPY "%ROOT_STORE%\Ani4K.Transcode" "%ROOT_STORE%\Ani4K.TranscodeBg" /s /f
+REG COPY "%ROOT_STORE%\Ani4K.Extract" "%ROOT_STORE%\Ani4K.ExtractBg" /s /f
+REG COPY "%ROOT_STORE%\Ani4K.Remux" "%ROOT_STORE%\Ani4K.RemuxBg" /s /f
+REG COPY "%ROOT_STORE%\Ani4K.TranscodeAudio" "%ROOT_STORE%\Ani4K.TranscodeAudioBg" /s /f
+REG COPY "%ROOT_STORE%\Ani4K.SetAudioPriority" "%ROOT_STORE%\Ani4K.SetAudioPriorityBg" /s /f
+REG COPY "%ROOT_STORE%\Ani4K.SetSubsPriority" "%ROOT_STORE%\Ani4K.SetSubsPriorityBg" /s /f
+REG COPY "%ROOT_STORE%\Ani4K.RenameFiles" "%ROOT_STORE%\Ani4K.RenameFilesBg" /s /f
+REG COPY "%ROOT_STORE%\Ani4K.Transcode_Prompt" "%ROOT_STORE%\Ani4K.TranscodeBg_Prompt" /s /f
+REG COPY "%ROOT_STORE%\Ani4K.Extract_Prompt" "%ROOT_STORE%\Ani4K.ExtractBg_Prompt" /s /f
+REG COPY "%ROOT_STORE%\Ani4K.Remux_Prompt" "%ROOT_STORE%\Ani4K.RemuxBg_Prompt" /s /f
+REG COPY "%ROOT_STORE%\Ani4K.TranscodeAudio_Prompt" "%ROOT_STORE%\Ani4K.TranscodeAudioBg_Prompt" /s /f
+REG COPY "%ROOT_STORE%\Ani4K.SetAudioPriority_Prompt" "%ROOT_STORE%\Ani4K.SetAudioPriorityBg_Prompt" /s /f
+REG COPY "%ROOT_STORE%\Ani4K.SetSubsPriority_Prompt" "%ROOT_STORE%\Ani4K.SetSubsPriorityBg_Prompt" /s /f
+REG COPY "%ROOT_STORE%\Ani4K.RenameFiles_Prompt" "%ROOT_STORE%\Ani4K.RenameFilesBg_Prompt" /s /f
+
+REM Update commands for background entries
+REG ADD "%ROOT_STORE%\Ani4K.TranscodeBg\command" /ve /d "\"%BASE_DIR%\Anime4K-Batch.bat\" \"%%V\"" /f
+REG ADD "%ROOT_STORE%\Ani4K.ExtractBg\command" /ve /d "\"%BASE_DIR%\scripts\extract-subs.bat\" \"%%V\" & pause" /f
+REG ADD "%ROOT_STORE%\Ani4K.RemuxBg\command" /ve /d "\"%BASE_DIR%\scripts\remux.bat\" \"%%V\" & pause" /f
+REG ADD "%ROOT_STORE%\Ani4K.TranscodeAudioBg\command" /ve /d "\"%BASE_DIR%\scripts\transcode-audio.bat\" \"%%V\" & pause" /f
+REG ADD "%ROOT_STORE%\Ani4K.SetAudioPriorityBg\command" /ve /d "\"%BASE_DIR%\scripts\set-audio-priority.bat\" \"%%V\" & pause" /f
+REG ADD "%ROOT_STORE%\Ani4K.SetSubsPriorityBg\command" /ve /d "\"%BASE_DIR%\scripts\set-subs-priority.bat\" \"%%V\" & pause" /f
+REG ADD "%ROOT_STORE%\Ani4K.RenameFilesBg\command" /ve /d "\"%BASE_DIR%\scripts\utils\exec_pwsh.cmd\" \"%BASE_DIR%\scripts\utils\Rename-MediaFiles.ps1\" -Path \"'%%V'\" & pause" /f
+REG ADD "%ROOT_STORE%\Ani4K.TranscodeBg_Prompt\command" /ve /d "\"%BASE_DIR%\scripts\utils\prompt.cmd\" \"%BASE_DIR%\Anime4K-Batch.bat\" \"%%V\"" /f
+REG ADD "%ROOT_STORE%\Ani4K.ExtractBg_Prompt\command" /ve /d "\"%BASE_DIR%\scripts\utils\prompt.cmd\" \"%BASE_DIR%\scripts\extract-subs.bat\" \"%%V\" & pause" /f
+REG ADD "%ROOT_STORE%\Ani4K.RemuxBg_Prompt\command" /ve /d "\"%BASE_DIR%\scripts\utils\prompt.cmd\" \"%BASE_DIR%\scripts\remux.bat\" \"%%V\" & pause" /f
+REG ADD "%ROOT_STORE%\Ani4K.TranscodeAudioBg_Prompt\command" /ve /d "\"%BASE_DIR%\scripts\utils\prompt.cmd\" \"%BASE_DIR%\scripts\transcode-audio.bat\" \"%%V\" & pause" /f
+REG ADD "%ROOT_STORE%\Ani4K.SetAudioPriorityBg_Prompt\command" /ve /d "\"%BASE_DIR%\scripts\utils\prompt.cmd\" \"%BASE_DIR%\scripts\set-audio-priority.bat\" \"%%V\" & pause" /f
+REG ADD "%ROOT_STORE%\Ani4K.SetSubsPriorityBg_Prompt\command" /ve /d "\"%BASE_DIR%\scripts\utils\prompt.cmd\" \"%BASE_DIR%\scripts\set-subs-priority.bat\" \"%%V\" & pause" /f
+REG ADD "%ROOT_STORE%\Ani4K.RenameFilesBg_Prompt\command" /ve /d "\"%BASE_DIR%\scripts\utils\prompt.cmd\" \"%BASE_DIR%\scripts\utils\exec_pwsh.cmd\" \"%BASE_DIR%\scripts\utils\Rename-MediaFiles.ps1\" -Path \"'%%V'\" & pause" /f
+
 echo Adding main context menu entries (HKCU)...
 
 REM Main entry for Files (*)
@@ -173,6 +223,16 @@ REM Main entry for Directories (Prompt)
 REG ADD "%ROOT_CLASS%\Directory\shell\Anime4K-Batch_Prompt" /v MUIVerb /t REG_SZ /d "Anime4K-Batch (Prompt)" /f
 REG ADD "%ROOT_CLASS%\Directory\shell\Anime4K-Batch_Prompt" /v SubCommands /t REG_SZ /d "Ani4K.TranscodeDir_Prompt;Ani4K.ExtractDir_Prompt;Ani4K.RemuxDir_Prompt;Ani4K.TranscodeAudioDir_Prompt;Ani4K.SetAudioPriorityDir_Prompt;Ani4K.SetSubsPriorityDir_Prompt;Ani4K.RenameFilesDir_Prompt" /f
 REG ADD "%ROOT_CLASS%\Directory\shell\Anime4K-Batch_Prompt" /v Icon /t REG_SZ /d "%BASE_DIR%\assets\icons\cmd_16.ico" /f
+
+REM Main entry for Background
+REG ADD "%ROOT_CLASS%\Directory\Background\shell\Anime4K-Batch" /v MUIVerb /t REG_SZ /d "Anime4K-Batch" /f
+REG ADD "%ROOT_CLASS%\Directory\Background\shell\Anime4K-Batch" /v SubCommands /t REG_SZ /d "Ani4K.TranscodeBg;Ani4K.ExtractBg;Ani4K.RemuxBg;Ani4K.TranscodeAudioBg;Ani4K.SetAudioPriorityBg;Ani4K.SetSubsPriorityBg;Ani4K.RenameFilesBg" /f
+REG ADD "%ROOT_CLASS%\Directory\Background\shell\Anime4K-Batch" /v Icon /t REG_SZ /d "%BASE_DIR%\assets\icons\cmd_16.ico" /f
+
+REM Main entry for Background (Prompt)
+REG ADD "%ROOT_CLASS%\Directory\Background\shell\Anime4K-Batch_Prompt" /v MUIVerb /t REG_SZ /d "Anime4K-Batch (Prompt)" /f
+REG ADD "%ROOT_CLASS%\Directory\Background\shell\Anime4K-Batch_Prompt" /v SubCommands /t REG_SZ /d "Ani4K.TranscodeBg_Prompt;Ani4K.ExtractBg_Prompt;Ani4K.RemuxBg_Prompt;Ani4K.TranscodeAudioBg_Prompt;Ani4K.SetAudioPriorityBg_Prompt;Ani4K.SetSubsPriorityBg_Prompt;Ani4K.RenameFilesBg_Prompt" /f
+REG ADD "%ROOT_CLASS%\Directory\Background\shell\Anime4K-Batch_Prompt" /v Icon /t REG_SZ /d "%BASE_DIR%\assets\icons\cmd_16.ico" /f
 
 echo Registry entries added successfully.
 endlocal
