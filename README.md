@@ -58,6 +58,9 @@ There are four main ways to install and use the [`Anime4K-Batch.bat`](./Anime4K-
 
 1. **Standard**: Admin rights required.
     *   Execute [`install_registry.bat`](./install_registry.bat). That's it! The script should now be available whenever you right-click on video files and folders.
+    *   This will add two main context menu entries:
+        *   **`Anime4K-Batch`**: Executes scripts directly using the settings in `config.json`.
+        *   **`Anime4K-Batch (Prompt)`**: Opens a command prompt, allowing you to enter additional command-line arguments for that specific run.
     *   If you wish to remove Anime4K-Batch from the context menu, execute [`uninstall_registry.bat`](./uninstall_registry.bat).
     *   _(Optional)_ To disable the new Windows 11 context menu for easier access, run this in Command Prompt (`cmd.exe`):
 
