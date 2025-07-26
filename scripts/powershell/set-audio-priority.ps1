@@ -503,7 +503,6 @@ begin {
         $mapArgs = @(
             '-map', '0:v?',  # Map all video streams (optional)
             '-map', '0:s?',  # Map all subtitle streams (optional)
-            '-map', '0:t?',  # Map all attachment streams (e.g., fonts) (optional)
             '-map', '0:d?'   # Map all data streams (optional)
         )
         # Add the default audio stream first
@@ -522,6 +521,7 @@ begin {
 
         # Combine map and disposition arguments
         $ffmpegArgs = $mapArgs
+        $ffmpegArgs += '-map', '0:t?' # Map attachment streams (e.g., fonts) (optional)
         $ffmpegArgs += '-c', 'copy'
 
         # --- PassThru Mode: Return arguments instead of executing ---

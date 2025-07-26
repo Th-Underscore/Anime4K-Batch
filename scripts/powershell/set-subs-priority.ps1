@@ -506,7 +506,6 @@ begin {
         $mapArgs = @(
             '-map', '0:v?', # Map video streams (optional)
             '-map', '0:a?', # Map audio streams (optional)
-            '-map', '0:t?', # Map all attachment streams (e.g., fonts) (optional)
             '-map', '0:d?'  # Map data streams (optional)
         )
         # Add the default subtitle stream first
@@ -524,6 +523,7 @@ begin {
         }
 
         $ffmpegArgs = $mapArgs
+        $ffmpegArgs += '-map', '0:t?' # Map attachment streams (e.g., fonts) (optional)
         $ffmpegArgs += '-c:s', 'copy'
         $ffmpegArgs += '-c', 'copy'
 
