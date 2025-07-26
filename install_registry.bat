@@ -19,7 +19,7 @@ echo Adding registry entries for file context menus (HKLM)...
 REM --- Main GLSL Transcode Script ---
 
 REM Ani4K.Transcode (File)
-REG ADD "%ROOT_STORE%\Ani4K.Transcode\command" /ve /d "\"%BASE_DIR%\Anime4K-Batch.bat\" \"%%1\"" /f
+REG ADD "%ROOT_STORE%\Ani4K.Transcode\command" /ve /d "\"%BASE_DIR%\scripts\utils\prompt.cmd\" \"%BASE_DIR%\Anime4K-Batch.bat\" \"%%1\"" /f
 REG ADD "%ROOT_STORE%\Ani4K.Transcode" /v MUIVerb /t REG_SZ /d "Apply GLSL shaders" /f
 REG ADD "%ROOT_STORE%\Ani4K.Transcode" /v Icon /t REG_SZ /d "%BASE_DIR%\assets\icons\Transcode_32.ico" /f
 
@@ -27,27 +27,27 @@ REM --- Aux Scripts ---
 REG ADD "%ROOT_STORE%\Ani4K.Transcode" /v CommandFlags /t REG_DWORD /d 0x040 /f
 
 REM Ani4K.Extract (File)
-REG ADD "%ROOT_STORE%\Ani4K.Extract\command" /ve /d "\"%BASE_DIR%\scripts\extract-subs.bat\" \"%%1\" & pause" /f
+REG ADD "%ROOT_STORE%\Ani4K.Extract\command" /ve /d "\"%BASE_DIR%\scripts\utils\prompt.cmd\" \"%BASE_DIR%\scripts\extract-subs.bat\" \"%%1\" & pause" /f
 REG ADD "%ROOT_STORE%\Ani4K.Extract" /v MUIVerb /t REG_SZ /d "Extract subtitles" /f
 REG ADD "%ROOT_STORE%\Ani4K.Extract" /v Icon /t REG_SZ /d "%BASE_DIR%\assets\icons\Extract_32.ico" /f
 
 REM Ani4K.Remux (File)
-REG ADD "%ROOT_STORE%\Ani4K.Remux\command" /ve /d "\"%BASE_DIR%\scripts\remux.bat\" \"%%1\" & pause" /f
+REG ADD "%ROOT_STORE%\Ani4K.Remux\command" /ve /d "\"%BASE_DIR%\scripts\utils\prompt.cmd\" \"%BASE_DIR%\scripts\remux.bat\" \"%%1\" & pause" /f
 REG ADD "%ROOT_STORE%\Ani4K.Remux" /v MUIVerb /t REG_SZ /d "Remux" /f
 REG ADD "%ROOT_STORE%\Ani4K.Remux" /v Icon /t REG_SZ /d "%BASE_DIR%\assets\icons\Remux_32.ico" /f
 
 REM Ani4K.TranscodeAudio (File)
-REG ADD "%ROOT_STORE%\Ani4K.TranscodeAudio\command" /ve /d "\"%BASE_DIR%\scripts\transcode-audio.bat\" \"%%1\" & pause" /f
+REG ADD "%ROOT_STORE%\Ani4K.TranscodeAudio\command" /ve /d "\"%BASE_DIR%\scripts\utils\prompt.cmd\" \"%BASE_DIR%\scripts\transcode-audio.bat\" \"%%1\" & pause" /f
 REG ADD "%ROOT_STORE%\Ani4K.TranscodeAudio" /v MUIVerb /t REG_SZ /d "Transcode audio" /f
 REG ADD "%ROOT_STORE%\Ani4K.TranscodeAudio" /v Icon /t REG_SZ /d "%BASE_DIR%\assets\icons\Transcode_32.ico" /f
 
 REM Ani4K.SetAudioPriority (File)
-REG ADD "%ROOT_STORE%\Ani4K.SetAudioPriority\command" /ve /d "\"%BASE_DIR%\scripts\set-audio-priority.bat\" -replace \"%%1\" & pause" /f
+REG ADD "%ROOT_STORE%\Ani4K.SetAudioPriority\command" /ve /d "\"%BASE_DIR%\scripts\utils\prompt.cmd\" \"%BASE_DIR%\scripts\set-audio-priority.bat\" \"%%1\" & pause" /f
 REG ADD "%ROOT_STORE%\Ani4K.SetAudioPriority" /v MUIVerb /t REG_SZ /d "Set audio priority" /f
 REG ADD "%ROOT_STORE%\Ani4K.SetAudioPriority" /v Icon /t REG_SZ /d "%SystemRoot%\System32\imageres.dll,109" /f
 
 REM Ani4K.SetSubsPriority (File)
-REG ADD "%ROOT_STORE%\Ani4K.SetSubsPriority\command" /ve /d "\"%BASE_DIR%\scripts\set-subs-priority.bat\" -replace \"%%1\" & pause" /f
+REG ADD "%ROOT_STORE%\Ani4K.SetSubsPriority\command" /ve /d "\"%BASE_DIR%\scripts\utils\prompt.cmd\" \"%BASE_DIR%\scripts\set-subs-priority.bat\" \"%%1\" & pause" /f
 REG ADD "%ROOT_STORE%\Ani4K.SetSubsPriority" /v MUIVerb /t REG_SZ /d "Set subtitle priority" /f
 REG ADD "%ROOT_STORE%\Ani4K.SetSubsPriority" /v Icon /t REG_SZ /d "%SystemRoot%\System32\imageres.dll,109" /f
 
@@ -55,7 +55,7 @@ REM --- Utils ---
 REG ADD "%ROOT_STORE%\Ani4K.SetSubsPriority" /v CommandFlags /t REG_DWORD /d 0x040 /f
 
 REM Ani4K.RenameFiles (File)
-REG ADD "%ROOT_STORE%\Ani4K.RenameFiles\command" /ve /d "\"%BASE_DIR%\scripts\utils\exec_pwsh.cmd\" \"%BASE_DIR%\scripts\utils\Rename-MediaFiles.ps1\" -Path \"'%%1'\" & pause" /f
+REG ADD "%ROOT_STORE%\Ani4K.RenameFiles\command" /ve /d "\"%BASE_DIR%\scripts\utils\prompt.cmd\" \"%BASE_DIR%\scripts\utils\exec_pwsh.cmd\" \"%BASE_DIR%\scripts\utils\Rename-MediaFiles.ps1\" -Path \"'%%1'\" & pause" /f
 REG ADD "%ROOT_STORE%\Ani4K.RenameFiles" /v MUIVerb /t REG_SZ /d "Rename episodes" /f
 REG ADD "%ROOT_STORE%\Ani4K.RenameFiles" /v Icon /t REG_SZ /d "%SystemRoot%\System32\imageres.dll,110" /f
 

@@ -5,8 +5,8 @@
     "Suffix": "_areordered", // Suffix for the output filename when not using -Replace. Ignored if -Replace is true.
     "Recurse": false, // Process folders recursively.
     "Force": false, // Force overwrite existing output files (or temporary files in -Replace mode).
-    "Delete": false, // Delete original file after successful processing (Mutually exclusive with Replace).
-    "Replace": false, // Replace the original file with the processed version (Mutually exclusive with Delete).
+    "Delete": false, // Delete original file after successful processing (mutually exclusive with Replace).
+    "Replace": true, // Replace the original file with the processed version (mutually exclusive with Delete).
 
     // --- Executable Paths (Optional) ---
     "FfmpegPath": "", // Optional: Path to ffmpeg.exe. Auto-detected if empty or omitted.
