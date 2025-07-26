@@ -56,7 +56,7 @@ if not defined PATHS_ARRAY_ELEMENTS (
     exit /b 1
 )
 
-call .\utils\exec_pwsh.cmd "%POWERSHELL_SCRIPT_PATH%" %PS_ARGS% -Path "%PATHS_ARRAY_ELEMENTS%"
+call "%SCRIPT_DIR%\utils\exec_pwsh.cmd" "%POWERSHELL_SCRIPT_PATH%" %PS_ARGS% -Path "%PATHS_ARRAY_ELEMENTS%"
 
 REM Capture the exit code from PowerShell
 set "EXIT_CODE=%ERRORLEVEL%"
