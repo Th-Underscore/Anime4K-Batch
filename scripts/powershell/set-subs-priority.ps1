@@ -637,7 +637,7 @@ process {
             Write-Warning "A fatal error occurred previously. Stopping further processing."
             break
         }
-        # try {
+        try {
             $item = Get-Item -LiteralPath $itemPath -ErrorAction Stop
             if ($item -is [System.IO.DirectoryInfo]) {
                 if (-not $Concise) { Write-Host "`nProcessing directory: $($item.FullName) (Recursive: $Recurse)" }
@@ -716,11 +716,11 @@ process {
             } else {
                 Write-Warning "Path '$itemPath' is not a file or directory. Skipping."
             }
-        # } catch {
-        #     Write-Error "Error processing path '$itemPath': $($_.Exception.Message)"
-        #     $script:fatalErrorOccurred = $true # Error getting item is fatal
-        #     # Continue to end block to exit with correct code
-        # }
+        } catch {
+            Write-Error "Error processing path '$itemPath': $($_.Exception.Message)"
+            $script:fatalErrorOccurred = $true # Error getting item is fatal
+            # Continue to end block to exit with correct code
+        }
     }
 } # End Process block
 
