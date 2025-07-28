@@ -1,8 +1,10 @@
 @echo off
 setlocal
 
-if not "%1"=="am_admin" (
-    powershell -Command "Start-Process -Verb RunAs -FilePath '%0' -ArgumentList 'am_admin'"
+if not "%~1"=="am_admin" (
+    call sudo "%~0" am_admin & goto :complete
+    :complete
+    if %ERRORLEVEL% neq 0 ( powershell -Command "Start-Process -Verb RunAs -FilePath '%0' -ArgumentList 'am_admin'" )
     exit /b
 )
 

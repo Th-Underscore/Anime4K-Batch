@@ -1,8 +1,10 @@
 @echo off
 setlocal
 
-if not "%1"=="am_admin" (
-    powershell -Command "Start-Process -Verb RunAs -FilePath '%0' -ArgumentList 'am_admin'"
+if not "%~1"=="am_admin" (
+    call sudo "%~0" am_admin & goto :complete
+    :complete
+    if %ERRORLEVEL% neq 0 ( powershell -Command "Start-Process -Verb RunAs -FilePath '%0' -ArgumentList 'am_admin'" )
     exit /b
 )
 
@@ -10,7 +12,7 @@ REM Define root paths
 set "ROOT_STORE=HKLM\Software\Microsoft\Windows\CurrentVersion\Explorer\CommandStore\Shell"
 set "ROOT_CLASS=HKCU\Software\Classes"
 
-echo Removing registry entries for file and directory context menus (HKLM)...
+echo Removing registry entries for file, directory, and background context menus (HKLM)...
 
 REM Delete file context menu entries
 REG DELETE "%ROOT_STORE%\Ani4K.Transcode" /f
@@ -48,6 +50,24 @@ REG DELETE "%ROOT_STORE%\Ani4K.SetAudioPriorityDir_Prompt" /f
 REG DELETE "%ROOT_STORE%\Ani4K.SetSubsPriorityDir_Prompt" /f
 REG DELETE "%ROOT_STORE%\Ani4K.RenameFilesDir_Prompt" /f
 
+REM Delete background context menu entries
+REG DELETE "%ROOT_STORE%\Ani4K.TranscodeBg" /f
+REG DELETE "%ROOT_STORE%\Ani4K.ExtractBg" /f
+REG DELETE "%ROOT_STORE%\Ani4K.RemuxBg" /f
+REG DELETE "%ROOT_STORE%\Ani4K.TranscodeAudioBg" /f
+REG DELETE "%ROOT_STORE%\Ani4K.SetAudioPriorityBg" /f
+REG DELETE "%ROOT_STORE%\Ani4K.SetSubsPriorityBg" /f
+REG DELETE "%ROOT_STORE%\Ani4K.RenameFilesBg" /f
+
+REM Delete background context menu entries (Prompt)
+REG DELETE "%ROOT_STORE%\Ani4K.TranscodeBg_Prompt" /f
+REG DELETE "%ROOT_STORE%\Ani4K.ExtractBg_Prompt" /f
+REG DELETE "%ROOT_STORE%\Ani4K.RemuxBg_Prompt" /f
+REG DELETE "%ROOT_STORE%\Ani4K.TranscodeAudioBg_Prompt" /f
+REG DELETE "%ROOT_STORE%\Ani4K.SetAudioPriorityBg_Prompt" /f
+REG DELETE "%ROOT_STORE%\Ani4K.SetSubsPriorityBg_Prompt" /f
+REG DELETE "%ROOT_STORE%\Ani4K.RenameFilesBg_Prompt" /f
+
 echo Removing main context menu entries (HKCU)...
 
 REM Delete main entry for Files (*)
@@ -57,6 +77,10 @@ REG DELETE "%ROOT_CLASS%\*\shell\Anime4K-Batch_Prompt" /f
 REM Delete main entry for Directories
 REG DELETE "%ROOT_CLASS%\Directory\shell\Anime4K-Batch" /f
 REG DELETE "%ROOT_CLASS%\Directory\shell\Anime4K-Batch_Prompt" /f
+
+REM Delete main entry for Background
+REG DELETE "%ROOT_CLASS%\Directory\Background\shell\Anime4K-Batch" /f
+REG DELETE "%ROOT_CLASS%\Directory\Background\shell\Anime4K-Batch_Prompt" /f
 
 echo Registry entries removed successfully.
 endlocal
