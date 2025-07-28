@@ -8,9 +8,9 @@
 ::   -h <height>        : Target output height
 ::   -shader <file>     : Shader filename
 ::   -shaderpath <path> : Path to shaders folder
-::   -codec-prof <type> : Encoder profile (e.g., nvidia_h265, cpu_av1; default: %ENCODER_PROFILE%)
-::   -cqp <value>       : Constant Quantization Parameter (0-51, lower is better; default: %CQP%) (24 is virtually lossless for double the file size)
-::   -container <type>  : Output container format (avi, mkv, mp4; default: %OUTPUT_FORMAT%)
+::   -codec-prof <type> : Encoder profile (e.g., nvidia_h265, cpu_av1)
+::   -cqp <value>       : Constant Quantization Parameter (0-51, lower is better) (24 is virtually lossless for double the file size)
+::   -container <type>  : Output container format (avi, mkv, mp4)
 ::   -suffix <string>   : Suffix to append to output filenames
 ::   -slang <list>      : Comma-separated subtitle language priority for -sprioritize.
 ::   -stitle <list>     : Comma-separated subtitle title priority for -sprioritize.
