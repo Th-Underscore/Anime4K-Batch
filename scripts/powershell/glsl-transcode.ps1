@@ -22,8 +22,8 @@ Shader filename located in the ShaderBasePath. Default: 'Anime4K_ModeA_A-fast.gl
 Path to the shaders folder. Default: Script's 'shaders' subdirectory.
 
 .PARAMETER EncoderProfile
-Encoder profile (e.g., 'nvidia_h265', 'cpu_av1'). Default: 'nvidia_h265'.
-Options: cpu_h264, cpu_h265, cpu_av1, nvidia_h264, nvidia_h265, nvidia_av1, amd_h264, amd_h265, amd_av1.
+Encoder profile (e.g., 'nvidia_h265', 'intel_h265', 'cpu_av1'). Default: 'nvidia_h265'.
+Options: cpu_h264, cpu_h265, cpu_av1, nvidia_h264, nvidia_h265, nvidia_av1, amd_h264, amd_h265, amd_av1, intel_h264, intel_h265, intel_av1, vulkan_h264, vulkan_h265, h264_vaapi, hevc_vaapi, av1_vaapi. Any other value is treated as a custom codec name.
 
 .PARAMETER CQP
 Constant Quantization Parameter (0-51, lower is better). Default: 24.
@@ -123,7 +123,6 @@ param(
     [string]$ShaderBasePath = '', # Default assigned in begin block
 
     [Parameter()]
-    [ValidateSet('cpu_h264', 'cpu_h265', 'cpu_av1', 'nvidia_h264', 'nvidia_h265', 'nvidia_av1', 'amd_h264', 'amd_h265', 'amd_av1')]
     [string]$EncoderProfile = 'nvidia_h265',
 
     [Parameter()]
@@ -413,9 +412,51 @@ begin {
             $hwAccelParams = '-hwaccel_device', 'opencl', '-hwaccel_output_format', 'opencl'
             $presetParam = '-quality quality'
         }
+        'intel_h264' {
+            $videoCodec = 'h264_qsv'
+            $hwAccelParams = '-hwaccel', 'qsv', '-hwaccel_output_format', 'qsv'
+            $presetParam = '-preset slow'
+        }
+        'intel_h265' {
+            $videoCodec = 'hevc_qsv'
+            $hwAccelParams = '-hwaccel', 'qsv', '-hwaccel_output_format', 'qsv'
+            $presetParam = '-preset slow'
+        }
+        'intel_av1' {
+            $videoCodec = 'av1_qsv'
+            $hwAccelParams = '-hwaccel', 'qsv', '-hwaccel_output_format', 'qsv'
+            $presetParam = '-preset slow'
+        }
+        'vulkan_h264' {
+            $videoCodec = 'h264_vulkan'
+            $hwAccelParams = '-hwaccel', 'vulkan', '-hwaccel_output_format', 'vulkan'
+        }
+        'vulkan_h265' {
+            $videoCodec = 'hevc_vulkan'
+            $hwAccelParams = '-hwaccel', 'vulkan', '-hwaccel_output_format', 'vulkan'
+        }
+        'h264_vaapi' {
+            $videoCodec = 'h264_vaapi'
+            $hwAccelParams = '-hwaccel', 'vaapi', '-hwaccel_output_format', 'vaapi'
+            $presetParam = '-preset slow'
+        }
+        'hevc_vaapi' {
+            $videoCodec = 'hevc_vaapi'
+            $hwAccelParams = '-hwaccel', 'vaapi', '-hwaccel_output_format', 'vaapi'
+            $presetParam = '-preset slow'
+        }
+        'av1_vaapi' {
+            $videoCodec = 'av1_vaapi'
+            $hwAccelParams = '-hwaccel', 'vaapi', '-hwaccel_output_format', 'vaapi'
+            $presetParam = '-preset slow'
+        }
         default {
-            Write-Error "Invalid EncoderProfile selected: $EncoderProfile"
-            exit 1
+            Write-Warning "EncoderProfile '$EncoderProfile' is not a built-in profile. Treating it as a custom video codec and arguments."
+            $customArgs = $EncoderProfile.Split(' ')
+            $videoCodec = $customArgs[0]
+            if ($customArgs.Count -gt 1) {
+                $hwAccelParams = $customArgs[1..($customArgs.Count - 1)]
+            }
         }
     }
     Write-Host "Using Encoder: $videoCodec"
