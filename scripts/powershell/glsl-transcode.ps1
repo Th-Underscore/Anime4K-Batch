@@ -23,7 +23,8 @@ Path to the shaders folder. Default: Script's 'shaders' subdirectory.
 
 .PARAMETER EncoderProfile
 Encoder profile (e.g., 'nvidia_h265', 'intel_h265', 'cpu_av1'). Default: 'nvidia_h265'.
-Options: cpu_h264, cpu_h265, cpu_av1, nvidia_h264, nvidia_h265, nvidia_av1, amd_h264, amd_h265, amd_av1, intel_h264, intel_h265, intel_av1, vulkan_h264, vulkan_h265, h264_vaapi, hevc_vaapi, av1_vaapi. Any other value is treated as a custom codec name.
+Options: cpu_h264, cpu_h265, cpu_av1, nvidia_h264, nvidia_h265, nvidia_av1, amd_h264, amd_h265, amd_av1, intel_h264, intel_h265, intel_av1, vulkan_h264, vulkan_h265, vaapi_h264, vaapi_h265, vaapi_av1.
+Any other value is treated as a custom codec name, and any extra arguments within (e.g., 'hevc_vaapi -hwaccel vaapi -hwaccel_output_format vaapi') are passed directly to ffmpeg.
 
 .PARAMETER CQP
 Constant Quantization Parameter (0-51, lower is better). Default: 24.
@@ -435,17 +436,17 @@ begin {
             $videoCodec = 'hevc_vulkan'
             $hwAccelParams = '-hwaccel', 'vulkan', '-hwaccel_output_format', 'vulkan'
         }
-        'h264_vaapi' {
+        'vaapi_h264' {
             $videoCodec = 'h264_vaapi'
             $hwAccelParams = '-hwaccel', 'vaapi', '-hwaccel_output_format', 'vaapi'
             $presetParam = '-preset slow'
         }
-        'hevc_vaapi' {
+        'vaapi_h265' {
             $videoCodec = 'hevc_vaapi'
             $hwAccelParams = '-hwaccel', 'vaapi', '-hwaccel_output_format', 'vaapi'
             $presetParam = '-preset slow'
         }
-        'av1_vaapi' {
+        'vaapi_av1' {
             $videoCodec = 'av1_vaapi'
             $hwAccelParams = '-hwaccel', 'vaapi', '-hwaccel_output_format', 'vaapi'
             $presetParam = '-preset slow'
