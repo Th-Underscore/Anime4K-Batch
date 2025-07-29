@@ -20,17 +20,22 @@
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
 param(
     [Parameter(Mandatory = $false, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, Position = 0)]
-    [string]$ShaderFilePath = (Join-Path -Path $ScriptRoot -ChildPath $shaderFileName)
+    [string]$ShaderFilePath
 )
 
 # --- Script Configuration ---
-$ScriptRoot = Split-Path -Parent -Path $MyInvocation.MyCommand.Path
 $dummyFileName = "dummy_test_video"
-$dummyInputFile = Join-Path -Path $ScriptRoot -ChildPath "${dummyFileName}.mkv"
+$dummyInputFile = Join-Path -Path $PSScriptRoot -ChildPath "${dummyFileName}.mkv"
+if (-not $ShaderFilePath) {
+    $ShaderFilePath = (Get-ChildItem (Join-Path -Path (Split-Path -LiteralPath (Split-Path -LiteralPath $PSScriptRoot)) -ChildPath 'shaders/*.glsl'))[0].FullName
+    Write-Host "Using first shader file found: $ShaderFilePath" -ForegroundColor Green
+    #$ShaderFilePath = Join-Path -Path $PSScriptRoot -ChildPath "passthrough.glsl";
+    #$doGenerateShader = $true
+}
 $escapedShaderPath = $ShaderFilePath -replace '\\', '\\\\' `
                                      -replace ':', '\:' `
                                      -replace '''', '\\\\''\\\\''' # No way to escape apostrophes
-$outputFilePrefix = Join-Path -Path $ScriptRoot -ChildPath "test_output"
+$outputFilePrefix = Join-Path -Path $PSScriptRoot -ChildPath "test_output"
 # ----------------------------
 
 function New-DummyVideo {
@@ -49,7 +54,7 @@ function New-DummyVideo {
         $Path
     )
     # Using Start-Process to hide the verbose ffmpeg output for this setup step
-    $process = Start-Process ffmpeg.exe -ArgumentList $arguments -Wait -NoNewWindow -PassThru
+    $process = Start-Process ffmpeg -ArgumentList $arguments -Wait -NoNewWindow -PassThru
     if ($process.ExitCode -ne 0) {
         Write-Error "Failed to create dummy video file. Please check your ffmpeg installation."
         exit 1
@@ -83,21 +88,21 @@ vec4 hook_main(vec2 p) {
 # --- Main Script ---
 
 # 1. Check for Prerequisites
-if (-not (Get-Command ffmpeg.exe -ErrorAction SilentlyContinue)) {
-    Write-Error "ffmpeg.exe not found. Please ensure it is installed and in your system's PATH."
+if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+    Write-Error "ffmpeg not found. Please ensure it is installed and in your system's PATH."
     exit 1
 }
 
 # 2. Setup Temporary Files
 New-DummyVideo -Path $dummyInputFile
-if (-not $escapedShaderPath) { New-DummyShader -Path $escapedShaderPath }
+if ($doGenerateShader) { New-DummyShader -Path $ShaderFilePath }
 
 # 3. Discover Available GPU Codecs
 Write-Host "`nDiscovering available GPU encoders..." -ForegroundColor Cyan
 $gpuIdentifiers = 'nvenc|amf|qsv|vulkan|vaapi'
 try {
     # We look for lines that start with " V" (Video encoder) and contain a GPU identifier.
-    $allEncoders = ffmpeg.exe -hide_banner -encoders 2>&1
+    $allEncoders = ffmpeg -hide_banner -encoders 2>&1
     $retrievedCodecs = $allEncoders | Select-String -Pattern $gpuIdentifiers | ForEach-Object {
         ($_.Line.Trim() -split '\s+')[1]
     } | Sort-Object -Unique
@@ -105,7 +110,7 @@ try {
     if ($retrievedCodecs.Count -eq 0) {
         Write-Error "No potential GPU encoders found (NVENC, AMF, QSV, Vulkan, VAAPI). Exiting."
         # Cleanup before exiting
-        Remove-Item $dummyInputFile, $escapedShaderPath -ErrorAction SilentlyContinue
+        Remove-Item $dummyInputFile, $ShaderFilePath -ErrorAction SilentlyContinue
         exit 1
     }
     Write-Host "Found $($retrievedCodecs.Count) potential GPU codecs to test:" -ForegroundColor Green
@@ -125,7 +130,7 @@ foreach ($currentCodec in $retrievedCodecs) {
     Write-Host "--- Testing codec: $currentCodec ---" -ForegroundColor Yellow
     $outputFile = "${outputFilePrefix}_${currentCodec}.mkv"
     
-    # Construct the argument list for ffmpeg.exe
+    # Construct the argument list for ffmpeg
     $ffmpegArgs = @(
         '-y',
         '-stats',
@@ -145,11 +150,11 @@ foreach ($currentCodec in $retrievedCodecs) {
         $outputFile
     )
 
-    Write-Debug "ffmpeg.exe $($ffmpegArgs -join ' ')"
+    Write-Debug "ffmpeg $($ffmpegArgs -join ' ')"
 
     try {
         # Execute the command
-        ffmpeg.exe $ffmpegArgs
+        & ffmpeg $ffmpegArgs
 
         # Check the exit code of the last command
         if ($LASTEXITCODE -eq 0) {
@@ -208,7 +213,50 @@ else {
     }
 }
 
-# 8. Cleanup
+# 8. Suggest Usable Encoder Profiles
+Write-Host "`n"
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "      USABLE ENCODER PROFILES" -ForegroundColor Cyan
+Write-Host "========================================`n" -ForegroundColor Cyan
+Write-Host "Based on the successful tests, you can use the following profiles with 'glsl-transcode.ps1' or in 'config.json':"
+
+$suggestedProfiles = [System.Collections.Generic.List[string]]::new()
+
+foreach ($codec in $successfulCodecs) {
+    $deviceName = $null
+    if ($codec -like '*_nvenc') { $deviceName = 'nvidia' }
+    elseif ($codec -like '*_amf') { $deviceName = 'amd' }
+    elseif ($codec -like '*_qsv') { $deviceName = 'intel' }
+    elseif ($codec -like '*_vulkan') { $deviceName = 'vulkan' }
+    elseif ($codec -like '*_vaapi') { $deviceName = 'vaapi' }
+
+    if (-not $deviceName) { continue }
+
+    $encoderName = $null
+    switch -Wildcard ($codec) {
+        '*264*'      { $encoderName = 'h264' }
+        '*hevc*'     { $encoderName = 'h265' }
+        '*265*'      { $encoderName = 'h265' }
+        '*av1*'      { $encoderName = 'av1' }
+    }
+
+    if ($encoderName) {
+        $encoderProfile = "${deviceName}_${encoderName}"
+        if (-not $suggestedProfiles.Contains($encoderProfile)) {
+            $suggestedProfiles.Add($encoderProfile)
+        }
+    }
+}
+
+if ($suggestedProfiles.Count -gt 0) {
+    $suggestedProfiles | Sort-Object | ForEach-Object { Write-Host "  - $_" -ForegroundColor Green }
+} else {
+    Write-Host "No corresponding encoder profiles found for the successful codecs." -ForegroundColor Yellow
+}
+
+
+# 9. Cleanup
 Write-Host "`nCleaning up temporary files..." -ForegroundColor Yellow
-Remove-Item $dummyInputFile, $escapedShaderPath -ErrorAction SilentlyContinue
+Remove-Item $dummyInputFile -ErrorAction SilentlyContinue
+if ($doGenerateShader) { Remove-Item $ShaderFilePath -ErrorAction SilentlyContinue }
 Write-Host "Done."
