@@ -32,17 +32,19 @@ Run [`install-registry.bat`](./install_registry.bat), edit [`config.json`](./con
 *   Preserves all audio and subtitle streams (requires MKV output for subtitles).
 *   Supports MKV, MP4, and AVI container formats for input/output.
 *   Automatic detection of `ffmpeg`/`ffprobe` via system PATH (can be disabled).
-*   Optional subtitle extraction using [`extract-subs.bat`](./scripts/extract-subs.bat).
-*   Optional default subtitle track prioritization using [`set-subs-priority.bat`](./scripts/set-subs-priority.bat).
-*   Optional default audio track prioritization using [`set-audio-priority.bat`](./scripts/set-audio-priority.bat).
-*   Optional audio transcoding using [`transcode-audio.bat`](./scripts/transcode-audio.bat).
-*   Optional video remuxing using [`remux.bat`](./scripts/remux.bat).
-*   Advanced episode file renaming using [`Rename-MediaFiles.ps1`](./scripts/utils/Rename-MediaFiles.ps1).
+*   Optional subtitle extraction using [`extract-subs.bat`](#extract-subs-bat).
+*   Optional default subtitle track prioritization using [`set-subs-priority.bat`](#set-subs-priority-bat).
+*   Optional default audio track prioritization using [`set-audio-priority.bat`](#set-audio-priority-bat).
+*   Optional audio transcoding using [`transcode-audio.bat`](#transcode-audio-bat).
+*   Optional video remuxing using [`remux.bat`](#remux-bat).
+*   Advanced episode file renaming using [`Rename-MediaFiles.ps1`](#Rename-MediaFiles-ps1).
+*   Test for GPU codec support using [`Test-FFmpegGpuCodecs.ps1`](#Test-FFmpegGpuCodecs-ps1). There is a simple batch script for this, too: [`test-ffmpeg-gpu-codecs.bat`](./scripts/utils/test-ffmpeg-gpu-codecs.bat).
 
 ## Requirements
 
 *   **Operating System**: Windows 10+
-*   [**ffmpeg.exe** and **ffprobe.exe**](https://ffmpeg.org/download.html#build-windows): Required for video processing and analysis. Must be in the system PATH, the working directory, the installation folder, or specified within the script ([`scripts/glsl-transcode.bat`](./scripts/glsl-transcode.bat)).
+*   [**ffmpeg.exe** and **ffprobe.exe**](https://ffmpeg.org/download.html#build-windows): Required for video processing and analysis. Must be in the system PATH, the working directory, the installation folder, or specified within the script ([`scripts/glsl-transcode.bat`](./scripts/glsl-transcode.bat)). `--enable-vulkan --enable-libplacebo` should already be enabled in the build, but you can perform a quick test using the [`Test-FFmpegGpuCodecs.ps1`](#Test-FFmpegGpuCodecs-ps1) script.
+*   **Vulkan**: Required for GLSL shader application.
 *   **GLSL Shaders**: Standard Anime4K upscaling/sharpening shader files (`.glsl`) are provided in this repository.
 
 Supported ffmpeg and ffprobe binaries can be found in [Releases](https://github.com/Th-Underscore/Anime4K-Batch/releases).
@@ -287,6 +289,7 @@ However, managing defaults through `config.json` is generally cleaner.
 *   **VAAPI / Vulkan**: These methods should be compatible with all GPUs.
 *   **NVIDIA/AMD AV1:** Supported only on RTX 4000+ and RX 7000+ series respectively.
 *   **Intel QSV / VAAPI / Vulkan:** These methods are currently untested but are expected to work on compatible hardware.
+*   You can verify your specific hardware and `ffmpeg` build compatibility by running the [`Test-FFmpegGpuCodecs.ps1`](#Test-FFmpegGpuCodecs-ps1) utility.
 
 ### Controlling Subtitles
 
@@ -312,7 +315,7 @@ Similar to subtitle extraction, setting the default audio track priority using [
 
 ## Extra Utilities
 
-<details>
+<details id="Join-Shaders-ps1">
 <summary><b><code>Join-Shaders.ps1</code></b></summary>
 
 This PowerShell script ([`Join-Shaders.ps1`](./scripts/utils/Join-Shaders.ps1)) allows you to combine multiple GLSL shaders into a single file compatible with `ffmpeg`'s `glsl` filter (and other applications like MPV). This is useful if you want to chain multiple shader effects for the `ShaderFile` setting in the config.
@@ -332,7 +335,7 @@ You could then use the flag `-shader Anime4K_ComplexChain.glsl` or set `"ShaderF
 
 </details>
 
-<details>
+<details id="extract-subs-bat">
 <summary><b><code>extract-subs.bat</code></b></summary>
 
 This batch script ([`extract-subs.bat`](./scripts/extract-subs.bat)) extracts subtitle tracks from video files using `ffprobe` and `ffmpeg`. It's designed to be run before [`glsl-transcode.bat`](./scripts/glsl-transcode.bat) if you want to preserve subtitles, especially when changing container formats (e.g., MKV to MP4).
@@ -359,7 +362,7 @@ C:\path\to\extract-subs.bat [options] [flags] "path\to\folder" "path\to\video.mk
 
 </details>
 
-<details>
+<details id="remux-bat">
 <summary><b><code>remux.bat</code></b></summary>
 
 This batch script ([`remux.bat`](./scripts/remux.bat)) remuxes video files into a different container format (e.g., MKV to MP4) while copying compatible streams (video, audio, subtitles, attachments, data) based on the target container's capabilities. It does *not* re-encode the video or audio, making it an extremely fast operation.
@@ -376,7 +379,7 @@ C:\path\to\remux.bat [options] [flags] "path\to\folder" "path\to\video.mkv" ...
 
 </details>
 
-<details>
+<details id="transcode-audio-bat">
 <summary><b><code>transcode-audio.bat</code></b></summary>
 
 This batch script ([`transcode-audio.bat`](./scripts/transcode-audio.bat)) transcodes audio streams within video files to a specified codec and bitrate, while copying the video stream. This is useful for standardizing audio formats or reducing file size.
@@ -395,7 +398,7 @@ C:\path\to\transcode-audio.bat [options] [flags] "path\to\folder" "path\to\video
 
 </details>
 
-<details>
+<details id="set-audio-priority-bat">
 <summary><b><code>set-audio-priority.bat</code></b></summary>
 
 This batch script ([`set-audio-priority.bat`](./scripts/set-audio-priority.bat)) sets the default track based on language priority using `ffprobe` and `ffmpeg`. It remuxes the file, placing the highest priority audio track first and marking it as default. This is useful for ensuring media players select the desired language automatically.
@@ -418,7 +421,7 @@ C:\path\to\set-audio-priority.bat [options] [flags] "path\to\folder" "path\to\vi
 
 </details>
 
-<details>
+<details id="set-subs-priority-bat">
 <summary><b><code>set-subs-priority.bat</code></b></summary>
 
 This batch script ([`set-subs-priority.bat`](./scripts/set-subs-priority.bat)) sets the default subtitle track based on language and title priority. It remuxes the file, placing the highest priority subtitle track first and marking it as default. This is useful for ensuring media players select the desired language automatically.
@@ -441,7 +444,7 @@ C:\path\to\set-subs-priority.bat [options] [flags] "path\to\folder" "path\to\vid
 
 </details>
 
-<details>
+<details id="Rename-MediaFiles-ps1">
 <summary><b><code>Rename-MediaFiles.ps1</code></b></summary>
 
 This PowerShell script ([`Rename-MediaFiles.ps1`](./scripts/utils/Rename-MediaFiles.ps1)) renames media files into a standard TV series format (`SxxExx`), which is useful for media servers like Plex or Jellyfin. It intelligently finds episode numbers (including decimals for specials) in existing filenames and reformats them.
@@ -472,6 +475,23 @@ C:\path\to\Rename-MediaFiles.ps1 -SeasonNumber 2 -FirstEpisode 25 -Path "D:\TV S
 *    `-CombineData`: **(Flag)** Retrieves data from both filename and title metadata. The priority of source/episode depends on the `-UseTitle` flag.
 *    `-EditTitle`: **(Flag)** Edits the file's title metadata instead of the filename.
 *   `-WhatIf`: **(Flag)** Preview changes without actually renaming files. **Always use this first!**
+
+**This is purely a PowerShell script and is not wrapped by a `.bat` file.**
+
+</details>
+
+<details id="Test-FFmpegGpuCodecs-ps1">
+<summary><b><code>Test-FFmpegGpuCodecs.ps1</code></b></summary>
+
+This PowerShell script ([`Test-FFmpegGpuCodecs.ps1`](./scripts/utils/Test-FFmpegGpuCodecs.ps1)) discovers, tests, and categorizes available FFmpeg GPU-accelerated video encoders. It automates checking your `ffmpeg` build and hardware for compatibility with various codecs (NVENC, AMF, QSV, etc.). This is useful for verifying that your setup can take advantage of hardware acceleration.
+
+**Standalone Usage:**
+
+```powershell
+C:\path\to\Test-FFmpegGpuCodecs.ps1
+```
+
+The script will output a report of successful and failed codecs.
 
 **This is purely a PowerShell script and is not wrapped by a `.bat` file.**
 

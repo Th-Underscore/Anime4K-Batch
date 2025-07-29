@@ -26,6 +26,10 @@ Encoder profile (e.g., 'nvidia_h265', 'intel_h265', 'cpu_av1'). Default: 'nvidia
 Options: cpu_h264, cpu_h265, cpu_av1, nvidia_h264, nvidia_h265, nvidia_av1, amd_h264, amd_h265, amd_av1, intel_h264, intel_h265, intel_av1, vulkan_h264, vulkan_h265, vaapi_h264, vaapi_h265, vaapi_av1.
 Any other value is treated as a custom codec name, and any extra arguments within (e.g., 'hevc_vaapi -hwaccel vaapi -hwaccel_output_format vaapi') are passed directly to ffmpeg.
 
+.PARAMETER HwAccelDevice
+Specifies the hardware acceleration device by index or name (e.g., '0', '1', 'PCI_BUS_ID'). Only applies to hardware-accelerated encoder profiles.
+NOT CURRENTLY IMPLEMENTED.
+
 .PARAMETER CQP
 Constant Quantization Parameter (0-51, lower is better). Default: 24.
 
@@ -125,6 +129,9 @@ param(
 
     [Parameter()]
     [string]$EncoderProfile = 'nvidia_h265',
+
+    [Parameter()]
+    [string]$HwAccelDevice = '', # NOT CURRENTLY IMPLEMENTED
 
     [Parameter()]
     [ValidateRange(-1, 51)]
@@ -460,6 +467,17 @@ begin {
             }
         }
     }
+
+    # # --- Construct HWAccel Params ---
+    # if (-not $hwAccelParams -and -not [string]::IsNullOrEmpty($hwAccelName)) {
+    #     $hwAccelParams = @('-hwaccel', $hwAccelName, '-hwaccel_output_format', $hwAccelName)
+    #     if (-not [string]::IsNullOrEmpty($HwAccelDevice)) {
+    #         $hwAccelParams += '-hwaccel_device', $HwAccelDevice
+    #     } elseif ($hwAccelName -in @('cuda', 'opencl')) {
+    #         $hwAccelParams += '-hwaccel_device', $hwAccelName
+    #     }
+    # }
+
     Write-Host "Using Encoder: $videoCodec"
     if ($hwAccelParams.Count -gt 0) { Write-Host "Using HWAccel: $($hwAccelParams -join ' ')" }
 
