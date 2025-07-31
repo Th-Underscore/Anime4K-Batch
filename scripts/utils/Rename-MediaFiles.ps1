@@ -26,10 +26,10 @@
     Default: ".mkv, .mp4, .avi, .mov, .webm"
 
 .PARAMETER FirstEpisode
-    (Optional) Sets the episode offset for this season, to work with absolute numbering.
+    (Optional) Determines the episode offset for this season, to work with absolute numbering.
     e.g. Season 2 starts at "Episode 25" because Season 1 had 24 episodes.
     Overrides auto-detection of the first episode number.
-    If you want to default to the episode number no matter what, use -NoDetectFirst.
+    If you want to default to the episode number no matter what, use -NoDetectFirstEpisode.
     Not compatible with -OrderByAlphabet.
 
 .PARAMETER UseTitle
@@ -78,13 +78,13 @@ param(
     [Parameter(Mandatory = $false, HelpMessage = "Enter the season number (e.g., 1, 01, 2). Auto-detected if not provided.")]
     [string]$SeasonNumber,
 
-    [Parameter(Mandatory = $false, HelpMessage = "Provide a custom regex. The episode number must be in the first capture group `()` and the rest of the filename in the second capture group `()`. Set capture group 2 to `()` to be empty.")]
-    [string]$Regex = '(?i)(?:S?\d+[\s_\.]*(?:E|x)|(?:Season[\s_\.]*\d+)?(?:e|ep|Episode|-)|(?:Season[\s_\.]*\d+))[\s_\.]*(\d+\.\d+|\d+)(.*)',
+    [Parameter(Mandatory = $false, HelpMessage = "Provide a custom regex. The episode number must be in the first capture group `(...)` and the rest of the filename in the second capture group `(...)`. Set capture group 2 to `()` to be empty.")]
+    [string]$Regex = '(?i)(?:S?\d+[\s_\.]*(?:E|x)|(?:Season[\s_\.]*\d+)?E(?:p(?:isode)?)?|-)|(?:Season[\s_\.]*\d+))[\s_\.]*(\d+\.\d+|\d+)(.*)',
 
     [Parameter(Mandatory = $false, HelpMessage = "List of file extensions to process. Defaults to .mkv, .mp4, .avi, .mov, .webm.")]
     [string]$Extensions = '.mkv, .mp4, .avi, .mov, .webm',
 
-    [Parameter(Mandatory = $false, HelpMessage = "Sets the episode offset for this season, to work with absolute numbering.")]
+    [Parameter(Mandatory = $false, HelpMessage = "Sets the episode offset for this season, to work with absolute numbering.")][Alias('EpisodeOne')][Alias('Offset')]
     [int]$FirstEpisode,
 
     [Parameter(Mandatory = $false, HelpMessage = "Uses the video title metadata instead of the file name.")]
@@ -126,7 +126,7 @@ if ($EditTitle) {
 # Default (Strict) Regex
 # (?i)                  - Makes the entire match case-insensitive.
 # (?:...)               - Matches the entire prefix before the episode number.
-#                       - This non-capturing group contains three main alternatives, separated by | (OR).
+#                       - Contains three main alternatives, separated by | (OR).
 #   --- Alternative 1 ---
 #   S?\d+                  - Matches a season number (e.g., "S01", "1") optionally preceeded by 'S'.
 #   [\s_\.]*               - Matches any space or possible separators.
@@ -134,7 +134,7 @@ if ($EditTitle) {
 #   - OR -
 #   --- Alternative 2 ---
 #   (?:Season[\s_\.]*\d+)? - Optionally matches "Season" followed by a number (e.g., "Season 01", "season_1").
-#   (?:e|ep|Episode|-)     - Matches an episode indicator like "e", "ep", "Episode", or "-".
+#   E(?:p(?:isode)?)?      - Matches an episode indicator like "e", "ep", "Episode", or "-".
 #   - OR -
 #   --- Alternative 3 ---
 #   (?:Season[\s_\.]*\d+)  - Matches "Season" followed by a number (e.g., "Season 01", "season_1").

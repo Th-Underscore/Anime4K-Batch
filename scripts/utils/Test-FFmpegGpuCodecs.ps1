@@ -11,7 +11,7 @@
     5. Finally, it presents a categorized list of the successful codecs.
 
 .PARAMETER ShaderFilePath
-    Path to the shader to test.
+    (Optional) Path to the shader to test.
 
 .NOTES
     Requires ffmpeg.
@@ -127,7 +127,7 @@ Write-Host "`nStarting encoder tests..." -ForegroundColor Cyan
 $successfulCodecs = @()
 
 foreach ($currentCodec in $retrievedCodecs) {
-    Write-Host "--- Testing codec: $currentCodec ---" -ForegroundColor Yellow
+    if ($VerbosePreference) { Write-Host "--- Testing codec: $currentCodec ---" -ForegroundColor White }
     $outputFile = "${outputFilePrefix}_${currentCodec}.mkv"
     
     # Construct the argument list for ffmpeg
@@ -150,11 +150,15 @@ foreach ($currentCodec in $retrievedCodecs) {
         $outputFile
     )
 
-    Write-Debug "ffmpeg $($ffmpegArgs -join ' ')"
+    Write-Verbose "ffmpeg $($ffmpegArgs -join ' ')"
 
     try {
         # Execute the command
-        & ffmpeg $ffmpegArgs
+        if ($VerbosePreference) {
+            & ffmpeg $ffmpegArgs
+        } else {
+            & ffmpeg $ffmpegArgs 2>&1 | Out-Null
+        }
 
         # Check the exit code of the last command
         if ($LASTEXITCODE -eq 0) {
@@ -198,7 +202,7 @@ foreach ($codec in $successfulCodecs) {
 # 7. Report Final Results
 Write-Host "`n"
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "      FFMPEG GPU ENCODER REPORT" -ForegroundColor Cyan
+Write-Host "      FFMPEG GPU ENCODER REPORT         " -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 
 if ($successfulCodecs.Count -eq 0) {
@@ -214,49 +218,54 @@ else {
 }
 
 # 8. Suggest Usable Encoder Profiles
-Write-Host "`n"
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "      USABLE ENCODER PROFILES" -ForegroundColor Cyan
-Write-Host "========================================`n" -ForegroundColor Cyan
-Write-Host "Based on the successful tests, you can use the following profiles with 'glsl-transcode.ps1' or in 'config.json':"
+if ($successfulCodecs.Count -gt 0) {
+    Write-Host "`n"
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "      USABLE ENCODER PROFILES           " -ForegroundColor Cyan
+    Write-Host "========================================`n" -ForegroundColor Cyan
+    Write-Host "Based on the successful tests, you can use the following profiles with 'glsl-transcode.ps1' or in 'config.json':"
 
-$suggestedProfiles = [System.Collections.Generic.List[string]]::new()
+    $suggestedProfiles = [System.Collections.Generic.List[string]]::new()
 
-foreach ($codec in $successfulCodecs) {
-    $deviceName = $null
-    if ($codec -like '*_nvenc') { $deviceName = 'nvidia' }
-    elseif ($codec -like '*_amf') { $deviceName = 'amd' }
-    elseif ($codec -like '*_qsv') { $deviceName = 'intel' }
-    elseif ($codec -like '*_vulkan') { $deviceName = 'vulkan' }
-    elseif ($codec -like '*_vaapi') { $deviceName = 'vaapi' }
+    foreach ($codec in $successfulCodecs) {
+        $deviceName = $null
+        if ($codec -like '*_nvenc') { $deviceName = 'nvidia' }
+        elseif ($codec -like '*_amf') { $deviceName = 'amd' }
+        elseif ($codec -like '*_qsv') { $deviceName = 'intel' }
+        elseif ($codec -like '*_vulkan') { $deviceName = 'vulkan' }
+        elseif ($codec -like '*_vaapi') { $deviceName = 'vaapi' }
 
-    if (-not $deviceName) { continue }
+        if (-not $deviceName) { continue }
 
-    $encoderName = $null
-    switch -Wildcard ($codec) {
-        '*264*'      { $encoderName = 'h264' }
-        '*hevc*'     { $encoderName = 'h265' }
-        '*265*'      { $encoderName = 'h265' }
-        '*av1*'      { $encoderName = 'av1' }
-    }
+        $encoderName = $null
+        switch -Wildcard ($codec) {
+            '*264*'   { $encoderName = 'h264' }
+            '*hevc*'  { $encoderName = 'h265' }
+            '*265*'   { $encoderName = 'h265' }
+            '*av1*'   { $encoderName = 'av1'  }
+        }
 
-    if ($encoderName) {
-        $encoderProfile = "${deviceName}_${encoderName}"
-        if (-not $suggestedProfiles.Contains($encoderProfile)) {
-            $suggestedProfiles.Add($encoderProfile)
+        if ($encoderName) {
+            $encoderProfile = "${deviceName}_${encoderName}"
+            if (-not $suggestedProfiles.Contains($encoderProfile)) {
+                $suggestedProfiles.Add($encoderProfile)
+            }
         }
     }
-}
 
-if ($suggestedProfiles.Count -gt 0) {
-    $suggestedProfiles | Sort-Object | ForEach-Object { Write-Host "  - $_" -ForegroundColor Green }
+    if ($suggestedProfiles.Count -gt 0) {
+        $suggestedProfiles | Sort-Object | ForEach-Object { Write-Host "  - $_" -ForegroundColor Green }
+    } else {
+        Write-Host "No corresponding encoder profiles found for the successful codecs." -ForegroundColor Yellow
+    }
 } else {
-    Write-Host "No corresponding encoder profiles found for the successful codecs." -ForegroundColor Yellow
+    Write-Host "`nNo GPU encoders completed the test successfully." -ForegroundColor Red
 }
 
 
 # 9. Cleanup
-Write-Host "`nCleaning up temporary files..." -ForegroundColor Yellow
+Write-Host "`n"
+Write-Host "Cleaning up temporary files..." -ForegroundColor Yellow
 Remove-Item $dummyInputFile -ErrorAction SilentlyContinue
 if ($doGenerateShader) { Remove-Item $ShaderFilePath -ErrorAction SilentlyContinue }
 Write-Host "Done."
