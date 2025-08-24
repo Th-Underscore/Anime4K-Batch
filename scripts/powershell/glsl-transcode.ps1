@@ -79,7 +79,10 @@ Extract subtitles from the *input* file using extract-subs.ps1 before transcodin
 Set default audio track on the *output* file using set-audio-priority.ps1 after transcoding.
 
 .PARAMETER Delete
-Delete original file after successful transcode (USE WITH CAUTION!).
+Delete original file after successful transcode (mutually exclusive with `-Replace`).
+
+.PARAMETER Replace
+Replace original file after successful transcode (mutually exclusive with `-Delete`).
 
 
 .PARAMETER FfmpegPath
@@ -187,6 +190,9 @@ param(
     [switch]$Delete,
 
     [Parameter()]
+    [switch]$Replace,
+
+    [Parameter()]
     [string]$FfmpegPath = '',
 
     [Parameter()]
@@ -264,8 +270,14 @@ begin {
         }
     }
 
-    Write-Verbose "Script Root: $PSScriptRoot"
-    Write-Verbose "Concise Execution: $Concise"
+    # --- Parameter Validation ---
+    if ($Delete -and $Replace) {
+        Write-Error "-Delete and -Replace parameters are mutually exclusive."
+        exit 1
+    }
+ 
+     Write-Verbose "Script Root: $PSScriptRoot"
+     Write-Verbose "Concise Execution: $Concise"
     Write-Verbose "ShaderBasePath: $ShaderBasePath"
     # --- Assign Default ShaderBasePath if not provided ---
     if ([string]::IsNullOrEmpty($ShaderBasePath)) {
@@ -652,6 +664,9 @@ begin {
             [switch]$DeleteOriginalFlag,
 
             [Parameter()]
+            [switch]$ReplaceOriginalFlag,
+
+            [Parameter()]
             [switch]$DoSetSubsPriority,
 
             [Parameter()]
@@ -685,8 +700,21 @@ begin {
         $inputName = $FileInput.BaseName
         $inputExt = $FileInput.Extension
 
-        # Construct Potential Output Path EARLY for check
-        $outputFileFullPath = Join-Path $inputPath ($inputName + $OutputSuffix + $OutputExt)
+        # --- Determine Output Filename(s) ---
+        $tempSuffix = ".tmp_transcode"
+        $finalOutputFile = ''
+        $ffmpegTargetFile = ''
+
+        if ($ReplaceOriginalFlag) { # Replace mode
+            $ffmpegTargetFile = Join-Path $inputPath ($inputName + $tempSuffix + $inputExt)
+            $finalOutputFile = $inputFileFullPath
+            Write-Verbose "Action: Replace original. Temp file: '$ffmpegTargetFile'"
+        } else { # Suffix or Delete mode
+            $ffmpegTargetFile = Join-Path $inputPath ($inputName + $OutputSuffix + $inputExt)
+            $finalOutputFile = $ffmpegTargetFile
+            Write-Verbose "Action: Create new file. Target: '$ffmpegTargetFile'"
+        }
+        $outputFileFullPath = $ffmpegTargetFile # Use ffmpegTargetFile for processing
 
         if (-not $Concise) {
             Write-Host "`n-----------------------------------------------------"
@@ -695,13 +723,17 @@ begin {
             Write-Host "-----------------------------------------------------`n"
         }
 
-        # Check if Output File Exists and if Force flag is NOT set
-        $outputExists = Test-Path -LiteralPath $outputFileFullPath -PathType Leaf
-        if ($outputExists -and -not $ForceProcessing) {
-            if (-not $Concise) { Write-Warning "Skipping '$inputFileFullPath' because output '$outputFileFullPath' already exists. Use -Force to overwrite." }
-            return
-        } elseif ($outputExists -and -not $Concise) {
-            Write-Host "Force processing for '$inputFileFullPath' despite existing output '$outputFileFullPath'."
+        # Check if FINAL target exists (for suffix mode) or TEMP target exists (for replace mode)
+        if ($ReplaceOriginalFlag) {
+            if ((Test-Path -LiteralPath $outputFileFullPath) -and (-not $ForceProcessing)) {
+                Write-Warning "Temporary file '$outputFileFullPath' already exists. Use -Force to overwrite it and continue."
+                return
+            }
+        } else {
+            if ((Test-Path -LiteralPath $finalOutputFile) -and (-not $ForceProcessing)) {
+                Write-Warning "Skipping transcode, output file '$finalOutputFile' already exists. Use -Force to overwrite."
+                return
+            }
         }
         if (-not (Test-Path -LiteralPath $inputFileFullpath -PathType Leaf)) {
             Write-Warning "Input file '$inputFileFullPath' does not exist. Skipping."
@@ -975,12 +1007,9 @@ begin {
         $ffmpegArgs += "$outputFileFullPath" # Output file
 
         # Last-second check
-        $outputExists = Test-Path -LiteralPath $outputFileFullPath -PathType Leaf
-        if ($outputExists -and -not $ForceProcessing) {
-            if (-not $Concise) { Write-Warning "Skipping '$inputFileFullPath' because output '$outputFileFullPath' already exists. Use -Force to overwrite." }
+        if ((Test-Path -LiteralPath $outputFileFullPath) -and (-not $ForceProcessing)) {
+            if (-not $Concise) { Write-Warning "Skipping '$inputFileFullPath' because temporary output '$outputFileFullPath' already exists. Use -Force to overwrite." }
             return
-        } elseif ($outputExists -and -not $Concise) {
-            Write-Host "Force processing for '$inputFileFullPath' despite existing output '$outputFileFullPath'."
         }
         if (-not (Test-Path -LiteralPath $inputFileFullpath -PathType Leaf)) {
             Write-Warning "Input file '$inputFileFullPath' no longer exists. Skipping."
@@ -991,6 +1020,7 @@ begin {
         if (-not $Concise) { Write-Host "Starting ffmpeg command:`n$ffmpeg $($ffmpegArgs -join ' ')" }
 
         if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Transcode to $outputFileFullPath")) {
+            $success = $false
             try {
                 Write-Verbose "Running: $ffmpeg $($ffmpegArgs -join ' ')"
                 & $ffmpeg @ffmpegArgs
@@ -999,45 +1029,49 @@ begin {
 
                 if ($exitCode -ne 0) {
                     Write-Error "ffmpeg process failed (Exit Code: $exitCode) while processing '$inputFileFullPath'."
-                    # Attempt to clean up potentially broken output file
-                    if (Test-Path -LiteralPath $outputFileFullPath -PathType Leaf) {
-                        Write-Warning "Attempting to remove potentially incomplete output file: $outputFileFullPath"
-                        Remove-Item -LiteralPath $outputFileFullPath -ErrorAction SilentlyContinue
-                    }
-                    # Consider stopping further processing if needed
-                    # $script:StopProcessing = $true # Requires $script: scope if needed globally
-                    return # Stop processing this file
                 } else {
                     if (-not $Concise) { Write-Host "Successfully processed '$inputFileFullPath' to '$outputFileFullPath'" }
+                    $success = $true
                 }
             } catch {
                 Write-Error "Error executing ffmpeg for '$inputFileFullPath': $($_.Exception.Message)"
-                # Attempt cleanup
+            }
+
+            # --- Post-processing File Actions ---
+            if ($success) {
+                if ($DeleteOriginalFlag) {
+                    if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Delete original file after successful transcode")) {
+                        try {
+                            Remove-Item -LiteralPath $inputFileFullPath -Force -ErrorAction Stop
+                            if (-not $Concise) { Write-Host "Successfully deleted original file: '$inputFileFullPath'" }
+                        } catch {
+                            Write-Warning "Failed to delete original file '$inputFileFullPath'. It might be in use or permissions are denied. Error: $($_.Exception.Message)"
+                        }
+                    } else {
+                        Write-Warning "Skipping deletion of '$inputFileFullPath' due to -WhatIf."
+                    }
+                } elseif ($ReplaceOriginalFlag) {
+                    if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Replace with processed file '$outputFileFullPath'")) {
+                        try {
+                            Move-Item -LiteralPath $outputFileFullPath -Destination $inputFileFullPath -Force -ErrorAction Stop
+                            if (-not $Concise) { Write-Host "Successfully replaced original file." }
+                        } catch {
+                            Write-Error "Failed to replace original file. Temp file '$outputFileFullPath' may still exist. Error: $($_.Exception.Message)"
+                        }
+                    } else {
+                        Write-Warning "Skipping replacement of original due to -WhatIf. Temp file '$outputFileFullPath' may remain."
+                    }
+                }
+            } else { # ffmpeg failed
+                # Attempt to clean up potentially broken output file
                 if (Test-Path -LiteralPath $outputFileFullPath -PathType Leaf) {
-                    Write-Warning "Attempting to remove potentially incomplete output file due to error: $outputFileFullPath"
+                    Write-Warning "Attempting to remove potentially incomplete output file: $outputFileFullPath"
                     Remove-Item -LiteralPath $outputFileFullPath -ErrorAction SilentlyContinue
                 }
-                return # Stop processing this file
             }
         } else {
             Write-Warning "Skipping transcode for '$inputFileFullPath' due to -WhatIf."
             return # Don't proceed with post-processing if -WhatIf
-        }
-
-        # --- Delete Original File ---
-        if ($DeleteOriginalFlag -and (Test-Path -LiteralPath $outputFileFullPath -PathType Leaf)) {
-            if (-not $Concise) { Write-Host "Deleting original file: '$inputFileFullPath'" }
-            if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Delete original file after successful transcode")) {
-                try {
-                    Remove-Item -LiteralPath $inputFileFullPath -Force -ErrorAction Stop
-                    if (-not $Concise) { Write-Host "Successfully deleted original file: '$inputFileFullPath'" }
-                } catch {
-                    # Warnings should always show
-                    Write-Warning "Failed to delete original file '$inputFileFullPath'. It might be in use or permissions are denied. Error: $($_.Exception.Message)"
-                }
-            } else {
-                Write-Warning "Skipping deletion of '$inputFileFullPath' due to -WhatIf."
-            }
         }
     } # End Function New-TranscodedVideo
 
@@ -1080,6 +1114,7 @@ process {
                                         -OutputSuffix $Suffix `
                                         -ForceProcessing:$Force `
                                         -DeleteOriginalFlag:$Delete `
+                                        -ReplaceOriginalFlag:$Replace `
                                         -DoExtractSubs:$ExtractSubs `
                                         -DoSetAudioPriority:$SetAudioPriority `
                                         -AudioLangPriorityForSet $AudioLangPriority `
@@ -1111,6 +1146,7 @@ process {
                                     -OutputSuffix $Suffix `
                                     -ForceProcessing:$Force `
                                     -DeleteOriginalFlag:$Delete `
+                                    -ReplaceOriginalFlag:$Replace `
                                     -DoExtractSubs:$ExtractSubs `
                                     -DoSetAudioPriority:$SetAudioPriority `
                                     -AudioLangPriorityForSet $AudioLangPriority `

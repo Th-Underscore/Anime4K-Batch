@@ -3,7 +3,8 @@
     "Suffix": "_upscaled", // Suffix to append to output filenames.
     "Container": "mkv", // Output container format (e.g., 'mkv', 'mp4').
     "Force": false, // Force overwrite existing output files.
-    "Delete": false, // Delete original file after successful transcode (USE WITH CAUTION!).
+    "Delete": false, // Delete original file after successful transcode (mutually exclusive with Replace).
+    "Replace": false, // Replace the original file with the processed version (mutually exclusive with Delete).
     "Recurse": false, // Process folders recursively.
   
     // --- Transcoding Settings ---
