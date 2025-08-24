@@ -27,6 +27,7 @@
 ::   -sprioritize       : Set default subtitle track on the *input* file using set-subs-priority.bat
 ::   -aprioritize       : Set default audio track on the *output* file using set-audio-priority.bat
 ::   -delete            : Delete original file after successful transcode (USE WITH CAUTION! You can just delete the original files yourself, grouping by "Type" and sorting by "Date modified")
+::   -replace           : Replace original file with processed version (USE WITH CAUTION!)
 ::
 :: See the individual scripts for advanced settings and information. You can also edit the code in any way you'd like!
 ::

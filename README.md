@@ -166,6 +166,7 @@ Using these options/flags override settings defined inside the script(s) *for th
 *   `-r`: **(Flag)** Process folders recursively.
 *   `-f`: **(Flag)** Force overwrite if an output file with the target name already exists.
 *   `-delete`: **(Flag)** Delete original file after successful transcode (USE WITH CAUTION!).
+*   `-replace`: **(Flag)** Replace original file with processed version (USE WITH CAUTION!).
 *   `-sprioritize`: **(Flag)** Set default subtitle track on the *input* file using `set-subs-priority.bat` before transcoding.
 *   `-extract-subs`: **(Flag)** Extract subtitles using `extract-subs.bat` before transcoding.
 *   `-aprioritize`: **(Flag)** Set default audio track on the *output* file using `set-audio-priority.bat` after transcoding.
