@@ -805,7 +805,7 @@ begin {
                     if ($transcodeResult.ExitCode -eq 0 -and $transcodeResult.Output) {
                         $transcodeAudioArgs = $transcodeResult.Output
                     } else {
-                        if ($priorityResult.ExitCode -ne -2) { Write-Warning "Failed to get audio transcode args (Exit Code: $($transcodeResult.ExitCode))." }
+                        if ($transcodeResult.ExitCode -ne -2) { Write-Warning "Failed to get audio transcode args (Exit Code: $($transcodeResult.ExitCode))." }
                     }
                 }
 
@@ -834,9 +834,13 @@ begin {
                 if ($audioArgs.Count -gt 0) {
                     Write-Verbose "Overriding remux audio arguments. New args: $($audioArgs -join ' ')"
                     # Remove all previous audio-related arguments
-                    $audioFilter = '^-map 0:a.*', '^-c:a .*', '^-disposition:a.* .+', '^-b:a .*', '^-ac .*', '^-ar .*', '^-af .*'
+                    $audioFilter = '^-c:a .*', '^-disposition:a.* .+', '^-b:a .*', '^-ac .*', '^-ar .*', '^-af .*'
+                    $audioMapArgs = Select-ParameterPairs -ArgumentList $audioArgs -Filter '^-map 0:\d+' -Regex -Whitelist
+                    if ($audioMapArgs.Count -gt 0) {
+                        $audioFilter = '^-map 0:a.*' + $audioFilter
+                    }
                     $streamArgs = Select-ParameterPairs -ArgumentList $streamArgs -Filter ($audioFilter + $ALL_STREAMS) -Regex
-                    $streamArgs += Select-ParameterPairs -ArgumentList $audioArgs -Filter ($audioFilter + '^-map 0:\d+') -Regex -Whitelist
+                    $streamArgs += $audioMapArgs + (Select-ParameterPairs -ArgumentList $audioArgs -Filter ($audioFilter) -Regex -Whitelist)
                 }
             }
         } else {
@@ -928,14 +932,25 @@ begin {
         }
 
         # --- Reorder Stream Maps ---
+        $subtitleMaps = Select-ParameterPairs -ArgumentList $streamArgs -Filter '^-map 0:s.*' -Regex -Whitelist
+        if ($subtitleMaps.Count -gt 0) {
+            Write-Verbose "Found subtitle maps to move to end: $($subtitleMaps -join ', ')"
+            $streamArgs = Select-ParameterPairs -ArgumentList $streamArgs -Filter '^-map 0:s.*' -Regex
+            $streamArgs += $subtitleMaps
+        }
+
+        $dataMaps = Select-ParameterPairs -ArgumentList $streamArgs -Filter '^-map 0:d.*' -Regex -Whitelist
+        if ($dataMaps.Count -gt 0) {
+            Write-Verbose "Found data maps to move to end: $($dataMaps -join ', ')"
+            $streamArgs = Select-ParameterPairs -ArgumentList $streamArgs -Filter '^-map 0:d.*' -Regex
+            $streamArgs += $dataMaps
+        }
+        
         $attachmentMaps = Select-ParameterPairs -ArgumentList $streamArgs -Filter '^-map 0:t.*' -Regex -Whitelist
         if ($attachmentMaps.Count -gt 0) {
             Write-Verbose "Found attachment maps to move to end: $($attachmentMaps -join ', ')"
-            # Remove existing attachment maps from streamArgs and add them back at the end
             $streamArgs = Select-ParameterPairs -ArgumentList $streamArgs -Filter '^-map 0:t.*' -Regex
             $streamArgs += $attachmentMaps
-        } else {
-            Write-Verbose "No attachment maps found in stream arguments."
         }
 
         # --- Construct FFMPEG Command Arguments ---
