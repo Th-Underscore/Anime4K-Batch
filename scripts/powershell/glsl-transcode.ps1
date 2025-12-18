@@ -54,6 +54,7 @@ Comma-separated audio language priority list for -SetAudioPriority (e.g., "jpn,e
 
 .PARAMETER AudioTitlePriority
 Comma-separated audio title priority list for -SetAudioPriority (e.g., "Commentary,Surround").
+
 .PARAMETER AudioCodec
 Audio codec for transcoding (e.g., 'aac', 'ac3', 'flac'). Defaults to the original value (copied).
 
@@ -810,7 +811,7 @@ begin {
             )
         }
 
-        $ALL_STREAMS = '^-c .*' + '^-map 0'
+        $ALL_STREAMS = '^-c .*', '^-map 0'
 
         # --- Handle Audio Overrides ---
         $allowAudio = -not ($inputLimitations -contains 'no_audio' -or $outputLimitations -contains 'no_audio')
@@ -869,10 +870,10 @@ begin {
                     $audioFilter = '^-c:a .*', '^-disposition:a.* .+', '^-b:a .*', '^-ac .*', '^-ar .*', '^-af .*'
                     $audioMapArgs = Select-ParameterPairs -ArgumentList $audioArgs -Filter '^-map 0:\d+' -Regex -Whitelist
                     if ($audioMapArgs.Count -gt 0) {
-                        $audioFilter = '^-map 0:a.*' + $audioFilter
+                        $audioFilter = (,'^-map 0:a.*') + $audioFilter
                     }
                     $streamArgs = Select-ParameterPairs -ArgumentList $streamArgs -Filter ($audioFilter + $ALL_STREAMS) -Regex
-                    $streamArgs += $audioMapArgs + (Select-ParameterPairs -ArgumentList $audioArgs -Filter ($audioFilter) -Regex -Whitelist)
+                    $streamArgs += $audioMapArgs + (Select-ParameterPairs -ArgumentList $audioArgs -Filter $audioFilter -Regex -Whitelist)
                 }
             }
         } else {
