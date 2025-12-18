@@ -811,7 +811,7 @@ begin {
             )
         }
 
-        $ALL_STREAMS = '^-c .*', '^-map 0'
+        $ALL_STREAMS = '^-c .*', '^-map 0$'
 
         # --- Handle Audio Overrides ---
         $allowAudio = -not ($inputLimitations -contains 'no_audio' -or $outputLimitations -contains 'no_audio')
@@ -914,7 +914,7 @@ begin {
                 $streamArgs = Select-ParameterPairs -ArgumentList $streamArgs -Filter ($subsFilter + $ALL_STREAMS) -Regex
                 if ($allowOutputSubs) {
                     Write-Verbose "Setting subtitle priority for output container with arguments: $($newSubsArgs -join ' ')"
-                    $streamArgs += Select-ParameterPairs -ArgumentList $newSubsArgs -Filter ($subsFilter + '^-map 0:\d+$') -Regex -Whitelist
+                    $streamArgs += Select-ParameterPairs -ArgumentList $newSubsArgs -Filter ($subsFilter + (,'^-map 0:\d+$')) -Regex -Whitelist
                 }
             } else {
                 if ($result.ExitCode -ne -2) { Write-Warning "Failed to get subtitle arguments from set-subs-priority.ps1 (Exit Code: $($result.ExitCode)). Subtitle handling may be incorrect." }
