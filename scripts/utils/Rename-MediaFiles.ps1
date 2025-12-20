@@ -79,7 +79,7 @@ param(
     [string]$SeasonNumber,
 
     [Parameter(Mandatory = $false, HelpMessage = "Provide a custom regex. The episode number must be in the first capture group `(...)` and the rest of the filename in the second capture group `(...)`. Set capture group 2 to `()` to be empty.")]
-    [string]$Regex = '(?i)(?:S?\d+[\s_\.]*(?:E|x)|(?:Season[\s_\.]*\d+)?E(?:p(?:isode)?)?|-)|(?:Season[\s_\.]*\d+))[\s_\.]*(\d+\.\d+|\d+)(.*)',
+    [string]$Regex = '(?i)(?:S?\d+[\s_\.]*(?:E|x)|(?:Season[\s_\.]*\d+)?[\s_\.]*(?:E(?:p(?:isode)?)?|-)|(?:Season[\s_\.]*\d+))[\s_\.]*(\d+\.\d+|\d+)(.*)',
 
     [Parameter(Mandatory = $false, HelpMessage = "List of file extensions to process. Defaults to .mkv, .mp4, .avi, .mov, .webm.")]
     [string]$Extensions = '.mkv, .mp4, .avi, .mov, .webm',
