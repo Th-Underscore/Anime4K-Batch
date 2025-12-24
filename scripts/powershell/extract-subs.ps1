@@ -353,7 +353,7 @@ begin {
         if (-not $Concise) { Write-Host "Found $($subtitleStreams.Count) subtitle stream(s)." }
 
         # --- Prepare ffmpeg arguments for extraction ---
-        $ffmpegArgs = @('-y') # Overwrite output without asking (already checked with -Force)
+        $ffmpegArgs = @('-y', '-stats') # Overwrite output without asking (already checked with -Force)
         if ($Concise) { # Logging level and progress
             $ffmpegArgs += '-v', 'fatal'
         } else {

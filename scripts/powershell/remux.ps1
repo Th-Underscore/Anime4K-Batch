@@ -349,7 +349,7 @@ begin {
 
         # Add output file path
         # --- Construct FFMPEG Command Arguments based on Container Compatibility ---
-        $ffmpegArgs = @('-y') # Overwrite output without asking (already checked with -Force)
+        $ffmpegArgs = @('-y', '-stats') # Overwrite output without asking (already checked with -Force)
         if ($Concise) { # Logging level and progress
             $ffmpegArgs += '-v', 'fatal'
         } else {
