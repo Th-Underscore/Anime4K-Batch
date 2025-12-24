@@ -277,8 +277,8 @@ begin {
         exit 1
     }
  
-     Write-Verbose "Script Root: $PSScriptRoot"
-     Write-Verbose "Concise Execution: $Concise"
+    Write-Verbose "Script Root: $PSScriptRoot"
+    Write-Verbose "Concise Execution: $Concise"
     Write-Verbose "ShaderBasePath: $ShaderBasePath"
     # --- Assign Default ShaderBasePath if not provided ---
     if ([string]::IsNullOrEmpty($ShaderBasePath)) {
@@ -287,7 +287,7 @@ begin {
             Write-Verbose "Using default ShaderBasePath: $ShaderBasePath"
         } else {
             # Fallback if PSScriptRoot is somehow still empty (e.g., running selection in ISE)
-            $ShaderBasePath = Join-Path (Get-Location) 'shaders'
+            $ShaderBasePath = Get-Location
             Write-Warning "PSScriptRoot was empty. Using current location for default ShaderBasePath: $ShaderBasePath"
         }
     } else {
@@ -351,10 +351,10 @@ begin {
         # Only error if ffmpeg is not found
         if ($Name -eq 'ffmpeg') {
             Write-Error "$Name could not be located. Please provide the path using -FfmpegPath or ensure it's in the script/parent directory or PATH."
-            return $null # Indicate failure
+            return $null
         } else {
             Write-Warning "$Name could not be located, but may not be essential for this script."
-            return $null # Indicate not found, but don't error
+            return $null
         }
     }
 
@@ -931,18 +931,15 @@ begin {
             } else {
                 if (-not $Concise) { Write-Host "`n--- Extracting Subtitles ---" }
                 $extractParams = @{
-                    Path        = $inputFileFullPath
-                    Format      = $SubFormatForExtract
-                    Suffix      = $OutputSuffix
-                    Force       = $ForceProcessing
-                    FfmpegPath  = $ffmpeg
-                    FfprobePath = $ffprobe
-                    Concise     = $true
-                    Verbose     = $false
-                }
-
-                if ($prioritizedSubStreamIndex -ge 0) {
-                    $extractParams['OverrideDefault'] = $prioritizedSubStreamIndex
+                    Path            = $inputFileFullPath
+                    Format          = $SubFormatForExtract
+                    Suffix          = $OutputSuffix
+                    Force           = $ForceProcessing
+                    FfmpegPath      = $ffmpeg
+                    FfprobePath     = $ffprobe
+                    Concise         = $true
+                    Verbose         = $false
+                    OverrideDefault = $prioritizedSubStreamIndex
                 }
 
                 $exitCode = Invoke-ExternalScript -ScriptPath $extractSubsScript -Parameters $extractParams -TaskDescription "Subtitle extraction"
