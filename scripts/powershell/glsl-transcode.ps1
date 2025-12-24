@@ -707,11 +707,11 @@ begin {
         $ffmpegTargetFile = ''
 
         if ($ReplaceOriginalFlag) { # Replace mode
-            $ffmpegTargetFile = Join-Path $inputPath ($inputName + $tempSuffix + $inputExt)
+            $ffmpegTargetFile = Join-Path $inputPath ($inputName + $tempSuffix + $OutputExt)
             $finalOutputFile = $inputFileFullPath
             Write-Verbose "Action: Replace original. Temp file: '$ffmpegTargetFile'"
         } else { # Suffix or Delete mode
-            $ffmpegTargetFile = Join-Path $inputPath ($inputName + $OutputSuffix + $inputExt)
+            $ffmpegTargetFile = Join-Path $inputPath ($inputName + $OutputSuffix + $OutputExt)
             $finalOutputFile = $ffmpegTargetFile
             Write-Verbose "Action: Create new file. Target: '$ffmpegTargetFile'"
         }
@@ -773,7 +773,7 @@ begin {
         }
 
         # --- HDR Check (Simple heuristic) ---
-        if ($videoCodec -notmatch '^(libsvtav1|av1_nvenc|av1_amf)$' -and $pixFmt -match '(10[lb]e|12[lb]e|p010|yuv420p10)') {
+        if (-not $Concise -and $videoCodec -notmatch '^(libsvtav1|av1_nvenc|av1_amf)$' -and $pixFmt -match '(10[lb]e|12[lb]e|p010|yuv420p10)') {
             Write-Warning "Detected potential HDR pixel format ($pixFmt). Only AV1 encoders fully support HDR preservation in this script. Output might not be HDR."
         }
 
@@ -946,9 +946,9 @@ begin {
 
                 if ($Concise) {
                     switch($exitCode) {
-                        0 { Write-Host "Subtitles extracted successfully!" }
-                        -2 { Write-Host "Subtitles already extracted." }
-                        default { Write-Warning "Subtitle extraction subprocess indicated failure (Exit Code: $exitCode) for '$inputFileFullPath'. Check script output for details." }
+                        0 { Write-Host "  Subtitles extracted successfully!" }
+                        -2 { Write-Host "  Subtitles already extracted." }
+                        default { Write-Warning "  Subtitle extraction subprocess indicated failure (Exit Code: $exitCode) for '$inputFileFullPath'. Check script output for details." }
                     }
                 } else {
                     switch ($exitCode) {
@@ -1100,7 +1100,7 @@ process {
 
                 foreach ($file in $filesToProcess) {
                     $processedCount++
-                    Write-Host "Progress: $processedCount / $totalFiles - Processing '$($file.Name)'"
+                    Write-Host "Progress: $processedCount / $totalFiles - Processing '$($file.Name)'" -ForegroundColor Green
 
                     # Skip files that already have the suffix (redundant check now, but safe)
                     if ($file.BaseName -like "*$Suffix") {
@@ -1137,7 +1137,7 @@ process {
                 }
 
                 # Always show progress for single files too
-                Write-Host "Progress: 1 / 1 - Processing '$($item.Name)'"
+                Write-Host "Progress: 1 / 1 - Processing '$($item.Name)'" -ForegroundColor Green
 
                 New-TranscodedVideo -FileInput $item `
                                     -OutputExt $outputExt `
