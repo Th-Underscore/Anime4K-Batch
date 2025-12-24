@@ -43,7 +43,7 @@ function New-DummyVideo {
         [string]$Path
     )
     Write-Host "Creating dummy video file at '$Path'..." -ForegroundColor Yellow
-    # Create a short, low-resolution test pattern video. It's fast and requires no external files.
+    # Create a short, low-resolution test pattern video. Fast and requires no external files
     $arguments = @(
         '-y',                  # Overwrite output file if it exists
         '-v', 'warning'
@@ -51,7 +51,7 @@ function New-DummyVideo {
         '-i', 'testsrc=duration=2:size=640x360:rate=30', # 2-second test pattern
         '-c:v', 'libx264',     # Common, fast software encoder
         '-pix_fmt', 'yuv420p', # Standard pixel format
-        $Path
+        "`"$Path`""
     )
     # Using Start-Process to hide the verbose ffmpeg output for this setup step
     $process = Start-Process ffmpeg -ArgumentList $arguments -Wait -NoNewWindow -PassThru
@@ -67,8 +67,7 @@ function New-DummyShader {
         [string]$Path
     )
     Write-Host "Creating passthrough shader file at '$Path'..." -ForegroundColor Yellow
-    # This is a minimal libplacebo-compatible GLSL shader that just passes the texture through.
-    # It's needed for the '-vf' filter chain to work.
+    # Minimal libplacebo-compatible GLSL shader that just passes the texture through
     $shaderContent = @"
 // Passthrough shader
 vec4 hook_main(vec2 p) {
