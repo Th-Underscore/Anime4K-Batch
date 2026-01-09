@@ -426,15 +426,19 @@ begin {
                 break
             }
 
+            Write-Verbose "Title priority: $TitlePriority"
+
             # Multiple streams for this language, use Title as tie-breaker
             if ($TitlePriority.Count -gt 0) {
                 if (-not $Concise) { Write-Host "Multiple streams for '$lang' found. Using title priority to select one." }
-                $regex = [regex]::new('(' + ($TitlePriority -join '|') + ')', 'IgnoreCase')
-                $foundStream = $langMatchingStreams | Where-Object { $_.Title -and $_.Title -match $regex } | Select-Object -First 1
-                if ($foundStream) {
-                    $defaultSubtitleStream = $foundStream
-                    if (-not $Concise) { Write-Host "Selected stream for '$lang' based on title pattern '$titlePattern' at index $($defaultSubtitleStream.Index)." }
-                    break
+                foreach ($title in $TitlePriority) {
+                    Write-Verbose "Testing title substring: $title"
+                    $foundStream = $langMatchingStreams | Where-Object { $_.Title -and $_.Title.Contains($title) } | Select-Object -First 1
+                    if ($foundStream) {
+                        $defaultSubtitleStream = $foundStream
+                        if (-not $Concise) { Write-Host "Selected stream for '$lang' based on title substring '$title' at index $($defaultSubtitleStream.Index)." }
+                        break
+                    }
                 }
                 if ($defaultSubtitleStream) { break } # Exit outer language loop
             }
@@ -451,13 +455,16 @@ begin {
         # 2. If no language match, fall back to title-only priority
         if (-not $defaultSubtitleStream -and $TitlePriority.Count -gt 0) {
             if (-not $Concise) { Write-Host "No language match from priority list. Checking title-only priority..." }
-            $regex = [regex]::new('(' + ($TitlePriority -join '|') + ')', 'IgnoreCase')
-            $foundStream = $subtitleStreams | Where-Object { $_.Title -and $_.Title -match $regex } | Select-Object -First 1
-            if ($foundStream) {
-                $defaultSubtitleStream = $foundStream
-                if (-not $Concise) { Write-Host "Found preferred title pattern '$titlePattern' in stream index $($defaultSubtitleStream.Index) (Title: '$($defaultSubtitleStream.Title)')." }
-                break
+            foreach ($title in $TitlePriority) {
+                Write-Verbose "Testing title substring: $title"
+                $foundStream = $langMatchingStreams | Where-Object { $_.Title -and $_.Title.Contains($title) } | Select-Object -First 1
+                if ($foundStream) {
+                    $defaultSubtitleStream = $foundStream
+                    if (-not $Concise) { Write-Host "Found preferred title pattern '$titlePattern' in stream index $($defaultSubtitleStream.Index) (Title: '$($defaultSubtitleStream.Title)')." }
+                    break
+                }
             }
+            if ($defaultSubtitleStream) { break } # Exit outer language loop
         }
 
         if (-not $defaultSubtitleStream) {

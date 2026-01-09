@@ -427,16 +427,19 @@ begin {
             # Multiple streams for this language, use Title as tie-breaker
             if ($TitlePriority.Count -gt 0) {
                 if (-not $Concise) { Write-Host "Multiple streams for '$lang' found. Using title priority to select one." }
-                $regex = [regex]::new('(' + ($TitlePriority -join '|') + ')', 'IgnoreCase')
-                $foundStream = $langMatchingStreams | Where-Object { $_.Title -and $_.Title -match $regex } | Select-Object -First 1
-                if ($foundStream) {
-                    $defaultAudioStream = $foundStream
-                    if (-not $Concise) { Write-Host "Selected stream for '$lang' based on title pattern '$titlePattern' at index $($defaultAudioStream.Index)." }
-                    break
+                foreach ($title in $TitlePriority) {
+                    Write-Verbose "Testing title substring: $title"
+                    $foundStream = $langMatchingStreams | Where-Object { $_.Title -and $_.Title.Contains($title) } | Select-Object -First 1
+                    if ($foundStream) {
+                        $defaultAudioStream = $foundStream
+                        if (-not $Concise) { Write-Host "Selected stream for '$lang' based on title substring '$title' at index $($defaultAudioStream.Index)." }
+                        break
+                    }
                 }
                 if ($defaultAudioStream) { break } # Exit outer language loop
             }
 
+            # If still no selection (e.g. no title match), default to the first stream for this language
             if (-not $defaultAudioStream) {
                 $defaultAudioStream = $langMatchingStreams[0]
                 if (-not $Concise) { Write-Host "No title match for language '$lang', or no title priority specified. Defaulting to first stream found at index $($defaultAudioStream.Index)." }
@@ -448,13 +451,16 @@ begin {
         # 2. If no language match, fall back to title-only priority
         if (-not $defaultAudioStream -and $TitlePriority.Count -gt 0) {
             if (-not $Concise) { Write-Host "No language match from priority list. Checking title-only priority..." }
-            $regex = [regex]::new('(' + ($TitlePriority -join '|') + ')', 'IgnoreCase')
-            $foundStream = $audioStreams | Where-Object { $_.Title -and $_.Title -match $regex } | Select-Object -First 1
-            if ($foundStream) {
-                $defaultAudioStream = $foundStream
-                if (-not $Concise) { Write-Host "Found preferred title pattern '$titlePattern' in stream index $($defaultAudioStream.Index) (Title: '$($defaultAudioStream.Title)')." }
-                break
+            foreach ($title in $TitlePriority) {
+                Write-Verbose "Testing title substring: $title"
+                $foundStream = $langMatchingStreams | Where-Object { $_.Title -and $_.Title.Contains($title) } | Select-Object -First 1
+                if ($foundStream) {
+                    $defaultAudioStream = $foundStream
+                    if (-not $Concise) { Write-Host "Found preferred title pattern '$titlePattern' in stream index $($defaultAudioStream.Index) (Title: '$($defaultAudioStream.Title)')." }
+                    break
+                }
             }
+            if ($defaultAudioStream) { break } # Exit outer language loop
         }
 
         if (-not $defaultAudioStream) {
