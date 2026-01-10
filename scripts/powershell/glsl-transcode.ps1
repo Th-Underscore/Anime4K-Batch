@@ -707,6 +707,7 @@ begin {
         $ffmpegTargetFile = ''
 
         if ($ReplaceOriginalFlag) { # Replace mode
+            $OutputSuffix = ''
             $ffmpegTargetFile = Join-Path $inputPath ($inputName + $tempSuffix + $OutputExt)
             $finalOutputFile = $inputFileFullPath
             Write-Verbose "Action: Replace original. Temp file: '$ffmpegTargetFile'"
