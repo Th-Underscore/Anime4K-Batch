@@ -314,7 +314,7 @@ Subtitle handling is managed by two separate flags that perform actions in a spe
 Similar to subtitle extraction, setting the default audio track priority using [`set-audio-priority.bat`](./scripts/set-audio-priority.bat) is primarily controlled via flags passed to [`glsl-transcode.bat`](./scripts/glsl-transcode.bat) (either directly or via [`Anime4K-Batch.bat`](./Anime4K-Batch.bat)).
 
 1.  **Use the `-aprioritize` Flag (Optional):**
-    *   (optional) Use `-slang` and `-stitle` to specify priorities.
+    *   (optional) Use `-alang` and `-atitle` to specify priorities.
 
 ## Extra Utilities
 
