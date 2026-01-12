@@ -42,7 +42,9 @@ Run [`install-registry.bat`](./install_registry.bat), edit [`config.json`](./con
 
 ## Requirements
 
-*   **Operating System**: Windows 10+
+*   **Operating System**:
+    * **Windows**: Windows 7 or higher
+    * **Linux**: PowerShell 5.1 or higher; wrapper scripts not included, and individual scripts are untested
 *   [**ffmpeg.exe** and **ffprobe.exe**](https://ffmpeg.org/download.html#build-windows): Required for video processing and analysis. Must be in the system PATH, the working directory, the installation folder, or specified within the script ([`scripts/glsl-transcode.bat`](./scripts/glsl-transcode.bat)). `--enable-vulkan --enable-libplacebo` should already be enabled in the build, but you can perform a quick test using the [`Test-FFmpegGpuCodecs.ps1`](#Test-FFmpegGpuCodecs-ps1) script.
 *   **Vulkan**: Required for GLSL shader application.
 *   **GLSL Shaders**: Standard Anime4K upscaling/sharpening shader files (`.glsl`) are provided in this repository.
