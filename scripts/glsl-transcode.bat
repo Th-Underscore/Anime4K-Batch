@@ -25,6 +25,7 @@ if /i "%~1"=="-sprioritize"         ( set "PS_ARGS=%PS_ARGS% -SetSubsPriority" &
 if /i "%~1"=="-extract-subs"        ( set "PS_ARGS=%PS_ARGS% -ExtractSubs" & shift & goto :arg_loop )
 if /i "%~1"=="-aprioritize"         ( set "PS_ARGS=%PS_ARGS% -SetAudioPriority" & shift & goto :arg_loop )
 if /i "%~1"=="-delete"              ( set "PS_ARGS=%PS_ARGS% -Delete" & shift & goto :arg_loop )
+if /i "%~1"=="-replace"              ( set "PS_ARGS=%PS_ARGS% -Delete" & shift & goto :arg_loop )
 if /i "%~1"=="-concise"             ( set "PS_ARGS=%PS_ARGS% -Concise" & shift & goto :arg_loop )
 if /i "%~1"=="-v"                   ( set "PS_ARGS=%PS_ARGS% -Verbose" & shift & goto :arg_loop )
 REM --- Handle Arguments with values ---
