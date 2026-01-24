@@ -341,7 +341,7 @@ begin {
 
         } catch {
             Write-Error "Error running ffprobe for subtitle info on '$inputFileFullPath': $($_.Exception.Message)"
-            $script:fatalErrorOccurred = $true # Consider this potentially fatal
+            $script:fatalErrorOccurred = $true
             return
         }
 
