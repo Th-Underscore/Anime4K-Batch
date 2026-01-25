@@ -1,5 +1,5 @@
 :: --- Anime4K-GUI Batch Transcoder ---
-:: Replicates the core ffmpeg GLSL transcoding logic of the Anime4K-GUI project, as well as subtitle extraction.
+:: Replicates the core ffmpeg GLSL transcoding logic of the Anime4K-GUI project, as well as subtitle extraction and multi-track prioritization.
 :: Append your desired options before the %* parameter.
 ::
 :: --- Settings ---
@@ -24,10 +24,10 @@
 ::   -r                 : Recursive search in folders
 ::   -f                 : Force overwrite existing output
 ::   -extract-subs      : Extract subtitles from the *input* file using extract-subs.bat
-::   -sprioritize       : Set default subtitle track on the *input* file using set-subs-priority.bat
+::   -sprioritize       : Set default subtitle track on the *output* file using set-subs-priority.bat
 ::   -aprioritize       : Set default audio track on the *output* file using set-audio-priority.bat
-::   -delete            : Delete original file after successful transcode (USE WITH CAUTION! You can just delete the original files yourself, grouping by "Type" and sorting by "Date modified")
-::   -replace           : Replace original file with processed version (USE WITH CAUTION!)
+::   -delete            : Delete original file after successful transcode (USE WITH CAUTION! Mutually exclusive with "-replace")
+::   -replace           : Replace original file after successful transcode (USE WITH CAUTION! Mutually exclusive with "-delete")
 ::
 :: See the individual scripts for advanced settings and information. You can also edit the code in any way you'd like!
 ::
@@ -72,7 +72,7 @@
 :: Note that the above example includes literal single quotes in the filename, which would have to be escaped if using a single-quote string.
 
 :: This is the default command. It will only transcode using the settings in config.json.
-:: Append your desired flags and options before the %* ^ character.
+:: Append your desired flags and options before the %* ^ characters.
 :: Include the -extract-subs flag to also extract subtitles from the input file (recommended for transcoding to mp4).
 :: MAKE SURE THERE IS NO SPACE BETWEEN THE ^ AND THE NEXT LINE! A SINGLE SPACE WILL BREAK THE SCRIPT! The indentation afterwards is acceptable.
 call "%~dp0\scripts\glsl-transcode.bat" %* ^
