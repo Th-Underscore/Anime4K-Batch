@@ -87,6 +87,9 @@ param(
     [Parameter(Mandatory = $false, HelpMessage = "Sets the episode offset for this season, to work with absolute numbering.")][Alias('EpisodeOne')][Alias('Offset')]
     [int]$FirstEpisode,
 
+    [Parameter(Mandatory = $false, HelpMessage = "Omits the [Example] marker from the output file name.")]
+    [switch]$OmitSource,
+
     [Parameter(Mandatory = $false, HelpMessage = "Uses the video title metadata instead of the file name.")]
     [switch]$UseTitle,
 
@@ -327,7 +330,7 @@ foreach ($item in $fileQueue) {
     }
 
     $source = ""
-    if ((-not $EditTitle) -and $file.BaseName -match '^(\[.*?\])') {
+    if (-not $OmitSource -and -not $EditTitle -and $file.BaseName -match '^(\[.*?\])') {
         $source = "$($matches[1]) "
     }
 
@@ -338,7 +341,7 @@ foreach ($item in $fileQueue) {
         $formattedEpisode = $episodeString.PadLeft(2, '0')
     }
 
-    $newBaseName = "$($source)S$($paddedSeason)E$($formattedEpisode)$trailingText"
+    $newBaseName = "${source}S${paddedSeason}E${formattedEpisode}$trailingText"
 
     if ($EditTitle) {
         $currentTitle = if ([string]::IsNullOrEmpty($item.TitleText)) { "" } else { $item.TitleText }
