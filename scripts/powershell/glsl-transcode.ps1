@@ -276,7 +276,7 @@ begin {
         Write-Error "-Delete and -Replace parameters are mutually exclusive."
         exit 1
     }
- 
+
     Write-Verbose "Script Root: $PSScriptRoot"
     Write-Verbose "Concise Execution: $Concise"
     Write-Verbose "ShaderBasePath: $ShaderBasePath"
@@ -922,7 +922,8 @@ begin {
             } else {
                 if ($result.ExitCode -ne -2) { Write-Warning "Failed to get subtitle arguments from set-subs-priority.ps1 (Exit Code: $($result.ExitCode)). Subtitle handling may be incorrect." }
             }
-            if (-not $Concise) { Write-Host "Skipping subtitle stream mapping due to output container limitations ($OutputExt), but extraction may still occur." }
+            
+            if (-not $allowOutputSubs -and -not $Concise) { Write-Host "Skipping subtitle stream mapping due to output container limitations ($OutputExt), but extraction may still occur." }
         } elseif (-not $allowInputSubs) {
             if (-not $Concise) { Write-Host "Skipping subtitle streams due to input container limitations ($inputExt)." }
         }
@@ -978,7 +979,7 @@ begin {
             $streamArgs = Select-ParameterPairs -ArgumentList $streamArgs -Filter '^-map 0:d.*' -Regex
             $streamArgs += $dataMaps
         }
-        
+
         $attachmentMaps = Select-ParameterPairs -ArgumentList $streamArgs -Filter '^-map 0:t.*' -Regex -Whitelist
         if ($attachmentMaps.Count -gt 0) {
             Write-Verbose "Found attachment maps to move to end: $($attachmentMaps -join ', ')"
@@ -1008,7 +1009,7 @@ begin {
         $ffmpegArgs += "$outputFileFullPath" # Output file
 
         # --- Execute FFMPEG ---
-        if (-not $Concise) { Write-Host "Starting ffmpeg command:`n$ffmpeg $($ffmpegArgs -join ' ')" }
+        if (-not $Concise) { Write-Host "Starting FFmpeg..." }
 
         if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Transcode to $outputFileFullPath")) {
             $success = $false
