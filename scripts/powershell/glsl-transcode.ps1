@@ -742,6 +742,8 @@ begin {
             return
         }
 
+        New-Item -Path $outputFileFullPath -ItemType File -Force | Out-Null # Create empty file to reserve name
+
 
         # --- Get Input Video Info (Pixel Format) ---
         if (-not $Concise) { Write-Host "Probing file details with ffprobe..." }
@@ -1004,16 +1006,6 @@ begin {
         if (-not [string]::IsNullOrWhiteSpace($presetParam)) { $ffmpegArgs += $presetParam.Split(' ') } # Preset
         if (-not [string]::IsNullOrWhiteSpace($threadParam)) { $ffmpegArgs += $threadParam.Split(' ') } # Threads
         $ffmpegArgs += "$outputFileFullPath" # Output file
-
-        # Last-second check
-        if ((Test-Path -LiteralPath $outputFileFullPath) -and (-not $ForceProcessing)) {
-            if (-not $Concise) { Write-Warning "Skipping '$inputFileFullPath' because temporary output '$outputFileFullPath' already exists. Use -Force to overwrite." }
-            return
-        }
-        if (-not (Test-Path -LiteralPath $inputFileFullpath -PathType Leaf)) {
-            Write-Warning "Input file '$inputFileFullPath' no longer exists. Skipping."
-            return
-        }
 
         # --- Execute FFMPEG ---
         if (-not $Concise) { Write-Host "Starting ffmpeg command:`n$ffmpeg $($ffmpegArgs -join ' ')" }
