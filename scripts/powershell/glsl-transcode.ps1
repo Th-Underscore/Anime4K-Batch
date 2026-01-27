@@ -1005,6 +1005,7 @@ begin {
             $ffmpegArgs += $streamArgs # Add stream mapping args
             $ffmpegArgs += '-c:v', $videoCodec # Video codec
             $ffmpegArgs += '-qp', $CQP # Quality parameter
+            $ffmpegArgs += '-strict', '-2' # Allow experimental codecs (e.g., Opus)
             if (-not [string]::IsNullOrWhiteSpace($presetParam)) { $ffmpegArgs += $presetParam.Split(' ') } # Preset
             if (-not [string]::IsNullOrWhiteSpace($threadParam)) { $ffmpegArgs += $threadParam.Split(' ') } # Threads
             $ffmpegArgs += "$outputFileFullPath" # Output file
