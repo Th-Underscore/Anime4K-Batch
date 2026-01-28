@@ -303,10 +303,11 @@ begin {
 
         # --- Construct FFMPEG Command ---
         $ffmpegArgs = @(
-            '-map', '0',    # Map all streams from input 0
-            '-c:v', 'copy', # Copy video stream(s)
-            '-c:s', 'copy', # Copy subtitle stream(s)
-            '-c:a', $Codec  # Transcode audio stream(s) to target codec
+            '-map', '0',     # Map all streams from input 0
+            '-c:v', 'copy',  # Copy video stream(s)
+            '-c:s', 'copy',  # Copy subtitle stream(s)
+            '-c:a', $Codec,  # Transcode audio stream(s) to target codec
+            '-strict', '-2'  # Allow experimental codecs (e.g., Opus)
         )
         if (-not [string]::IsNullOrWhiteSpace($Bitrate)) { $ffmpegArgs += '-b:a', $Bitrate }
         if ($ffmpegChannels -gt 0) { $ffmpegArgs += '-ac', $ffmpegChannels }
