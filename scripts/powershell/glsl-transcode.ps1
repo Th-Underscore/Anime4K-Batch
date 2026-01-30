@@ -26,6 +26,10 @@ Encoder profile (e.g., 'nvidia_h265', 'intel_h265', 'cpu_av1'). Default: 'nvidia
 Options: cpu_h264, cpu_h265, cpu_av1, nvidia_h264, nvidia_h265, nvidia_av1, amd_h264, amd_h265, amd_av1, intel_h264, intel_h265, intel_av1, vulkan_h264, vulkan_h265, vaapi_h264, vaapi_h265, vaapi_av1.
 Any other value is treated as a custom codec name, and any extra arguments within (e.g., 'hevc_vaapi -hwaccel vaapi -hwaccel_output_format vaapi') are passed directly to ffmpeg.
 
+.PARAMETER EncoderPreset
+Encoder preset (e.g., 'slow', 'veryfast'). Default: 'slow' for CPU, Intel, VA-API; 'p7' for NVENC.
+Different options per codec.
+
 .PARAMETER HwAccelDevice
 Specifies the hardware acceleration device by index or name (e.g., '0', '1', 'PCI_BUS_ID'). Only applies to hardware-accelerated encoder profiles.
 NOT CURRENTLY IMPLEMENTED.
@@ -136,6 +140,9 @@ param(
 
     [Parameter()]
     [string]$EncoderProfile = 'nvidia_h265_legacy',
+
+    [Parameter()]
+    [string]$EncoderPreset = '', # Default assigned in "Determine Encoder and HWAccel Params" section
 
     [Parameter()]
     [string]$HwAccelDevice = '', # NOT CURRENTLY IMPLEMENTED
@@ -394,15 +401,26 @@ begin {
     $presetParam = ''
     $threadParam = ''
 
+    if ([string]::IsNullOrWhiteSpace(($EncoderPreset))) {
+        switch ($EncoderProfile.ToLower()) {
+            {$_ -match 'cpu_|intel_|vaapi_'} {
+                $EncoderPreset = 'slow'
+            }
+            {$_ -match 'nvidia_'} {
+                $EncoderPreset = 'p7'
+            }
+        }
+    }
+
     switch ($EncoderProfile.ToLower()) {
         'cpu_h264' {
             $videoCodec = 'libx264'
-            $presetParam = '-preset slow'
+            $presetParam = "-preset $EncoderPreset"
             if ($CpuThreads -ne 0) { $threadParam = "-threads $CpuThreads" }
         }
         'cpu_h265' {
             $videoCodec = 'libx265'
-            $presetParam = '-preset slow'
+            $presetParam = "-preset $EncoderPreset"
             if ($CpuThreads -ne 0) { $threadParam = "-x265-params pools=$CpuThreads" }
         }
         'cpu_av1' {
@@ -413,17 +431,17 @@ begin {
         'nvidia_h264' {
             $videoCodec = 'h264_nvenc'
             $hwAccelParams = '-hwaccel_device', 'cuda', '-hwaccel_output_format', 'cuda'
-            $presetParam = '-preset p7 -tune hq'
+            $presetParam = "-preset $EncoderPreset -tune hq"
         }
         {$_ -match 'nvidia_h265'} {
             $videoCodec = 'hevc_nvenc'
             $hwAccelParams = '-hwaccel_device', 'cuda', '-hwaccel_output_format', 'cuda'
-            $presetParam = '-preset p7 -tune hq -tier high'
+            $presetParam = "-preset $EncoderPreset -tune hq -tier high"
         }
         'nvidia_av1' {
             $videoCodec = 'av1_nvenc'
             $hwAccelParams = '-hwaccel_device', 'cuda', '-hwaccel_output_format', 'cuda'
-            $presetParam = '-preset p7 -tune hq'
+            $presetParam = "-preset $EncoderPreset -tune hq"
         }
         'amd_h264' {
             $videoCodec = 'h264_amf'
@@ -443,17 +461,17 @@ begin {
         'intel_h264' {
             $videoCodec = 'h264_qsv'
             $hwAccelParams = '-hwaccel', 'qsv', '-hwaccel_output_format', 'qsv'
-            $presetParam = '-preset slow'
+            $presetParam = "-preset $EncoderPreset"
         }
         'intel_h265' {
             $videoCodec = 'hevc_qsv'
             $hwAccelParams = '-hwaccel', 'qsv', '-hwaccel_output_format', 'qsv'
-            $presetParam = '-preset slow'
+            $presetParam = "-preset $EncoderPreset"
         }
         'intel_av1' {
             $videoCodec = 'av1_qsv'
             $hwAccelParams = '-hwaccel', 'qsv', '-hwaccel_output_format', 'qsv'
-            $presetParam = '-preset slow'
+            $presetParam = "-preset $EncoderPreset"
         }
         'vulkan_h264' {
             $videoCodec = 'h264_vulkan'
@@ -466,17 +484,17 @@ begin {
         'vaapi_h264' {
             $videoCodec = 'h264_vaapi'
             $hwAccelParams = '-hwaccel', 'vaapi', '-hwaccel_output_format', 'vaapi'
-            $presetParam = '-preset slow'
+            $presetParam = "-preset $EncoderPreset"
         }
         'vaapi_h265' {
             $videoCodec = 'hevc_vaapi'
             $hwAccelParams = '-hwaccel', 'vaapi', '-hwaccel_output_format', 'vaapi'
-            $presetParam = '-preset slow'
+            $presetParam = "-preset $EncoderPreset"
         }
         'vaapi_av1' {
             $videoCodec = 'av1_vaapi'
             $hwAccelParams = '-hwaccel', 'vaapi', '-hwaccel_output_format', 'vaapi'
-            $presetParam = '-preset slow'
+            $presetParam = "-preset $EncoderPreset"
         }
         default {
             Write-Warning "EncoderProfile '$EncoderProfile' is not a built-in profile. Treating it as a custom video codec and arguments."

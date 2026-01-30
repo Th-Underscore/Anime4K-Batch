@@ -13,6 +13,7 @@
     "ShaderFile": "Anime4K_ModeA_A-fast.glsl", // Shader filename located in ShaderBasePath.
     "ShaderBasePath": "", // Optional: Path to the shaders folder. Defaults to script's '../../shaders' path if empty or omitted.
     "EncoderProfile": "nvidia_h265", // Encoder profile (cpu_h264/h265/av1, nvidia_h264/h265/av1, amd_h264/h265/av1, intel_h264/h265/av1, vulkan_h264/h265, vaapi_h264/h265/av1).
+    "EncoderPreset": "", // Optional: Encoder preset (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow). Some profiles have different presets. Defaults to 'slow' for CPU, Intel, VA-API; 'p7' for NVENC; if empty or omitted.
     "CQP": 24, // Constant Quantization Parameter (0-51 for H.264/H.265, 0-63 for AV1; lower is better quality).
     "PreserveTexture": 1, // Preserve texture level (0-3; higher is better quality). 3 is highest quality but greatest file size.
   
