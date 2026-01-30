@@ -9,7 +9,8 @@
 ::   -shader <file>     : Shader filename
 ::   -shaderpath <path> : Path to shaders folder
 ::   -codec-prof <type> : Encoder profile (e.g., nvidia_h265, cpu_av1)
-::   -cqp <value>       : Constant Quantization Parameter (0-51, lower is better) (24 is virtually lossless for double the file size)
+::   -cqp <value>       : Constant Quantization Parameter (0-51, lower is better) (20 = virtually lossless, ~9 Mbps)
+::   -pt <value>        : Preserve texture quality (0-3, higher is better) (3 = slowest and greatest file size)
 ::   -container <type>  : Output container format (avi, mkv, mp4)
 ::   -suffix <string>   : Suffix to append to output filenames
 ::   -slang <list>      : Comma-separated subtitle language priority for -sprioritize.
