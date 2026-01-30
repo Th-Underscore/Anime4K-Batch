@@ -493,8 +493,6 @@ begin {
         Write-Verbose "Applying Texture Preservation Level: $PreserveTexture"
 
         if ($videoCodec -eq 'libx265') {
-            # --- CPU (Hybrid): Best Quality ---
-            # Collect existing params (specifically thread pools if set)
             $x265Params = @()
             if ($threadParam -match 'pools=(\d+)') {
                 $x265Params += "pools=$($matches[1])"
@@ -503,13 +501,12 @@ begin {
             $x265Params += "sao=0" # Level 1: Disable SAO
             switch ($PreserveTexture) {
                 2 { $x265Params += "psy-rd=1.0", "psy-rdoq=1.0", "aq-mode=1" } # Level 2: Moderate grain retention
-                3 { $x265Params += "psy-rd=2.0", "psy-rdoq=1.0", "aq-mode=3", "deblock=-1:-1" } # Level 3: Maximum grain retention
+                3 { $x265Params += "psy-rd=2.0", "psy-rdoq=1.0", "aq-mode=3", "deblock=-1\:-1" } # Level 3: Maximum grain retention
             }
 
             # Reconstruct the parameter string
             $threadParam = "-x265-params " + ($x265Params -join ':')
         } elseif ($videoCodec -match 'nvenc') {
-            # --- GPU (NVENC): Speed over Precision ---
             # Older cards (Pascal/Maxwell) or specific driver versions may fail with Temporal AQ
             if ($EncoderProfile -notmatch 'legacy') {
                 $presetParam += " -temporal_aq 1"
