@@ -33,6 +33,9 @@ NOT CURRENTLY IMPLEMENTED.
 .PARAMETER CQP
 Constant Quantization Parameter (0-51, lower is better). Default: 24.
 
+.PARAMETER PreserveTexture
+Texture quality (0-3, higher is better - greater file size). Default: 0.
+
 .PARAMETER Container
 Output container format (e.g., 'mkv', 'mp4'). Default: 'mkv'.
 
@@ -132,7 +135,7 @@ param(
     [string]$ShaderBasePath = '', # Default assigned in begin block
 
     [Parameter()]
-    [string]$EncoderProfile = 'nvidia_h265',
+    [string]$EncoderProfile = 'nvidia_h265_legacy',
 
     [Parameter()]
     [string]$HwAccelDevice = '', # NOT CURRENTLY IMPLEMENTED
@@ -140,6 +143,10 @@ param(
     [Parameter()]
     [ValidateRange(-1, 51)]
     [int]$CQP = 24,
+
+    [Parameter()]
+    [ValidateSet(0, 1, 2, 3)]
+    [int]$PreserveTexture = 0,
 
     [Parameter()]
     [ValidateSet('mkv', 'mp4', 'avi', 'mov', 'gif')] # Add more if needed
@@ -408,7 +415,7 @@ begin {
             $hwAccelParams = '-hwaccel_device', 'cuda', '-hwaccel_output_format', 'cuda'
             $presetParam = '-preset p7 -tune hq'
         }
-        'nvidia_h265' {
+        {$_ -match 'nvidia_h265'} {
             $videoCodec = 'hevc_nvenc'
             $hwAccelParams = '-hwaccel_device', 'cuda', '-hwaccel_output_format', 'cuda'
             $presetParam = '-preset p7 -tune hq -tier high'
@@ -481,15 +488,42 @@ begin {
         }
     }
 
-    # # --- Construct HWAccel Params ---
-    # if (-not $hwAccelParams -and -not [string]::IsNullOrEmpty($hwAccelName)) {
-    #     $hwAccelParams = @('-hwaccel', $hwAccelName, '-hwaccel_output_format', $hwAccelName)
-    #     if (-not [string]::IsNullOrEmpty($HwAccelDevice)) {
-    #         $hwAccelParams += '-hwaccel_device', $HwAccelDevice
-    #     } elseif ($hwAccelName -in @('cuda', 'opencl')) {
-    #         $hwAccelParams += '-hwaccel_device', $hwAccelName
-    #     }
-    # }
+    # --- PRESERVE TEXTURE / GRAIN LOGIC ---
+    if ($PreserveTexture -gt 0) {
+        Write-Verbose "Applying Texture Preservation Level: $PreserveTexture"
+
+        if ($videoCodec -eq 'libx265') {
+            # --- CPU (Hybrid): Best Quality ---
+            # Collect existing params (specifically thread pools if set)
+            $x265Params = @()
+            if ($threadParam -match 'pools=(\d+)') {
+                $x265Params += "pools=$($matches[1])"
+            }
+
+            $x265Params += "sao=0" # Level 1: Disable SAO
+            switch ($PreserveTexture) {
+                2 { $x265Params += "psy-rd=1.0", "psy-rdoq=1.0", "aq-mode=1" } # Level 2: Moderate grain retention
+                3 { $x265Params += "psy-rd=2.0", "psy-rdoq=1.0", "aq-mode=3", "deblock=-1:-1" } # Level 3: Maximum grain retention
+            }
+
+            # Reconstruct the parameter string
+            $threadParam = "-x265-params " + ($x265Params -join ':')
+        } elseif ($videoCodec -match 'nvenc') {
+            # --- GPU (NVENC): Speed over Precision ---
+            # Older cards (Pascal/Maxwell) or specific driver versions may fail with Temporal AQ
+            if ($EncoderProfile -notmatch 'legacy') {
+                $presetParam += " -temporal_aq 1"
+            } else {
+                Write-Verbose "Legacy NVIDIA profile detected: Skipping Temporal AQ."
+            }
+            switch($PreserveTexture) {
+                2 { $presetParam += " -aq-strength 12" } # Level 2: Increase Spatial AQ Strength
+                3 { $presetParam += " -aq-strength 15 -rc-lookahead 32" } # Level 3: High AQ + Goldilocks options
+            }
+        } elseif ($videoCodec -eq 'libx264') {
+            $presetParam += " -tune grain"
+        }
+    }
 
     Write-Host "Using Encoder: $videoCodec"
     if ($hwAccelParams.Count -gt 0) { Write-Host "Using HWAccel: $($hwAccelParams -join ' ')" }
@@ -752,7 +786,7 @@ begin {
             try {
                 # Use & operator to capture output
                 $ffprobeArgs = @(
-                    '-v', 'error',
+                    '-v', 'fatal',
                     '-select_streams', 'v:0',
                     '-show_entries', 'stream=pix_fmt',
                     '-of', 'csv=p=0',
@@ -762,7 +796,7 @@ begin {
                 $output = & $ffprobe @ffprobeArgs 2>&1 # Capture stdout and stderr
                 $exitCode = $LASTEXITCODE
 
-                if ($exitCode -eq 0 -and (-not [string]::IsNullOrWhiteSpace($output))) {
+                if ($exitCode -eq 0 -and (-not [string]::IsNullOrWhiteSpace($output)) -and ($output -is [string])) {
                     $pixFmt = $output.Trim()
                     if (-not $Concise) { Write-Host "Detected Pixel Format: $pixFmt" }
                 } else {
