@@ -574,7 +574,7 @@ vec4 hook() {
 //!WHEN OUTPUT.w OUTPUT.h * LUMA.w LUMA.h * / 1.0 > ! OUTPUT.w OUTPUT.h * LUMA.w LUMA.h * / 1.0 < ! *
 
 // User variables
-#define SHARPNESS 0.25 // Amount of sharpening. 0.0 to 1.0.
+#define SHARPNESS 0.12 // Amount of sharpening. 0.0 to 1.0.
 #define NIS_THREAD_GROUP_SIZE 256 // May be set to 128 for better performance on NVIDIA hardware, otherwise set to 256. Don't forget to modify the COMPUTE directive accordingly as well (e.g., COMPUTE 32 32 128 1).
 #define NIS_HDR_MODE 0 // Must be set to 1 for content with PQ colorspace. 0 or 1.
 
@@ -602,7 +602,7 @@ const float kRatioNorm = 1.0f / (kMaxContrastRatio - kMinContrastRatio);
 const float kSharpScaleY = 1.0f / (kSharpEndY - kSharpStartY);
 const float kSharpStrengthScale = kSharpStrengthMax - kSharpStrengthMin;
 const float kSharpLimitScale = kSharpLimitMax - kSharpLimitMin;
-const float kContrastBoost = 1.0f;
+const float kContrastBoost = 0.65f;
 const float kEps = 1.0f / 255.0f;
 #define kSrcNormX HOOKED_pt.x
 #define kSrcNormY HOOKED_pt.y
