@@ -1,25 +1,31 @@
 <#
 .SYNOPSIS
-Batch Default Audio Setter - Sets the default audio track in video files based on language priority using ffmpeg.
+Batch Default Track Setter - Sets the default audio or subtitle track in video files based on priority.
 
 .DESCRIPTION
-Scans video files or directories for audio streams, identifies the preferred language based on a priority list,
-and remuxes the file (copying all streams) to set the chosen audio track as the default.
-Can either create a new file with a suffix or replace the original file.
+Scans video files or directories for audio or subtitle streams, identifies the preferred language based on a priority list,
+and remuxes the file (copying all streams) to set the chosen track as the default.
 
 .PARAMETER Path
 One or more input video file paths or directory paths to process.
 
+.PARAMETER Type
+The type of track to prioritize. Options: 'Audio', 'Subtitle'. Default: 'Audio'.
+
 .PARAMETER Lang
 Comma-separated language priority list (3-letter ISO 639-2 codes, e.g., "jpn,eng,kor"). Case-insensitive.
-Default: 'jpn,chi,kor,eng'.
+Default for Audio: 'jpn,chi,kor,eng'. Default for Subtitle: 'eng,jpn'.
 
 .PARAMETER Title
-Comma-separated audio title priority list (regex patterns, e.g., "commentary,surround"). Case-insensitive.
+Comma-separated title priority list (regex patterns, e.g., "Full,Signs"). Case-insensitive.
 Used as a tie-breaker for language matches, or as a primary selector if no language matches are found.
 
 .PARAMETER Suffix
-Suffix for the output filename when not using -Replace. Default: '_areordered'. Ignored if -Replace is used.
+Suffix for the output filename when not using -Replace. Default: '_reordered'. Ignored if -Replace is used.
+
+.PARAMETER StreamInfoB64
+Optional: Base64 encoded JSON string containing ffprobe output for the file.
+If provided, the script skips running ffprobe itself to improve performance when called from a parent script.
 
 .PARAMETER Recurse
 Process folders recursively.
@@ -49,14 +55,18 @@ Concise output (only progress shown).
 Returns the ffmpeg command arguments instead of executing them. Useful for compiling commands for later execution.
 
 .EXAMPLE
-.\set-audio-priority.ps1 -Path "C:\videos\anime.mkv" -Lang "jpn,eng" -Replace
+.\set-track-priority.ps1 -Path "C:\videos\anime.mkv" -Type "Audio" -Lang "jpn,eng" -Replace
 
 .EXAMPLE
-.\set-audio-priority.ps1 -Path "C:\videos\movies_folder" -Recurse -Lang "eng,spa" -Suffix "_audio_set" -Delete
+.\set-track-priority.ps1 -Path "C:\videos\movies_folder" -Type "Audio" -Recurse -Lang "eng,spa" -Suffix "_audio_set" -Delete
 
 .EXAMPLE
-.\set-audio-priority.ps1 -Path "C:\videos\movie.mkv" -Lang "jpn" -Title "commentary" -Replace
+.\set-track-priority.ps1 -Path "C:\videos\movie.mkv" -Type "Audio" -Lang "jpn" -Title "commentary" -Replace
 # This will prioritize the Japanese track. If there are multiple, it will pick one with "commentary" in the title.
+
+.EXAMPLE
+.\set-track-priority.ps1 -Path "C:\videos\movie.mkv" -Type "Subtitle" -Lang "eng" -Title "Full.*Doki" -Replace
+# This will prioritize the English track. If there are multiple, it will pick one with "Full" and "Doki" in the title.
 
 .NOTES
 Requires ffmpeg and ffprobe.
@@ -71,14 +81,21 @@ param(
     [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, Position = 0)]
     [string[]]$Path,
 
+    [Parameter(Mandatory = $true)]
+    [ValidateSet('Audio', 'Subtitle')]
+    [string]$Type = 'Audio',
+
     [Parameter()]
-    [string]$Lang = 'jpn,chi,kor,eng',
+    [string]$Lang = '',
 
     [Parameter()]
     [string]$Title = '',
 
     [Parameter()]
-    [string]$Suffix = '_areordered', # Used only if -Replace is not specified
+    [string]$Suffix = '_reordered', # Used only if -Replace is not specified
+
+    [Parameter()]
+    [string]$StreamInfoB64 = '',
 
     [Parameter()]
     [switch]$Recurse,
@@ -117,7 +134,8 @@ begin {
     $effectiveConfigPath = $ConfigPath
     if ([string]::IsNullOrEmpty($effectiveConfigPath)) {
         # Default to config file named after script in the same directory
-        $effectiveConfigPath = Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..\config\$($MyInvocation.MyCommand.Name -replace '\.ps1$', '-config.json')")
+        $configType = if ($Type -eq 'Audio') { 'audio' } else { 'subs' }
+        $effectiveConfigPath = Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..\config\set-$configType-priority-config.json")
         Write-Verbose "No -ConfigPath specified, attempting default: $effectiveConfigPath"
     }
 
@@ -132,29 +150,18 @@ begin {
             foreach ($key in $config.PSObject.Properties.Name) {
                 $paramValue = $config.$key
                 $keyLower = $key.ToLowerInvariant()
-
-                # Handle Common Parameters explicitly
                 if ($keyLower -eq 'verbose') {
                     if ($PSBoundParameters.ContainsKey('Verbose') -eq $false) {
-                        if ($paramValue -is [bool] -and $paramValue) {
-                            $VerbosePreference = 'Continue'
-                            Write-Verbose "Setting `$VerbosePreference = 'Continue' based on config."
-                        } # else { $VerbosePreference = 'SilentlyContinue' }
-                    } else { Write-Verbose "Parameter -Verbose was provided via command line, ignoring config value." }
+                        if ($paramValue -is [bool] -and $paramValue) { $VerbosePreference = 'Continue' }
+                    }
                 } elseif ($keyLower -eq 'debug') {
                     if ($PSBoundParameters.ContainsKey('Debug') -eq $false) {
-                        if ($paramValue -is [bool] -and $paramValue) {
-                            $DebugPreference = 'Continue'
-                            Write-Verbose "Setting `$DebugPreference = 'Continue' based on config."
-                        } # else { $DebugPreference = 'SilentlyContinue' }
-                    } else { Write-Verbose "Parameter -Debug was provided via command line, ignoring config value." }
+                        if ($paramValue -is [bool] -and $paramValue) { $DebugPreference = 'Continue' }
+                    }
                 }
-                # Handle Regular Parameters
                 elseif ($PSBoundParameters.ContainsKey($key) -eq $false -and $MyInvocation.MyCommand.Parameters.ContainsKey($key)) {
                     Write-Verbose "Overriding `$$key with value from config: '$paramValue'"
                     Set-Variable -Name $key -Value $paramValue -Scope Script
-                } elseif ($PSBoundParameters.ContainsKey($key)) {
-                    Write-Verbose "Parameter `$$key was provided via command line, ignoring config value."
                 }
             }
 
@@ -162,7 +169,6 @@ begin {
             Write-Warning "Failed to load or parse configuration file '$effectiveConfigPath': $($_.Exception.Message)"
         }
     } else {
-        # Only warn if a specific path was given but not found
         if (-not [string]::IsNullOrEmpty($ConfigPath)) {
             Write-Warning "Specified configuration file not found at '$ConfigPath'."
         } else {
@@ -172,7 +178,7 @@ begin {
 
     # --- Script Status Tracking ---
     $script:fatalErrorOccurred = $false
-    $script:anyAudioSet = $false
+    $script:anyTrackSet = $false
     $script:ffmpegFailureCode = $null
 
     Write-Verbose "Script Root: $PSScriptRoot"
@@ -182,8 +188,11 @@ begin {
         Write-Error "-Delete and -Replace parameters are mutually exclusive."
         exit 1
     }
+
+    # Set Defaults based on Type if not provided
     if ([string]::IsNullOrWhiteSpace($Lang)) {
-        $Lang = 'jpn,chi,kor,eng' # Default language priority
+        if ($Type -eq 'Audio') { $Lang = 'jpn,chi,kor,eng' }
+        else { $Lang = 'eng,jpn' }
     }
 
     # --- Determine File Action ---
@@ -264,17 +273,18 @@ begin {
         $script:fatalErrorOccurred = $true
         exit 1
     }
-    if (-not $ffprobe) {
-        Write-Error "ffprobe.exe could not be located."
+
+    if (-not $ffprobe -and [string]::IsNullOrEmpty($StreamInfoB64)) {
+        Write-Error "ffprobe.exe could not be located and no stream info provided."
         $script:fatalErrorOccurred = $true
         exit 1
     }
     if (-not $Concise) {
         Write-Host "Using FFMPEG: $ffmpeg"
-        Write-Host "Using FFPROBE: $ffprobe"
+        if ($ffprobe) { Write-Host "Using FFPROBE: $ffprobe" }
     }
 
-    # --- Prepare Language Priority List ---
+    # --- Prepare Priority Lists ---
     $LangPriorityList = $Lang.Split(',') | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     if (-not $Concise) { Write-Host "Language Priority: $($LangPriorityList -join ', ')" }
 
@@ -289,7 +299,7 @@ begin {
 
 
     # --- Function to Process a Single File ---
-    function Format-AudioPriority {
+    function Format-TrackPriority {
         param(
             [Parameter(Mandatory = $true)] [System.IO.FileInfo]$FileInput,
             [Parameter(Mandatory = $true)] [string[]]$LanguagePriority,
@@ -300,8 +310,6 @@ begin {
             [Parameter()] [switch]$PassThru
         )
 
-        Write-Host "Processing Audio for: $inputFileFullPath"
-
         $inputFileFullPath = $FileInput.FullName
         $inputPath = $FileInput.DirectoryName
         $inputName = $FileInput.BaseName
@@ -309,7 +317,7 @@ begin {
 
         if (-not $Concise) {
             Write-Host "`n-----------------------------------------------------"
-            Write-Host "Processing Audio for: $inputFileFullPath"
+            Write-Host "Processing $Type tracks for: $inputFileFullPath"
             Write-Host "Lang Priority: $($LanguagePriority -join ', ')"
             if ($TitlePriority.Count -gt 0) { Write-Host "Title Priority: $($TitlePriority -join ', ')" }
             Write-Host "Action: $CurrentFileAction (0=Suffix, 1=Delete, 2=Replace)"
@@ -339,43 +347,43 @@ begin {
         } elseif ($CurrentFileAction -ne 2 -and (Test-Path -LiteralPath $finalOutputFile -PathType Leaf) -and (-not $Concise)) {
             Write-Host "Output file '$finalOutputFile' exists, but -Force is enabled. Will overwrite."
         }
-        # For replace mode, we check the *temp* file existence later before running ffmpeg
 
-        # --- Get Audio Stream Info (Index, Language) ---
-        if (-not $Concise) { Write-Host "Probing audio streams..." }
-        $audioStreams = @() # Array of PSCustomObjects
+        # --- Get Stream Info (Index, Language) ---
+        $streams = @()
         try {
-            $ffprobeArgs = @(
-                '-v', 'error',
-                '-select_streams', 'a', # Select only audio streams
-                '-show_streams',
-                # Request index, disposition flags, and language tag (doesn't properly retrieve disposition)
-                # '-show_entries', 'stream=index,disposition:stream_tags=language',
-                '-of', 'json',
-                "$inputFileFullPath"
-            )
-            Write-Verbose "Running: $ffprobe $($ffprobeArgs -join ' ')"
-            $jsonOutput = & $ffprobe @ffprobeArgs 2>&1 # Capture stdout and stderr
-            $exitCode = $LASTEXITCODE
+            $probeData = $null
 
-            if ($exitCode -ne 0) {
-                Write-Warning "ffprobe failed to get audio stream info for '$inputFileFullPath' (Exit Code: $exitCode). Skipping."
-                # Write-Verbose "ffprobe output: $jsonOutput"
-                return
-            }
-            if ([string]::IsNullOrWhiteSpace($jsonOutput)) {
-                if (-not $Concise) { Write-Host "No audio streams found via ffprobe for '$inputFileFullPath'. Skipping." }
-                return
+            # Check if Base64 data was provided
+            if (-not [string]::IsNullOrEmpty($StreamInfoB64)) {
+                Write-Verbose "Using provided Base64 stream info."
+                try {
+                    $jsonBytes = [Convert]::FromBase64String($StreamInfoB64)
+                    $jsonStr = [Text.Encoding]::UTF8.GetString($jsonBytes)
+                    $probeData = $jsonStr | ConvertFrom-Json
+                } catch {
+                    Write-Warning "Failed to decode provided stream info. Falling back to local ffprobe."
+                }
             }
 
-            $probeData = $jsonOutput | ConvertFrom-Json -ErrorAction SilentlyContinue
+            # If no data yet, run ffprobe locally
+            if ($null -eq $probeData) {
+                if (-not $Concise) { Write-Host "Probing streams..." }
+                $ffprobeArgs = @('-v', 'fatal', '-show_streams', '-print_format', 'json', "$inputFileFullPath")
+                Write-Verbose "Running: $ffprobe $($ffprobeArgs -join ' ')"
+                $jsonOutput = & $ffprobe @ffprobeArgs 2>&1
+                if ($LASTEXITCODE -ne 0) { Write-Warning "ffprobe failed (Exit Code: $LASTEXITCODE). Skipping."; return }
+                $probeData = $jsonOutput | ConvertFrom-Json
+            }
+
             if (-not $probeData -or -not $probeData.streams) {
-                Write-Warning "Could not parse ffprobe JSON output or no streams found for '$inputFileFullPath'."
+                Write-Warning "Could not parse stream info for '$inputFileFullPath'. Skipping."
                 return
             }
 
-            # Convert to simpler objects for easier handling
-            $audioStreams = $probeData.streams | ForEach-Object {
+            # Filter for requested type
+            $targetCodecType = if ($Type -eq 'Audio') { 'audio' } else { 'subtitle' }
+
+            $streams = $probeData.streams | Where-Object { $_.codec_type -eq $targetCodecType } | ForEach-Object {
                 [PSCustomObject]@{
                     Index     = $_.index
                     Lang      = if ($_.tags -and $_.tags.language) { $_.tags.language.ToLowerInvariant() } else { 'und' }
@@ -386,179 +394,156 @@ begin {
             }
 
         } catch {
-            Write-Error "Error running ffprobe for audio info on '$inputFileFullPath': $($_.Exception.Message)"
-            $script:fatalErrorOccurred = $true # Consider ffprobe error potentially fatal
+            Write-Error "Error parsing stream info for '$inputFileFullPath': $($_.Exception.Message)"
+            $script:fatalErrorOccurred = $true
             return
         }
 
-        if ($audioStreams.Count -eq 0) {
-            if (-not $Concise) { Write-Host "No audio streams found in '$inputFileFullPath'. Skipping." }
+        if ($streams.Count -eq 0) {
+            if (-not $Concise) { Write-Host "No $Type streams found. Skipping." }
             return
         }
-        if ($audioStreams.Count -eq 1) {
-            if (-not $Concise) { Write-Host "Only one audio stream found (Index: $($audioStreams[0].Index)). No reordering needed. Skipping." }
+        if ($streams.Count -eq 1) {
+            if (-not $Concise) { Write-Host "Only one $Type stream found. No reordering needed. Skipping." }
             return
         }
 
         if (-not $Concise) {
-            Write-Host "Found $($audioStreams.Count) audio streams:"
-            $audioStreams | Format-Table -AutoSize -Wrap
+            Write-Host "Found $($streams.Count) $Type streams:"
+            $streams | Format-Table -AutoSize -Wrap
         }
 
-        # --- Find Preferred Audio Stream ---
-        $defaultAudioStream = $null
+        # --- Find Preferred Stream ---
+        $defaultStream = $null
 
-        # 1. Loop through language priorities to find a candidate stream
+        # 1. Loop through language priorities
         foreach ($lang in $LanguagePriority) {
-            $langMatchingStreams = @($audioStreams | Where-Object { $_.Lang -eq $lang })
-            if ($langMatchingStreams.Count -eq 0) {
-                Write-Verbose "Language '$lang' not found in audio streams."
-                continue
-            }
+            $langMatchingStreams = @($streams | Where-Object { $_.Lang -eq $lang })
+            if ($langMatchingStreams.Count -eq 0) { Write-Verbose "Language '$lang' not found in audio streams."; continue }
 
             if (-not $Concise) { Write-Host "Found language '$lang'. Analyzing $($langMatchingStreams.Count) matching stream(s)." }
 
             if ($langMatchingStreams.Count -eq 1) {
-                $defaultAudioStream = $langMatchingStreams[0]
-                if (-not $Concise) { Write-Host "Selected single stream for language '$lang' at index $($defaultAudioStream.Index)." }
+                $defaultStream = $langMatchingStreams[0]
                 break
             }
 
-            # Multiple streams for this language, use Title as tie-breaker
+            # Tie-break with Title
             if ($TitlePriority.Count -gt 0) {
-                if (-not $Concise) { Write-Host "Multiple streams for '$lang' found. Using title priority to select one." }
                 foreach ($title in $TitlePriority) {
-                    Write-Verbose "Testing title regex/substring: $title"
                     $foundStream = $langMatchingStreams | Where-Object { $_.Title -and $_.Title -match $title } | Select-Object -First 1
                     if ($foundStream) {
-                        $defaultAudioStream = $foundStream
-                        if (-not $Concise) { Write-Host "Selected stream for '$lang' based on title substring '$title' at index $($defaultAudioStream.Index)." }
+                        $defaultStream = $foundStream
+                        if (-not $Concise) { Write-Host "Selected based on title substring '$title'." }
                         break
                     }
                 }
-                if ($defaultAudioStream) { break } # Exit outer language loop
+                if ($defaultStream) { break }
             }
 
-            # If still no selection (e.g. no title match), default to the first stream for this language
-            if (-not $defaultAudioStream) {
-                $defaultAudioStream = $langMatchingStreams[0]
-                if (-not $Concise) { Write-Host "No title match for language '$lang', or no title priority specified. Defaulting to first stream found at index $($defaultAudioStream.Index)." }
+            # Default to first if no title match
+            if (-not $defaultStream) {
+                $defaultStream = $langMatchingStreams[0]
+                if (-not $Concise) { Write-Host "No title match for language '$lang', or no title priority specified. Defaulting to first stream found at index $($defaultStream.Index)." }
             }
-
-            if ($defaultAudioStream) { break } # Exit language loop
+            if ($defaultStream) { break }
         }
 
-        # 2. If no language match, fall back to title-only priority
-        if (-not $defaultAudioStream -and $TitlePriority.Count -gt 0) {
-            if (-not $Concise) { Write-Host "No language match from priority list. Checking title-only priority..." }
+        # 2. Fall back to title-only priority
+        if (-not $defaultStream -and $TitlePriority.Count -gt 0) {
             foreach ($title in $TitlePriority) {
                 Write-Verbose "Testing title regex/substring: $title"
-                $foundStream = $langMatchingStreams | Where-Object { $_.Title -and $_.Title -match $title } | Select-Object -First 1
+                $foundStream = $streams | Where-Object { $_.Title -and $_.Title -match $title } | Select-Object -First 1
                 if ($foundStream) {
-                    $defaultAudioStream = $foundStream
-                    if (-not $Concise) { Write-Host "Found preferred title pattern '$titlePattern' in stream index $($defaultAudioStream.Index) (Title: '$($defaultAudioStream.Title)')." }
+                    $defaultStream = $foundStream
+                    if (-not $Concise) { Write-Host "Found preferred title pattern '$title' in stream index $($defaultStream.Index) (Title: '$($defaultStream.Title)')." }
                     break
                 }
             }
-            if ($defaultAudioStream) { break } # Exit outer language loop
         }
 
-        if (-not $defaultAudioStream) {
-            $priorityDescription = @()
-            if ($LanguagePriority.Count -gt 0 -and $LanguagePriority[0]) { $priorityDescription += "languages '$($LanguagePriority -join ', ')'" }
-            if ($TitlePriority.Count -gt 0 -and $TitlePriority[0]) { $priorityDescription += "titles '$($TitlePriority -join ', ')'" }
-            Write-Warning "No audio stream found matching the priority for $($priorityDescription -join ' or '). Skipping file."
+        if (-not $defaultStream) {
+            Write-Warning "No $Type stream found matching priorities. Skipping."
             return
         }
 
         # --- Check if Processing is Actually Needed ---
-        $firstAudioStream = ($audioStreams | Sort-Object Index)[0]
-        $preferredIsFirst = $defaultAudioStream.Index -eq $firstAudioStream.Index
-        $preferredIsDefault = $defaultAudioStream.IsDefault
-        # Check if any *other* stream is also marked as default
+        $firstStream = ($streams | Sort-Object Index)[0]
+        $preferredIsFirst = $defaultStream.Index -eq $firstStream.Index
+        $preferredIsDefault = $defaultStream.IsDefault
         $otherStreamIsDefault = $false
-        foreach ($stream in $audioStreams) {
-            if ($stream.Index -ne $defaultAudioStream.Index -and $stream.IsDefault) {
+        foreach ($stream in $streams) {
+            if ($stream.Index -ne $defaultStream.Index -and $stream.IsDefault) {
                 $otherStreamIsDefault = $true
                 Write-Verbose "Found another audio stream (Index: $($stream.Index)) also marked as default."
-                break # Found one, no need to check further
+                break
             }
         }
 
-        # Skip ONLY if the preferred stream is first, is default, AND no other stream is default.
         if ($preferredIsFirst -and $preferredIsDefault -and (-not $otherStreamIsDefault)) {
-            if (-not $Concise) { Write-Host "File is already correctly configured: Preferred audio (Index: $($defaultAudioStream.Index), Lang: $($defaultAudioStream.Lang)) is first, marked default, and no other streams conflict. Skipping." }
+            if (-not $Concise) { Write-Host "File is already correctly configured. Skipping." }
             return
         }
 
-        # --- Log Reason for Processing ---
-        if (-not $Concise) {
-            if (-not $preferredIsFirst) {
-                Write-Host "Reason: Preferred audio stream (Index: $($defaultAudioStream.Index)) needs to be moved to the first position."
-            }
-            if (-not $preferredIsDefault) {
-                Write-Host "Reason: Preferred audio stream (Index: $($defaultAudioStream.Index)) needs its 'default' flag set."
-            }
-            if ($otherStreamIsDefault) {
-                Write-Host "Reason: Need to remove 'default' flag from other audio streams."
-            }
-            Write-Host "Proceeding with ffmpeg remux..."
-        }
+        if (-not $Concise) { Write-Host "Proceeding with ffmpeg remux to set Stream Index $($defaultStream.Index) as default..." }
 
         # --- Construct FFMPEG Command ---
-        $mapArgs = @(
-            '-map', '0:v?',  # Map all video streams (optional)
-            '-map', '0:s?',  # Map all subtitle streams (optional)
-            '-map', '0:d?'   # Map all data streams (optional)
-        )
-        # Add the default audio stream first
-        $mapArgs += '-map', "0:$($defaultAudioStream.Index)"
-        $mapArgs += '-disposition:a:0', 'default'
+        $mapArgs = @()
 
-        # Add remaining audio streams
+        # We need to explicitly map other streams first to ensure they are copied
+        $mapArgs += '-map', '0:v?' # Video
+        $mapArgs += '-map', '0:d?' # Data
+        $mapArgs += '-map', '0:t?' # Attachments
+
+        # Determine mapping characters based on type
+        if ($Type -eq 'Audio') {
+             $mapArgs += '-map', '0:s?'
+             $targetFlag = 'a'
+        } else {
+             $mapArgs += '-map', '0:a?'
+             $targetFlag = 's'
+        }
+
+        # Add the default stream first
+        $mapArgs += '-map', "0:$($defaultStream.Index)"
+        $mapArgs += "-disposition:$targetFlag`:$0", 'default'
+
+        # Add remaining streams of target type
         $i = 0
-        foreach ($stream in $audioStreams) {
-            if ($stream.Index -ne $defaultAudioStream.Index) {
+        foreach ($stream in $streams) {
+            if ($stream.Index -ne $defaultStream.Index) {
                 $i += 1
                 $mapArgs += '-map', "0:$($stream.Index)"
-                $mapArgs += "-disposition:a:$i", $(if ($stream.IsForced) { 'forced' } else { '0' })
+                $mapArgs += "-disposition:$targetFlag`:$i", $(if ($stream.IsForced) { 'forced' } else { '0' })
             }
         }
 
-        # Combine map and disposition arguments
         $ffmpegArgs = $mapArgs
-        $ffmpegArgs += '-map', '0:t?' # Map attachment streams (e.g., fonts) (optional)
         $ffmpegArgs += '-c', 'copy'
 
-        # --- PassThru Mode: Return arguments instead of executing ---
-        if ($PassThru.IsPresent) {
-            Write-Verbose "PassThru enabled. Returning ffmpeg arguments as a single string."
+        # --- PassThru Mode ---
+        if ($PassThru) {
+            Write-Verbose "PassThru enabled. Returning ffmpeg arguments."
             return $ffmpegArgs
         }
 
         # --- Construct Full FFMPEG Command ---
-        $fullFfmpegArgs = @('-y', '-stats') # Overwrite output without asking (already checked with -Force)
-        if ($Concise) { # Logging level and progress
-            $fullFfmpegArgs += '-v', 'fatal'
-        } else {
-            $fullFfmpegArgs += '-v', 'warning'
-        }
+        $fullFfmpegArgs = @('-y', '-stats')
+        if ($Concise) { $fullFfmpegArgs += '-v', 'fatal' } else { $fullFfmpegArgs += '-v', 'warning' }
         $fullFfmpegArgs += '-i', "$inputFileFullPath"
         $fullFfmpegArgs += $ffmpegArgs
-        $fullFfmpegArgs += "$ffmpegTargetFile" # Output (temporary or final)
+        $fullFfmpegArgs += "$ffmpegTargetFile"
 
         # --- Check Temporary File in Replace Mode ---
         if ($CurrentFileAction -eq 2 -and (Test-Path -LiteralPath $ffmpegTargetFile -PathType Leaf) -and (-not $ForceProcessing)) {
-            Write-Warning "Temporary file '$ffmpegTargetFile' already exists for replace operation. Use -Force to overwrite it and proceed."
+            Write-Warning "Temporary file '$ffmpegTargetFile' already exists. Use -Force to overwrite."
             return
-        } elseif ($CurrentFileAction -eq 2 -and (Test-Path -LiteralPath $ffmpegTargetFile -PathType Leaf) -and (-not $Concise)) {
-            Write-Host "Temporary file '$ffmpegTargetFile' exists, but -Force is enabled. Will overwrite."
         }
 
         # --- Execute FFMPEG ---
-        if (-not $Concise) { Write-Host "Starting ffmpeg reorder command:`n$ffmpeg $($fullFfmpegArgs -join ' ')" }
+        if (-not $Concise) { Write-Host "Starting ffmpeg..." }
 
-        if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Set default audio track (Output: $ffmpegTargetFile)")) {
+        if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Set default $Type track")) {
             $success = $false
             try {
                 Write-Verbose "Running: $ffmpeg $($fullFfmpegArgs -join ' ')"
@@ -571,63 +556,43 @@ begin {
                     $script:fatalErrorOccurred = $true
                     $script:ffmpegFailureCode = $exitCode
                 } else {
-                    if (-not $Concise) { Write-Host "Successfully processed audio streams into '$ffmpegTargetFile'." }
+                    if (-not $Concise) { Write-Host "Successfully processed into '$ffmpegTargetFile'." }
                     $success = $true
-                    $script:anyAudioSet = $true
+                    $script:anyTrackSet = $true
                 }
             } catch {
-                Write-Error "Error executing ffmpeg for '$inputFileFullPath': $($_.Exception.Message)"
+                Write-Error "Error executing ffmpeg: $($_.Exception.Message)"
                 $script:fatalErrorOccurred = $true
             }
 
             # --- Post-processing File Actions ---
             if ($success) {
                 if ($CurrentFileAction -eq 1) { # Delete Original
-                    if (-not $Concise) { Write-Host "Deleting original file: '$inputFileFullPath'" }
-                    if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Delete original after successful processing")) {
-                        try { Remove-Item -LiteralPath $inputFileFullPath -Force -ErrorAction Stop; if (-not $Concise) { Write-Host "Successfully deleted original." } }
-                        catch { Write-Warning "Failed to delete original '$inputFileFullPath': $($_.Exception.Message)" }
-                    } else { Write-Warning "Skipping deletion of original due to -WhatIf." }
-
+                    if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Delete original")) {
+                        try { Remove-Item -LiteralPath $inputFileFullPath -Force -ErrorAction Stop }
+                        catch { Write-Warning "Failed to delete original: $($_.Exception.Message)" }
+                    }
                 } elseif ($CurrentFileAction -eq 2) { # Replace Original
-                    if (-not $Concise) { Write-Host "Replacing original file '$inputFileFullPath' with '$ffmpegTargetFile'" }
-                    if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Replace with processed file '$ffmpegTargetFile'")) {
+                    if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Replace with processed file")) {
                         try {
-                            # Move/Rename the temporary file to the original filename, overwriting it
                             Move-Item -LiteralPath $ffmpegTargetFile -Destination $inputFileFullPath -Force -ErrorAction Stop
-                            if (-not $Concise) { Write-Host "Successfully replaced original file." }
                         } catch {
-                            Write-Error "Failed to replace original file '$inputFileFullPath' with temporary file '$ffmpegTargetFile'. Error: $($_.Exception.Message)"
-                            Write-Warning "Temporary file '$ffmpegTargetFile' may still exist."
-                            # Do not delete the temp file automatically in case user wants to recover it
+                            Write-Error "Failed to replace original file. Temp file '$ffmpegTargetFile' may still exist."
                         }
-                    } else {
-                        Write-Warning "Skipping replacement of original due to -WhatIf. Temporary file '$ffmpegTargetFile' may remain."
-                        # Consider removing temp file if -WhatIf? Or leave it? Let's leave it.
                     }
                 }
-                # Action 0 (Suffix) requires no further action here, the file is already named correctly.
-
             } else { # ffmpeg failed
-                # Clean up temporary file if it exists (only in replace mode)
-                if ($CurrentFileAction -eq 2 -and (Test-Path -LiteralPath $ffmpegTargetFile -PathType Leaf)) {
-                    Write-Warning "Attempting to remove incomplete temporary file: $ffmpegTargetFile"
+                if (Test-Path -LiteralPath $ffmpegTargetFile -PathType Leaf) {
                     Remove-Item -LiteralPath $ffmpegTargetFile -Force -ErrorAction SilentlyContinue
                 }
-                # For action 0/1, the $ffmpegTargetFile is the final file, remove if failed?
-                elseif ($CurrentFileAction -ne 2 -and (Test-Path -LiteralPath $ffmpegTargetFile -PathType Leaf)) {
-                    Write-Warning "Attempting to remove failed output file: $ffmpegTargetFile"
-                    Remove-Item -LiteralPath $ffmpegTargetFile -Force -ErrorAction SilentlyContinue
-                }
-            } # End if ($success)
-
-        } else { # ShouldProcess returned false (-WhatIf)
+                # TODO: Cleanup
+            }
+        } else {
             Write-Warning "Skipping ffmpeg execution for '$inputFileFullPath' due to -WhatIf."
-            $script:anyAudioSet = $true # Consider WhatIf as an attempted operation
-            # No post-processing needed for -WhatIf
+            $script:anyTrackSet = $true
         }
 
-    } # End Function Format-AudioPriority
+    } # End Function Format-TrackPriority
 
 } # End Begin block
 
@@ -636,16 +601,12 @@ process {
 
     foreach ($itemPath in $Path) {
         Write-Verbose "Processing argument: $itemPath"
-        if ($script:fatalErrorOccurred) {
-            Write-Warning "A fatal error occurred previously. Stopping further processing."
-            break
-        }
+        if ($script:fatalErrorOccurred) { Write-Warning "A fatal error occurred previously. Stopping further processing."; break }
         try {
             $item = Get-Item -LiteralPath $itemPath -ErrorAction Stop
             if ($item -is [System.IO.DirectoryInfo]) {
                 if (-not $Concise) { Write-Host "`nProcessing directory: $($item.FullName) (Recursive: $Recurse)" }
                 $allFiles = Get-ChildItem -LiteralPath $item.FullName -Recurse:$Recurse | Where-Object { $videoExtensions -contains $_.Extension }
-                # Filter out temp/processed files before counting
                 $filesToProcess = $allFiles | Where-Object {
                     ($FileAction -ne 2 -or $_.Name -notlike "*$tempSuffix$($_.Extension)") -and `
                     ($FileAction -eq 2 -or $Suffix -eq '' -or $_.BaseName -notlike "*$Suffix")
@@ -662,49 +623,45 @@ process {
                 foreach ($file in $filesToProcess) {
                     $processedCount++
                     Write-Host "Progress: $processedCount / $totalFiles - Setting audio for '$($file.Name)'"
-                    # Skip temporary files (redundant check, but safe)
                     if ($FileAction -eq 2 -and $file.Name -like "*$tempSuffix$($file.Extension)") {
                         Write-Verbose "Skipping temporary file: $($file.FullName)"
                         continue
                     }
-                    # Skip already processed files (redundant check, but safe)
                     if ($FileAction -ne 2 -and $Suffix -ne '' -and $file.BaseName -like "*$Suffix") {
                         Write-Verbose "Skipping already processed file (suffix match): $($file.FullName)"
                         continue
                     }
 
-                    $result = Format-AudioPriority -FileInput $file `
+                    $result = Format-TrackPriority -FileInput $file `
                                           -LanguagePriority $LangPriorityList `
                                           -TitlePriority $TitlePriorityList `
                                           -CurrentFileAction $FileAction `
                                           -OutputSuffix $Suffix `
                                           -ForceProcessing:$Force `
                                           -PassThru:$PassThru
-                    if (-not $script:anyAudioSet) {
-                        $script:anyAudioSet = $null -ne $result
+                    if (-not $script:anyTrackSet) {
+                        $script:anyTrackSet = $null -ne $result
                     }
                     if ($PassThru -and $result) {
-                        $script:anyAudioSet = $true
+                        $script:anyTrackSet = $true
                         return $result
                     }
                 }
 
             } elseif ($item -is [System.IO.FileInfo]) {
-                # Check if the file extension is in our list
                 if ($videoExtensions -contains $item.Extension) {
-                    # Skip temporary files if passed directly
+                    # Skip temporary files
                     if ($FileAction -eq 2 -and $item.Name -like "*$tempSuffix$($item.Extension)") {
                         Write-Warning "Skipping temporary file provided directly: $($item.FullName)"
                         continue
                     }
-                    # Skip already processed files if passed directly (using suffix from non-replace mode)
+
                     if ($FileAction -ne 2 -and $Suffix -ne '' -and $item.BaseName -like "*$Suffix") {
                         Write-Warning "Skipping already processed file (suffix match) provided directly: $($item.FullName)"
                         continue
                     }
 
-                    Write-Host "Progress: 1 / 1 - Setting audio for '$($item.Name)'"
-                    $result = Format-AudioPriority -FileInput $item `
+                    $result = Format-TrackPriority -FileInput $item `
                                         -LanguagePriority $LangPriorityList `
                                         -TitlePriority $TitlePriorityList `
                                         -CurrentFileAction $FileAction `
@@ -712,27 +669,24 @@ process {
                                         -ForceProcessing:$Force `
                                         -PassThru:$PassThru
                     if ($PassThru -and $result) {
-                        $script:anyAudioSet = $true
+                        $script:anyTrackSet = $true
                         return $result
                     }
-                    $script:anyAudioSet = $null -ne $result
                 } else {
                     Write-Warning "Skipping file '$($item.FullName)' as its extension '$($item.Extension)' is not in the recognized list of video formats."
                 }
-
             } else {
                 Write-Warning "Path '$itemPath' is not a file or directory. Skipping."
             }
         } catch {
             Write-Error "Error processing path '$itemPath': $($_.Exception.Message)"
-            $script:fatalErrorOccurred = $true # Error getting item is fatal
-            # Continue to end block to exit with correct code
+            $script:fatalErrorOccurred = $true
         }
     }
 } # End Process block
 
 end {
-    if (-not $Concise) { Write-Host "`nSet audio priority script finished." }
+    if (-not $Concise) { Write-Host "`nSet track priority script finished." }
 
     # Determine final exit code
     if ($script:fatalErrorOccurred) {
@@ -743,7 +697,7 @@ end {
             Write-Verbose "Exiting with code 1 (Generic Fatal Error)."
             exit 1
         }
-    } elseif ($script:anyAudioSet) {
+    } elseif ($script:anyTrackSet) {
         Write-Verbose "Exiting with code 0 (Success/Audio Set Attempted)."
         exit 0
     } else {

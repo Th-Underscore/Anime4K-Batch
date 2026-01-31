@@ -34,6 +34,7 @@ set "ARG_VAL=%~2"
 set "ARG_VAL=%ARG_VAL:'=''%"
 if /i "%~1"=="-w"                   ( set "PS_ARGS=%PS_ARGS% -TargetResolutionW '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-h"                   ( set "PS_ARGS=%PS_ARGS% -TargetResolutionH '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-scale"               ( set "PS_ARGS=%PS_ARGS% -ScaleFactor '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-shader"              ( set "PS_ARGS=%PS_ARGS% -ShaderFile '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-shaderpath"          ( set "PS_ARGS=%PS_ARGS% -ShaderBasePath '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-codec-prof"          ( set "PS_ARGS=%PS_ARGS% -EncoderProfile '%ARG_VAL%'" & shift & shift & goto :arg_loop )

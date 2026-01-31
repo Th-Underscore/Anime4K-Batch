@@ -15,6 +15,10 @@ Target output width. Default: 3840.
 .PARAMETER TargetResolutionH
 Target output height. Default: 2160.
 
+.PARAMETER ScaleFactor
+Scale factor multiplier (e.g. 2.0). If set > 0, overrides TargetResolutionW/H. 
+Calculates dimensions based on input resolution, enforcing Mod2 (even numbers).
+
 .PARAMETER ShaderFile
 Shader filename located in the ShaderBasePath. Default: 'Anime4K_ModeA_A-fast.glsl'.
 
@@ -78,13 +82,13 @@ Process folders recursively.
 Force overwrite existing output files.
 
 .PARAMETER SetSubsPriority
-Set default subtitle track on the *input* file using set-subs-priority.ps1 before transcoding. This modifies the source file in-place.
+Set default subtitle track on the *input* file using set-track-priority.ps1 before transcoding. This modifies the source file in-place.
 
 .PARAMETER ExtractSubs
-Extract subtitles from the *input* file using extract-subs.ps1 before transcoding. Accounts for set sub priority.
+Extract subtitles from the *input* file using extract-tracks.ps1 before transcoding. Accounts for set sub priority.
 
 .PARAMETER SetAudioPriority
-Set default audio track on the *output* file using set-audio-priority.ps1 after transcoding.
+Set default audio track on the *output* file using set-track-priority.ps1 after transcoding.
 
 .PARAMETER Delete
 Delete original file after successful transcode (mutually exclusive with `-Replace`).
@@ -131,6 +135,9 @@ param(
 
     [Parameter()]
     [int]$TargetResolutionH = 2160,
+
+    [Parameter()]
+    [double]$ScaleFactor = 0.0, # 0.0 means disabled (use target resolution)
 
     [Parameter()]
     [string]$ShaderFile = 'Anime4K_ModeA_A-fast.glsl',
@@ -422,6 +429,7 @@ begin {
             $videoCodec = 'libx265'
             $presetParam = "-preset $EncoderPreset"
             if ($CpuThreads -ne 0) { $threadParam = "-x265-params pools=$CpuThreads" }
+            if ($Concise) { $threadParam += ":log-level=error" }
         }
         'cpu_av1' {
             $videoCodec = 'libsvtav1'
@@ -524,6 +532,7 @@ begin {
 
             # Reconstruct the parameter string
             $threadParam = "-x265-params " + ($x265Params -join ':')
+            if ($Concise) { $threadParam += ":log-level=error" }
         } elseif ($videoCodec -match 'nvenc') {
             # Older cards (Pascal/Maxwell) or specific driver versions may fail with Temporal AQ
             if ($EncoderProfile -notmatch 'legacy') {
@@ -558,9 +567,8 @@ begin {
 
     # --- Script Paths for Sub-tasks ---
     $remuxScript = Join-Path $PSScriptRoot "remux.ps1"
-    $setSubsPriorityScript = Join-Path $PSScriptRoot "set-subs-priority.ps1"
-    $extractSubsScript = Join-Path $PSScriptRoot "extract-subs.ps1"
-    $setAudioPriorityScript = Join-Path $PSScriptRoot "set-audio-priority.ps1"
+    $setTrackPriorityScript = Join-Path $PSScriptRoot "set-track-priority.ps1"
+    $extractTracksScript = Join-Path $PSScriptRoot "extract-tracks.ps1"
     $transcodeAudioScript = Join-Path $PSScriptRoot "transcode-audio.ps1"
 
     # --- Container Compatibility Rules ---
@@ -795,39 +803,77 @@ begin {
         try {
             New-Item -Path $outputFileFullPath -ItemType File -Force | Out-Null # Create empty file to reserve name
 
-            # --- Get Input Video Info (Pixel Format) ---
+            # --- Probe File Metadata (JSON) ---
             if (-not $Concise) { Write-Host "Probing file details with ffprobe..." }
-            $pixFmt = $null
+            $probeData = $null
+            $probeJson = ""
+            $inputW = 0
+            $inputH = 0
+            $pixFmt = "yuv420p" # Fallback
+
             try {
-                # Use & operator to capture output
                 $ffprobeArgs = @(
                     '-v', 'fatal',
-                    '-select_streams', 'v:0',
-                    '-show_entries', 'stream=pix_fmt',
-                    '-of', 'csv=p=0',
+                    '-show_format',
+                    '-show_streams',
+                    '-print_format', 'json',
                     "$inputFileFullPath"
                 )
                 Write-Verbose "Running: $ffprobe $($ffprobeArgs -join ' ')"
-                $output = & $ffprobe @ffprobeArgs 2>&1 # Capture stdout and stderr
-                $exitCode = $LASTEXITCODE
-
-                if ($exitCode -eq 0 -and (-not [string]::IsNullOrWhiteSpace($output)) -and ($output -is [string])) {
-                    $pixFmt = $output.Trim()
-                    if (-not $Concise) { Write-Host "Detected Pixel Format: $pixFmt" }
+                $probeJson = & $ffprobe @ffprobeArgs
+                
+                if ($LASTEXITCODE -eq 0 -and (-not [string]::IsNullOrWhiteSpace($probeJson))) {
+                    $probeData = $probeJson | ConvertFrom-Json
+                    
+                    # Get Video Stream Details
+                    $videoStream = $probeData.streams | Where-Object { $_.codec_type -eq 'video' } | Select-Object -First 1
+                    if ($videoStream) {
+                        $inputW = $videoStream.width
+                        $inputH = $videoStream.height
+                        if ($videoStream.pix_fmt) { $pixFmt = $videoStream.pix_fmt }
+                        
+                        if (-not $Concise) { Write-Host "Detected: ${inputW}x${inputH}, $pixFmt" }
+                    } else {
+                        Write-Warning "No video stream found."
+                        return
+                    }
                 } else {
-                    Write-Warning "ffprobe did not return a pixel format for '$inputFileFullPath'. Exit Code: $exitCode. Output: $output"
-                    # Attempt fallback or decide how to handle - maybe default to yuv420p?
-                    Write-Error "ffprobe failed to determine pixel format for '$inputFileFullPath'. Cannot proceed."
+                    Write-Error "ffprobe failed to probe '$inputFileFullPath'."
                     return
                 }
             } catch {
-                Write-Error "Error running ffprobe for pixel format on '$inputFileFullPath': $($_.Exception.Message)"
+                Write-Error "Error running ffprobe on '$inputFileFullPath': $($_.Exception.Message)"
                 return
             }
+
+            # --- Encode Probe Data for Sub-Scripts (Base64 Safe Passing) ---
+            $compressedJson = $probeData | ConvertTo-Json -Depth 10 -Compress
+            $probeDataB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($compressedJson))
 
             # --- HDR Check (Simple heuristic) ---
             if (-not $Concise -and $videoCodec -notmatch '^(libsvtav1|av1_nvenc|av1_amf)$' -and $pixFmt -match '(10[lb]e|12[lb]e|p010|yuv420p10)') {
                 Write-Warning "Detected potential HDR pixel format ($pixFmt). Only AV1 encoders fully support HDR preservation in this script. Output might not be HDR."
+            }
+
+            # --- Calculate Dimensions ---
+            $w_str = "$TargetResolutionW"
+            $h_str = "$TargetResolutionH"
+
+            if ($ScaleFactor -gt 0.0) {
+                # Calculate absolute dimensions based on scale factor
+                $calcW = [math]::Round($inputW * $ScaleFactor)
+                $calcH = [math]::Round($inputH * $ScaleFactor)
+                
+                # Enforce Mod2 (Even numbers) for codec compatibility
+                if ($calcW % 2 -ne 0) { $calcW++ }
+                if ($calcH % 2 -ne 0) { $calcH++ }
+                
+                $w_str = "$calcW"
+                $h_str = "$calcH"
+                Write-Verbose "Using scale factor $ScaleFactor. Calculated resolution: ${w_str}x${h_str}"
+            } elseif ($TargetResolutionH -le 0) {
+                $h_str = "-2" # Auto-height
+                Write-Verbose "Auto-Height enabled (aspect ratio preserved, Mod2 enforced)"
             }
 
             # --- Collect Stream Mapping Arguments ---
@@ -887,6 +933,7 @@ begin {
                             Verbose     = $false
                             PassThru    = $true
                         }
+                        # Audio Transcoding script still needs to probe internally if not updated, but we pass paths.
                         $transcodeResult = Invoke-ExternalScript -ScriptPath $transcodeAudioScript -Parameters $transcodeParams -TaskDescription "Retrieving audio transcode args" -CaptureOutput
                         if ($transcodeResult.ExitCode -eq 0 -and $transcodeResult.Output) {
                             $transcodeAudioArgs = $transcodeResult.Output
@@ -898,16 +945,18 @@ begin {
                     # --- Set Audio Track Priority ---
                     if ($DoSetAudioPriority) {
                         $priorityParams = @{
-                            Path        = $inputFileFullPath
-                            Lang        = $AudioLangPriorityForSet
-                            Title       = $AudioTitlePriorityForSet
-                            FfmpegPath  = $ffmpeg
-                            FfprobePath = $ffprobe
-                            Concise     = $true
-                            Verbose     = $false
-                            PassThru    = $true
+                            Path            = $inputFileFullPath
+                            Type            = 'Audio'
+                            Lang            = $AudioLangPriorityForSet
+                            Title           = $AudioTitlePriorityForSet
+                            FfmpegPath      = $ffmpeg
+                            FfprobePath     = $ffprobe
+                            Concise         = $true
+                            Verbose         = $false
+                            PassThru        = $true
+                            StreamInfoB64   = $probeDataB64
                         }
-                        $priorityResult = Invoke-ExternalScript -ScriptPath $setAudioPriorityScript -Parameters $priorityParams -TaskDescription "Retrieving audio disposition args" -CaptureOutput
+                        $priorityResult = Invoke-ExternalScript -ScriptPath $setTrackPriorityScript -Parameters $priorityParams -TaskDescription "Retrieving audio disposition args" -CaptureOutput
                         if ($priorityResult.ExitCode -eq 0 -and $priorityResult.Output) {
                             $priorityDispositionArgs = $priorityResult.Output
                         } else {
@@ -941,16 +990,18 @@ begin {
             if ($allowInputSubs -and $DoSetSubsPriority) {
                 Write-Verbose "Setting subtitle priority."
                 $setSubsParams = @{
-                    Path        = $inputFileFullPath
-                    Lang        = $SubsLangPriorityForSet
-                    Title       = $SubsTitlePriorityForSet
-                    FfmpegPath  = $ffmpeg
-                    FfprobePath = $ffprobe
-                    Concise     = $true
-                    Verbose     = $false
-                    PassThru    = $true
+                    Path            = $inputFileFullPath
+                    Type            = 'Subtitle'
+                    Lang            = $SubsLangPriorityForSet
+                    Title           = $SubsTitlePriorityForSet
+                    FfmpegPath      = $ffmpeg
+                    FfprobePath     = $ffprobe
+                    Concise         = $true
+                    Verbose         = $false
+                    PassThru        = $true
+                    StreamInfoB64   = $probeDataB64
                 }
-                $result = Invoke-ExternalScript -ScriptPath $setSubsPriorityScript -Parameters $setSubsParams -TaskDescription "Retrieving subtitle prioritization args" -CaptureOutput
+                $result = Invoke-ExternalScript -ScriptPath $setTrackPriorityScript -Parameters $setSubsParams -TaskDescription "Retrieving subtitle prioritization args" -CaptureOutput
                 if ($result.ExitCode -eq 0 -and $result.Output) {
                     $newSubsArgs = $result.Output
 
@@ -970,7 +1021,7 @@ begin {
                         $streamArgs += Select-ParameterPairs -ArgumentList $newSubsArgs -Filter ($subsFilter + (,'^-map 0:\d+$')) -Regex -Whitelist
                     }
                 } else {
-                    if ($result.ExitCode -ne -2) { Write-Warning "Failed to get subtitle arguments from set-subs-priority.ps1 (Exit Code: $($result.ExitCode)). Subtitle handling may be incorrect." }
+                    if ($result.ExitCode -ne -2) { Write-Warning "Failed to get subtitle arguments from set-track-priority.ps1 (Exit Code: $($result.ExitCode)). Subtitle handling may be incorrect." }
                 }
                 
                 if (-not $allowOutputSubs -and -not $Concise) { Write-Host "Skipping subtitle stream mapping due to output container limitations ($OutputExt), but extraction may still occur." }
@@ -980,12 +1031,13 @@ begin {
 
             # --- Extract Subtitles ---
             if ($DoExtractSubs) {
-                if (-not (Test-Path -LiteralPath $extractSubsScript -PathType Leaf)) {
-                    Write-Warning "ExtractSubs flag is set, but script not found: $extractSubsScript. Skipping subtitle extraction."
+                if (-not (Test-Path -LiteralPath $extractTracksScript -PathType Leaf)) {
+                    Write-Warning "ExtractSubs flag is set, but script not found: $extractTracksScript. Skipping subtitle extraction."
                 } else {
                     if (-not $Concise) { Write-Host "`n--- Extracting Subtitles ---" }
                     $extractParams = @{
                         Path            = $inputFileFullPath
+                        Type            = 'Subtitle'
                         Format          = $SubFormatForExtract
                         Suffix          = $OutputSuffix
                         Force           = $ForceProcessing
@@ -994,9 +1046,10 @@ begin {
                         Concise         = $true
                         Verbose         = $false
                         OverrideDefault = $prioritizedSubStreamIndex
+                        StreamInfoB64   = $probeDataB64
                     }
 
-                    $exitCode = Invoke-ExternalScript -ScriptPath $extractSubsScript -Parameters $extractParams -TaskDescription "Subtitle extraction"
+                    $exitCode = Invoke-ExternalScript -ScriptPath $extractTracksScript -Parameters $extractParams -TaskDescription "Subtitle extraction"
 
                     if ($Concise) {
                         switch($exitCode) {
@@ -1049,7 +1102,7 @@ begin {
             $ffmpegArgs += '-i', "$inputFileFullPath" # Input file
             $ffmpegArgs += '-init_hw_device', 'vulkan' # Libplacebo needs Vulkan
             # The filtergraph needs careful quoting, especially the shader path
-            $filterGraph = "format=$pixFmt,hwupload,libplacebo=w=${TargetResolutionW}:h=${TargetResolutionH}:upscaler=bilinear:custom_shader_path='$escapedShaderPath',format=$pixFmt"
+            $filterGraph = "format=$pixFmt,hwupload,libplacebo=w=${w_str}:h=${h_str}:upscaler=bilinear:custom_shader_path='$escapedShaderPath',format=$pixFmt"
             $ffmpegArgs += '-vf', "$filterGraph"
             $ffmpegArgs += $streamArgs # Add stream mapping args
             $ffmpegArgs += '-c:v', $videoCodec # Video codec

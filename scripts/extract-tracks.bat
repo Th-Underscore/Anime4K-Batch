@@ -1,10 +1,10 @@
 @echo off
 
-REM --- Wrapper script to call set-audio-priority.ps1 ---
+REM --- Wrapper script to call extract-tracks.ps1 ---
 REM Parses original batch arguments and maps them to PowerShell parameters.
 
 set "SCRIPT_DIR=%~dp0"
-set "POWERSHELL_SCRIPT_PATH=%SCRIPT_DIR%powershell\set-audio-priority.ps1"
+set "POWERSHELL_SCRIPT_PATH=%SCRIPT_DIR%powershell\extract-tracks.ps1"
 
 REM Check if the PowerShell script exists
 if not exist "%POWERSHELL_SCRIPT_PATH%" (
@@ -21,21 +21,17 @@ if "%~1"=="" goto :args_done
 REM --- Handle Flags (Switches) first ---
 if /i "%~1"=="-r"                ( set "PS_ARGS=%PS_ARGS% -Recurse" & shift & goto :arg_loop )
 if /i "%~1"=="-f"                ( set "PS_ARGS=%PS_ARGS% -Force" & shift & goto :arg_loop )
-if /i "%~1"=="-delete"           ( set "PS_ARGS=%PS_ARGS% -Delete" & shift & goto :arg_loop )
-if /i "%~1"=="-replace"          ( set "PS_ARGS=%PS_ARGS% -Replace" & shift & goto :arg_loop )
 if /i "%~1"=="-concise"          ( set "PS_ARGS=%PS_ARGS% -Concise" & shift & goto :arg_loop )
 if /i "%~1"=="-v"                ( set "PS_ARGS=%PS_ARGS% -Verbose" & shift & goto :arg_loop )
 REM --- Handle Arguments with values ---
 REM Escape %~2 single quotes, then wrap in 'value'
 set "ARG_VAL=%~2"
-set "ARG_VAL=%ARG_VAL:'=''%"
-
-if /i "%~1"=="-lang"             ( set "PS_ARGS=%PS_ARGS% -Lang '%ARG_VAL%'" & shift & shift & goto :arg_loop )
-if /i "%~1"=="-title"            ( set "PS_ARGS=%PS_ARGS% -Title '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+set "ARG_VAL=%ARG_VAL:'=`'%"
+if /i "%~1"=="-type"             ( set "PS_ARGS=%PS_ARGS% -Type '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-format"           ( set "PS_ARGS=%PS_ARGS% -Format '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-suffix"           ( set "PS_ARGS=%PS_ARGS% -Suffix '%ARG_VAL%'" & shift & shift & goto :arg_loop )
-if /i "%~1"=="-config"              ( set "PS_ARGS=%PS_ARGS% -ConfigPath '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-config"           ( set "PS_ARGS=%PS_ARGS% -ConfigPath '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 
-:handle_path
 REM --- Assume it's a path ---
 REM Build PowerShell array elements: 'path'
 set "ARG_PATH=%~1%"
