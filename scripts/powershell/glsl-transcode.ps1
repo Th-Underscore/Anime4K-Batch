@@ -584,6 +584,26 @@ begin {
         # '.mov' = @('no_subs') # Example
     }
 
+    # --- Generic Helpers ---
+    function ConvertFrom-JsonHash {
+        param(
+            [Parameter(ValueFromPipeline = $true)]
+            [string]$json
+        )
+
+        if ($PSVersionTable.PSVersion.Major -ge 6) {
+            return ($json | ConvertFrom-Json -AsHashtable)
+        }
+        else {
+            if (-not ("System.Web.Script.Serialization.JavaScriptSerializer" -as [type])) {
+                Add-Type -AssemblyName System.Web.Extensions
+            }
+            $serializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
+            $serializer.MaxJsonLength = [int32]::MaxValue
+            return $serializer.Deserialize($json, [System.Collections.Hashtable])
+        }
+    }
+
     # --- Function to Execute External PowerShell Scripts Robustly ---
     function Invoke-ExternalScript {
         param(
@@ -823,7 +843,7 @@ begin {
                 $probeJson = & $ffprobe @ffprobeArgs
                 
                 if ($LASTEXITCODE -eq 0 -and (-not [string]::IsNullOrWhiteSpace($probeJson))) {
-                    $probeData = $probeJson | ConvertFrom-Json
+                    $probeData = [string]$probeJson | ConvertFrom-JsonHash
                     
                     # Get Video Stream Details
                     $videoStream = $probeData.streams | Where-Object { $_.codec_type -eq 'video' } | Select-Object -First 1

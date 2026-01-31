@@ -240,6 +240,26 @@ begin {
         'pcm_s16le'='wav'; 'pcm_s24le'='wav'
     }
 
+    # --- Generic Helpers ---
+    function ConvertFrom-JsonHash {
+        param(
+            [Parameter(ValueFromPipeline = $true)]
+            [string]$json
+        )
+
+        if ($PSVersionTable.PSVersion.Major -ge 6) {
+            return ($json | ConvertFrom-Json -AsHashtable)
+        }
+        else {
+            if (-not ("System.Web.Script.Serialization.JavaScriptSerializer" -as [type])) {
+                Add-Type -AssemblyName System.Web.Extensions
+            }
+            $serializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
+            $serializer.MaxJsonLength = [int32]::MaxValue
+            return $serializer.Deserialize($json, [System.Collections.Hashtable])
+        }
+    }
+
     # --- Function to Sanitize Filename Component ---
     function Sanitize-FilenamePart {
         param([string]$Text)
@@ -288,7 +308,7 @@ begin {
                 try {
                     $jsonBytes = [Convert]::FromBase64String($StreamInfoB64)
                     $jsonStr = [Text.Encoding]::UTF8.GetString($jsonBytes)
-                    $probeData = $jsonStr | ConvertFrom-Json
+                    $probeData = $jsonStr | ConvertFrom-JsonHash
                 } catch {
                     Write-Warning "Failed to decode provided stream info. Falling back to local ffprobe."
                 }
@@ -301,7 +321,7 @@ begin {
                 Write-Verbose "Running: $ffprobe $($ffprobeArgs -join ' ')"
                 $jsonOutput = & $ffprobe @ffprobeArgs 2>&1
                 if ($LASTEXITCODE -ne 0) { Write-Warning "ffprobe failed (Exit Code: $LASTEXITCODE)."; return }
-                $probeData = $jsonOutput | ConvertFrom-Json
+                $probeData = [string]$jsonOutput | ConvertFrom-JsonHash
             }
 
             if (-not $probeData -or -not $probeData.streams) { return }
