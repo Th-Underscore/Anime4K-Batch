@@ -422,13 +422,13 @@ begin {
     switch ($EncoderProfile.ToLower()) {
         'cpu_h264' {
             $videoCodec = 'libx264'
-            $presetParam = "-preset $EncoderPreset"
+            $presetParam = "-preset $EncoderPreset -profile:v high"
             if ($CpuThreads -ne 0) { $threadParam = "-threads $CpuThreads" }
         }
         'cpu_h265' {
             $videoCodec = 'libx265'
             $presetParam = "-preset $EncoderPreset"
-            if ($CpuThreads -ne 0) { $threadParam = "-x265-params pools=$CpuThreads" }
+            if ($CpuThreads -ne 0) { $threadParam = "-x265-params pools=${CpuThreads}:profile=main10" }
             if ($Concise) { $threadParam += ":log-level=error" }
         }
         'cpu_av1' {
@@ -523,6 +523,7 @@ begin {
             if ($threadParam -match 'pools=(\d+)') {
                 $x265Params += "pools=$($matches[1])"
             }
+            $x265Params += "profile=main10", "log-level=error"
 
             $x265Params += "sao=0" # Level 1: Disable SAO
             switch ($PreserveTexture) {
@@ -532,7 +533,6 @@ begin {
 
             # Reconstruct the parameter string
             $threadParam = "-x265-params " + ($x265Params -join ':')
-            if ($Concise) { $threadParam += ":log-level=error" }
         } elseif ($videoCodec -match 'nvenc') {
             # Older cards (Pascal/Maxwell) or specific driver versions may fail with Temporal AQ
             if ($EncoderProfile -notmatch 'legacy') {
