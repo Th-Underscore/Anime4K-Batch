@@ -501,7 +501,7 @@ begin {
 
         if ($preferredIsFirst -and $preferredIsDefault -and (-not $otherStreamIsDefault)) {
             if (-not $Concise) { Write-Host "File is already correctly configured. Skipping." }
-            return
+            if (-not $PassThru) { return }
         }
 
         if (-not $Concise) { Write-Host "Proceeding with ffmpeg remux to set Stream Index $($defaultStream.Index) as default..." }
