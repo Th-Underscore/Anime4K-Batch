@@ -428,7 +428,7 @@ begin {
         'cpu_h265' {
             $videoCodec = 'libx265'
             $presetParam = "-preset $EncoderPreset"
-            if ($CpuThreads -ne 0) { $threadParam = "-x265-params pools=${CpuThreads}:profile=main10" }
+            if ($CpuThreads -ne 0) { $threadParam = "-x265-params pools=${CpuThreads}" }
             if ($Concise) { $threadParam += ":log-level=error" }
         }
         'cpu_av1' {
@@ -520,10 +520,11 @@ begin {
 
         if ($videoCodec -eq 'libx265') {
             $x265Params = @()
+            if ($Concise) { $x265Params += "log-level=error" }
             if ($threadParam -match 'pools=(\d+)') {
                 $x265Params += "pools=$($matches[1])"
             }
-            $x265Params += "profile=main10", "log-level=error"
+            # $x265Params += "profile=main10"
 
             $x265Params += "sao=0" # Level 1: Disable SAO
             switch ($PreserveTexture) {
