@@ -1022,7 +1022,7 @@ begin {
                     StreamInfoB64   = $probeDataB64
                 }
                 $result = Invoke-ExternalScript -ScriptPath $setTrackPriorityScript -Parameters $setSubsParams -TaskDescription "Retrieving subtitle prioritization args" -CaptureOutput
-                if ($result.ExitCode -eq 0 -and $result.Output) {
+                if (($result.ExitCode -eq 0 -or $result.ExitCode -eq -2) -and $result.Output) {
                     $newSubsArgs = $result.Output
 
                     # Retrieve prioritized stream index from output
