@@ -574,7 +574,7 @@ vec4 hook() {
 //!WHEN OUTPUT.w OUTPUT.h * LUMA.w LUMA.h * / 1.0 > ! OUTPUT.w OUTPUT.h * LUMA.w LUMA.h * / 1.0 < ! *
 
 // User variables
-#define SHARPNESS 0.1 // Amount of sharpening. 0.0 to 1.0.
+#define SHARPNESS 0.08 // Amount of sharpening. 0.0 to 1.0.
 #define NIS_THREAD_GROUP_SIZE 256 // May be set to 128 for better performance on NVIDIA hardware, otherwise set to 256. Don't forget to modify the COMPUTE directive accordingly as well (e.g., COMPUTE 32 32 128 1).
 #define NIS_HDR_MODE 0 // Must be set to 1 for content with PQ colorspace. 0 or 1.
 
@@ -602,7 +602,7 @@ const float kRatioNorm = 1.0f / (kMaxContrastRatio - kMinContrastRatio);
 const float kSharpScaleY = 1.0f / (kSharpEndY - kSharpStartY);
 const float kSharpStrengthScale = kSharpStrengthMax - kSharpStrengthMin;
 const float kSharpLimitScale = kSharpLimitMax - kSharpLimitMin;
-const float kContrastBoost = 0.52f;
+const float kContrastBoost = 0.45f;
 const float kEps = 1.0f / 255.0f;
 #define kSrcNormX HOOKED_pt.x
 #define kSrcNormY HOOKED_pt.y
@@ -832,7 +832,7 @@ float get_luma(vec4 rgba) {
 }
 
 vec4 hook() {
-    return vec4(get_luma(HOOKED_tex(HOOKED_pos)), 0.0, 0.0, 0.0);
+	return vec4(get_luma(HOOKED_tex(HOOKED_pos)), 0.0, 0.0, 0.0);
 }
 
 //!DESC Anime4K-v3.2-Thin-(HQ)-Sobel-X
@@ -845,10 +845,10 @@ vec4 hook() {
 	float l = LINELUMA_texOff(vec2(-1.0, 0.0)).x;
 	float c = LINELUMA_tex(LINELUMA_pos).x;
 	float r = LINELUMA_texOff(vec2(1.0, 0.0)).x;
-	
+
 	float xgrad = (-l + r);
 	float ygrad = (l + c + c + r);
-	
+
 	return vec4(xgrad, ygrad, 0.0, 0.0);
 }
 
@@ -863,14 +863,14 @@ vec4 hook() {
 	float tx = LINESOBEL_texOff(vec2(0.0, -1.0)).x;
 	float cx = LINESOBEL_tex(LINESOBEL_pos).x;
 	float bx = LINESOBEL_texOff(vec2(0.0, 1.0)).x;
-	
+
 	float ty = LINESOBEL_texOff(vec2(0.0, -1.0)).y;
 	float by = LINESOBEL_texOff(vec2(0.0, 1.0)).y;
-	
+
 	float xgrad = (tx + cx + cx + bx) / 8.0;
-	
+
 	float ygrad = (-ty + by) / 8.0;
-	
+
 	//Computes the luminance's gradient
 	float norm = sqrt(xgrad * xgrad + ygrad * ygrad);
 	return vec4(pow(norm, 0.7));
@@ -899,21 +899,21 @@ float comp_gaussian_x() {
 
 	float g = 0.0;
 	float gn = 0.0;
-	
+
 	for (int i=0; i<KERNELSIZE; i++) {
 		float di = float(i - KERNELHALFSIZE);
 		float gf = gaussian(di, SPATIAL_SIGMA, 0.0);
-		
+
 		g = g + LINESOBEL_texOff(vec2(di, 0.0)).x * gf;
 		gn = gn + gf;
-		
+
 	}
-	
+
 	return g / gn;
 }
 
 vec4 hook() {
-    return vec4(comp_gaussian_x(), 0.0, 0.0, 0.0);
+	return vec4(comp_gaussian_x(), 0.0, 0.0, 0.0);
 }
 
 
@@ -939,28 +939,28 @@ float comp_gaussian_y() {
 
 	float g = 0.0;
 	float gn = 0.0;
-	
+
 	for (int i=0; i<KERNELSIZE; i++) {
 		float di = float(i - KERNELHALFSIZE);
 		float gf = gaussian(di, SPATIAL_SIGMA, 0.0);
-		
+
 		g = g + LINESOBEL_texOff(vec2(0.0, di)).x * gf;
 		gn = gn + gf;
-		
+
 	}
-	
+
 	return g / gn;
 }
 
 vec4 hook() {
-    return vec4(comp_gaussian_y(), 0.0, 0.0, 0.0);
+	return vec4(comp_gaussian_y(), 0.0, 0.0, 0.0);
 }
 
 //!DESC Anime4K-v3.2-Thin-(HQ)-Kernel-X
 //!HOOK MAIN
 //!BIND LINESOBEL
 //!SAVE LINESOBEL
-//!COMPONENTS 2
+//!COMPONENTS 3
 
 vec4 hook() {
 	float l = LINESOBEL_texOff(vec2(-1.0, 0.0)).x;
@@ -970,7 +970,8 @@ vec4 hook() {
 	float xgrad = (-l + r);
 	float ygrad = (l + c + c + r);
 	
-	return vec4(xgrad, ygrad, 0.0, 0.0);
+	// PASS-THROUGH: Save line intensity 'c' into Z channel
+	return vec4(xgrad, ygrad, c, 0.0);
 }
 
 
@@ -978,7 +979,7 @@ vec4 hook() {
 //!HOOK MAIN
 //!BIND LINESOBEL
 //!SAVE LINESOBEL
-//!COMPONENTS 2
+//!COMPONENTS 3
 
 vec4 hook() {
 	float tx = LINESOBEL_texOff(vec2(0.0, -1.0)).x;
@@ -989,13 +990,13 @@ vec4 hook() {
 	float by = LINESOBEL_texOff(vec2(0.0, 1.0)).y;
 	
 	float xgrad = (tx + cx + cx + bx) / 8.0;
-	
 	float ygrad = (-ty + by) / 8.0;
 	
-	//Computes the luminance's gradient
-	return vec4(xgrad, ygrad, 0.0, 0.0);
+	// PASS-THROUGH: Z channel data
+	float line_mask = LINESOBEL_tex(LINESOBEL_pos).z;
+	
+	return vec4(xgrad, ygrad, line_mask, 0.0);
 }
-
 
 //!DESC Anime4K-v3.2-Thin-(HQ)-Warp
 //!HOOK MAIN
@@ -1003,20 +1004,33 @@ vec4 hook() {
 //!BIND LINESOBEL
 
 #define STRENGTH 0.2 //Strength of warping for each iteration
-#define ITERATIONS 4 //Number of iterations for the forwards solver, decreasing strength and increasing iterations improves quality at the cost of speed.
+#define ITERATIONS 3 //Number of iterations for the forwards solver, decreasing strength and increasing iterations improves quality at the cost of speed.
+
+#define DARKEN_STRENGTH 0.8  // 0.0 to 1.0
+#define MIN_LUMA 0.5        // Only darken pixels darker than this (0.0=black, 1.0=white)
 
 vec4 hook() {
 	vec2 d = HOOKED_pt;
-	
 	float relstr = HOOKED_size.y / 1080.0 * STRENGTH;
-	
+
 	vec2 pos = HOOKED_pos;
 	for (int i=0; i<ITERATIONS; i++) {
-		vec2 dn = LINESOBEL_tex(pos).xy;
+		vec2 dn = LINESOBEL_tex(pos).xy; // .xy contains the vectors
 		vec2 dd = (dn / (length(dn) + 0.01)) * d * relstr; //Quasi-normalization for large vectors, avoids divide by zero
 		pos -= dd;
 	}
-	
-	return HOOKED_tex(pos);
-	
+
+	vec4 c = HOOKED_tex(pos);
+
+	// --- Darkening ---
+	float line_intensity = LINESOBEL_tex(HOOKED_pos).z;
+
+	// The Gaussian pass can produce low values for textures
+	float darken_mask = smoothstep(0.05, 0.4, line_intensity);
+
+	float luma = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+	float darkness_weight = 1.0 - smoothstep(0.0, MIN_LUMA, luma);
+
+	c.rgb -= c.rgb * darken_mask * darkness_weight * DARKEN_STRENGTH;
+	return c;
 }
