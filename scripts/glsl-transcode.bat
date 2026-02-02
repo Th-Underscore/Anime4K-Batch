@@ -39,6 +39,7 @@ if /i "%~1"=="-shader"              ( set "PS_ARGS=%PS_ARGS% -ShaderFile '%ARG_V
 if /i "%~1"=="-shaderpath"          ( set "PS_ARGS=%PS_ARGS% -ShaderBasePath '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-codec-prof"          ( set "PS_ARGS=%PS_ARGS% -EncoderProfile '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-preset"              ( set "PS_ARGS=%PS_ARGS% -EncoderPreset '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-faststart"           ( set "PS_ARGS=%PS_ARGS% -FastStart '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-cqp"                 ( set "PS_ARGS=%PS_ARGS% -CQP '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-pt"                  ( set "PS_ARGS=%PS_ARGS% -PreserveTexture '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-container"           ( set "PS_ARGS=%PS_ARGS% -Container '%ARG_VAL%'" & shift & shift & goto :arg_loop )

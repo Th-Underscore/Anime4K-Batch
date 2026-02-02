@@ -2,6 +2,7 @@
     // --- Input/Output ---
     "Suffix": "_upscaled", // Suffix to append to output filenames.
     "Container": "mkv", // Output container format (e.g., 'mkv', 'mp4').
+    "FastStart": 0, // Add '-movflags +faststart' to FFMPEG command (only for MP4 output). This causes a second pass. 1 = local temp, 2 = direct, 0 = disabled.
     "Force": false, // Force overwrite existing output files.
     "Delete": false, // Delete original file after successful transcode (mutually exclusive with Replace).
     "Replace": false, // Replace the original file with the processed version (mutually exclusive with Delete).

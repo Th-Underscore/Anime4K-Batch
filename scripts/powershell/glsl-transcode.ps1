@@ -47,6 +47,12 @@ Texture quality (0-3, higher is better - greater file size). Default: 0.
 .PARAMETER Container
 Output container format (e.g., 'mkv', 'mp4'). Default: 'mkv'.
 
+.PARAMETER FastStart
+Controls MP4 FastStart optimization (moov atom at beginning).
+0: Disabled.
+1: Write to local Temp folder first, then move to destination (best for network/NAS).
+2: Write directly to destination (best for local drives).
+
 .PARAMETER Suffix
 Suffix to append to output filenames. Default: '_upscaled'.
 
@@ -168,6 +174,10 @@ param(
 
     [Parameter()]
     [string]$Suffix = '_upscaled',
+
+    [Parameter()]
+    [ValidateSet(0, 1, 2)]
+    [int]$FastStart = 0, # 0: Disabled, 1: Temp+Move, 2: Direct
 
     [Parameter()]
     [string]$SubFormat = 'SOURCE.lang.title.dispo', # Default for Jellyfin
@@ -783,19 +793,31 @@ begin {
             $finalOutputFile = $ffmpegTargetFile
             Write-Verbose "Action: Create new file. Target: '$ffmpegTargetFile'"
         }
+
+        $processingFile = $ffmpegTargetFile
+        $useLocalTemp = ($OutputExt -eq '.mp4' -and $FastStart -eq 1) # TODO: Make this a general option
+
+        if ($useLocalTemp) {
+            $tempDir = [System.IO.Path]::GetTempPath()
+            $tempName = $FileInput.BaseName + "_" + [System.IO.Path]::GetRandomFileName() + $OutputExt
+            $processingFile = Join-Path $tempDir $tempName
+            Write-Verbose "FastStart Level 1: Transcoding to local temp '$processingFile' before move."
+        }
+        
         $outputFileFullPath = $ffmpegTargetFile # Use ffmpegTargetFile for processing
 
         if (-not $Concise) {
             Write-Host "`n-----------------------------------------------------"
             Write-Host "Processing: $inputFileFullPath"
             Write-Host "Output will be: $outputFileFullPath"
+            if ($useLocalTemp) { Write-Host "Temp Work File: $processingFile" }
             Write-Host "-----------------------------------------------------`n"
         }
 
-        # Check if FINAL target exists (for suffix mode) or TEMP target exists (for replace mode)
+        # Check if FINAL target exists (for suffix mode) or target TEMP exists (for replace mode)
         if ($ReplaceOriginalFlag) {
-            if ((Test-Path -LiteralPath $outputFileFullPath) -and (-not $ForceProcessing)) {
-                Write-Warning "Temporary file '$outputFileFullPath' already exists. Use -Force to overwrite it and continue."
+            if ((Test-Path -LiteralPath $ffmpegTargetFile) -and (-not $ForceProcessing)) {
+                Write-Warning "Temporary file '$ffmpegTargetFile' already exists. Use -Force to overwrite it and continue."
                 return
             }
         } else {
@@ -811,7 +833,7 @@ begin {
 
         $success = $false
         try {
-            New-Item -Path $outputFileFullPath -ItemType File -Force | Out-Null # Create empty file to reserve name
+            if (-not $useLocalTemp) { New-Item -Path $ffmpegTargetFile -ItemType File -Force | Out-Null }
 
             # --- Probe File Metadata (JSON) ---
             if (-not $Concise) { Write-Host "Probing file details with ffprobe..." }
@@ -1125,7 +1147,7 @@ begin {
             $ffmpegArgs += '-init_hw_device', 'vulkan' # libplacebo needs Vulkan
 
             $filterGraph = "format=${uploadFmt},setparams=color_primaries=${p_prim}:color_trc=${p_trans}:colorspace=${p_space}:range=$range_str"
-            $filterGraph += ",hwupload,libplacebo=w=${w_str}:h=${h_str}:upscaler=bilinear:custom_shader_path='$escapedShaderPath'"
+            $filterGraph += ",hwupload,libplacebo=format=${outputFmt}:w=${w_str}:h=${h_str}:upscaler=bilinear:custom_shader_path='$escapedShaderPath'"
             $filterGraph += ":dithering=none:tonemapping=clip:colorspace=${p_space}:color_primaries=${p_prim}:color_trc=${p_trans}:range=$range_str"
             $filterGraph += ",hwdownload,format=${outputFmt}"
 
@@ -1148,9 +1170,9 @@ begin {
             if (-not [string]::IsNullOrWhiteSpace($threadParam)) { $ffmpegArgs += $threadParam.Split(' ') }
             if ($encParams.Count -gt 0) { $ffmpegArgs += $paramKeys[$videoCodec], ($encParams -join ':') }
 
-            if ($OutputExt -eq '.mp4') { $ffmpegArgs += '-movflags', '+faststart' }
+            if ($FastStart -ge 1 -and $OutputExt -eq '.mp4') { $ffmpegArgs += '-movflags', '+faststart' }
 
-            $ffmpegArgs += "$outputFileFullPath"
+            $ffmpegArgs += "$processingFile"
 
             # --- Execute FFMPEG ---
             if (-not $Concise) { Write-Host "Starting FFmpeg..." }
@@ -1165,7 +1187,7 @@ begin {
                     if ($exitCode -ne 0) {
                         Write-Error "ffmpeg process failed (Exit Code: $exitCode) while processing '$inputFileFullPath'."
                     } else {
-                        if (-not $Concise) { Write-Host "Successfully processed '$inputFileFullPath' to '$outputFileFullPath'" }
+                        if (-not $Concise) { Write-Host "Successfully processed '$inputFileFullPath'" }
                         $success = $true
                     }
                 } catch {
@@ -1174,34 +1196,47 @@ begin {
 
                 # --- Post-processing File Actions ---
                 if ($success) {
-                    if ($DeleteOriginalFlag) {
-                        if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Delete original file after successful transcode")) {
-                            try {
-                                Remove-Item -LiteralPath $inputFileFullPath -Force -ErrorAction Stop
-                                if (-not $Concise) { Write-Host "Successfully deleted original file: '$inputFileFullPath'" }
-                            } catch {
-                                Write-Warning "Failed to delete original file '$inputFileFullPath'. It might be in use or permissions are denied. Error: $($_.Exception.Message)"
-                            }
-                        } else {
-                            Write-Warning "Skipping deletion of '$inputFileFullPath' due to -WhatIf."
-                        }
-                    } elseif ($ReplaceOriginalFlag) {
-                        if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Replace with processed file '$outputFileFullPath'")) {
-                            try {
-                                Move-Item -LiteralPath $outputFileFullPath -Destination $inputFileFullPath -Force -ErrorAction Stop
-                                if (-not $Concise) { Write-Host "Successfully replaced original file." }
-                            } catch {
-                                Write-Error "Failed to replace original file. Temp file '$outputFileFullPath' may still exist. Error: $($_.Exception.Message)"
-                            }
-                        } else {
-                            Write-Warning "Skipping replacement of original due to -WhatIf. Temp file '$outputFileFullPath' may remain."
+                    if ($useLocalTemp) {
+                        if (-not $Concise) { Write-Host "FastStart: Moving temporary file to final destination..." -ForegroundColor Cyan }
+                        try {
+                            Move-Item -LiteralPath $processingFile -Destination $ffmpegTargetFile -Force -ErrorAction Stop
+                            $processingFile = $ffmpegTargetFile
+                        } catch {
+                            Write-Error "Failed to move temp file '$processingFile' to '$ffmpegTargetFile'. Error: $($_.Exception.Message)"
+                            $success = $false # Mark as failed so we don't delete source
                         }
                     }
-                } else { # ffmpeg failed
+
+                    if ($success) {
+                        if ($DeleteOriginalFlag) {
+                            if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Delete original file after successful transcode")) {
+                                try {
+                                    Remove-Item -LiteralPath $inputFileFullPath -Force -ErrorAction Stop
+                                    if (-not $Concise) { Write-Host "Successfully deleted original file: '$inputFileFullPath'" }
+                                } catch {
+                                    Write-Warning "Failed to delete original file '$inputFileFullPath'. It might be in use or permissions are denied. Error: $($_.Exception.Message)"
+                                }
+                            } else {
+                                Write-Warning "Skipping deletion of '$inputFileFullPath' due to -WhatIf."
+                            }
+                        } elseif ($ReplaceOriginalFlag) {
+                            if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Replace with processed file '$processingFile'")) {
+                                try {
+                                    Move-Item -LiteralPath $processingFile -Destination $inputFileFullPath -Force -ErrorAction Stop
+                                    if (-not $Concise) { Write-Host "Successfully replaced original file." }
+                                } catch {
+                                    Write-Error "Failed to replace original file. Temp file '$processingFile' may still exist. Error: $($_.Exception.Message)"
+                                }
+                            } else {
+                                Write-Warning "Skipping replacement of original due to -WhatIf. Temp file '$processingFile' may remain."
+                            }
+                        }
+                    }
+                } if (-not $success) { # ffmpeg or move failed
                     # Attempt to clean up potentially broken output file
-                    if (Test-Path -LiteralPath $outputFileFullPath -PathType Leaf) {
-                        Write-Warning "Attempting to remove potentially incomplete output file: $outputFileFullPath"
-                        Remove-Item -LiteralPath $outputFileFullPath -ErrorAction SilentlyContinue
+                    if (Test-Path -LiteralPath $processingFile -PathType Leaf) {
+                        Write-Warning "Attempting to remove potentially incomplete output file: $processingFile"
+                        Remove-Item -LiteralPath $processingFile -ErrorAction SilentlyContinue
                     }
                 }
             } else {
@@ -1211,7 +1246,13 @@ begin {
         } finally {
             if (-not $success) {
                 Write-Host "Anime4K-Batch was interrupted, cleaning up..." -ForegroundColor Yellow
-                Remove-Item -LiteralPath $outputFileFullPath -ErrorAction SilentlyContinue
+                if ($useLocalTemp -and (Test-Path -LiteralPath $processingFile -PathType Leaf)) {
+                    Write-Verbose "Cleaning up local temp file: $processingFile"
+                }
+                # if (-not $useLocalTemp -and (Test-Path -LiteralPath $ffmpegTargetFile -PathType Leaf) -and (-not $ForceProcessing)) {
+                #     Remove-Item -LiteralPath $processingFile -ErrorAction SilentlyContinue
+                # }
+                Remove-Item -LiteralPath $processingFile -ErrorAction SilentlyContinue
             }
         }
     } # End Function New-TranscodedVideo
