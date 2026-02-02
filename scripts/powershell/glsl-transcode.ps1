@@ -16,7 +16,7 @@ Target output width. Default: 3840.
 Target output height. Default: 2160.
 
 .PARAMETER ScaleFactor
-Scale factor multiplier (e.g. 2.0). If set > 0, overrides TargetResolutionW/H. 
+Scale factor multiplier (e.g. 2.0). If set > 0, overrides TargetResolutionW/H.
 Calculates dimensions based on input resolution, enforcing Mod2 (even numbers).
 
 .PARAMETER ShaderFile
@@ -407,6 +407,7 @@ begin {
     $hwAccelParams = @()
     $presetParam = ''
     $threadParam = ''
+    $encParams = @()
 
     if ([string]::IsNullOrWhiteSpace(($EncoderPreset))) {
         switch ($EncoderProfile.ToLower()) {
@@ -428,13 +429,13 @@ begin {
         'cpu_h265' {
             $videoCodec = 'libx265'
             $presetParam = "-preset $EncoderPreset"
-            if ($CpuThreads -ne 0) { $threadParam = "-x265-params pools=${CpuThreads}" }
-            if ($Concise) { $threadParam += ":log-level=error" }
+            if ($CpuThreads -ne 0) { $encParams += "pools=${CpuThreads}" }
+            if ($Concise) { $encParams += "log-level=error" }
         }
         'cpu_av1' {
             $videoCodec = 'libsvtav1'
             # AV1 uses preset differently
-            if ($CpuThreads -ne 0) { $threadParam = "-svtav1-params pin=$CpuThreads" }
+            if ($CpuThreads -ne 0) { $encParams += "pin=$CpuThreads" }
         }
         'nvidia_h264' {
             $videoCodec = 'h264_nvenc'
@@ -519,21 +520,13 @@ begin {
         Write-Verbose "Applying Texture Preservation Level: $PreserveTexture"
 
         if ($videoCodec -eq 'libx265') {
-            $x265Params = @()
-            if ($Concise) { $x265Params += "log-level=error" }
-            if ($threadParam -match 'pools=(\d+)') {
-                $x265Params += "pools=$($matches[1])"
-            }
-            # $x265Params += "profile=main10"
+            # $encParams += "profile=main10"
 
-            $x265Params += "sao=0" # Level 1: Disable SAO
+            $encParams += "sao=0" # Level 1: Disable SAO
             switch ($PreserveTexture) {
-                2 { $x265Params += "psy-rd=1.0", "psy-rdoq=1.0", "aq-mode=1" } # Level 2: Moderate grain retention
-                3 { $x265Params += "psy-rd=2.0", "psy-rdoq=1.0", "aq-mode=3", "deblock=-1\:-1" } # Level 3: Maximum grain retention
+                2 { $encParams += "psy-rd=1.0", "psy-rdoq=1.0", "aq-mode=1" } # Level 2: Moderate grain retention
+                3 { $encParams += "psy-rd=2.0", "psy-rdoq=1.0", "aq-mode=3", "deblock=-1\:-1" } # Level 3: Maximum grain retention
             }
-
-            # Reconstruct the parameter string
-            $threadParam = "-x265-params " + ($x265Params -join ':')
         } elseif ($videoCodec -match 'nvenc') {
             # Older cards (Pascal/Maxwell) or specific driver versions may fail with Temporal AQ
             if ($EncoderProfile -notmatch 'legacy') {
@@ -830,7 +823,7 @@ begin {
             $probeJson = ""
             $inputW = 0
             $inputH = 0
-            $pixFmt = "yuv420p" # Fallback
+            $pixFmt = "yuv420p"
 
             try {
                 $ffprobeArgs = @(
@@ -842,18 +835,18 @@ begin {
                 )
                 Write-Verbose "Running: $ffprobe $($ffprobeArgs -join ' ')"
                 $probeJson = & $ffprobe @ffprobeArgs
-                
+
                 if ($LASTEXITCODE -eq 0 -and (-not [string]::IsNullOrWhiteSpace($probeJson))) {
                     $probeData = [string]$probeJson | ConvertFrom-JsonHash
-                    
-                    # Get Video Stream Details
+
                     $videoStream = $probeData.streams | Where-Object { $_.codec_type -eq 'video' } | Select-Object -First 1
                     if ($videoStream) {
+                        Write-Verbose "Detected video stream: $($videoStream | ConvertTo-Json -Depth 10)"
                         $inputW = $videoStream.width
                         $inputH = $videoStream.height
                         if ($videoStream.pix_fmt) { $pixFmt = $videoStream.pix_fmt }
-                        
-                        if (-not $Concise) { Write-Host "Detected: ${inputW}x${inputH}, $pixFmt" }
+
+                        if (-not $Concise) { Write-Verbose "Detected: ${inputW}x${inputH}, $pixFmt" }
                     } else {
                         Write-Warning "No video stream found."
                         return
@@ -867,11 +860,11 @@ begin {
                 return
             }
 
-            # --- Encode Probe Data for Sub-Scripts (Base64 Safe Passing) ---
+            # --- Encode Probe Data for Sub-Scripts ---
             $compressedJson = $probeData | ConvertTo-Json -Depth 10 -Compress
             $probeDataB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($compressedJson))
 
-            # --- HDR Check (Simple heuristic) ---
+            # --- HDR Check (simple heuristic) ---
             if (-not $Concise -and $videoCodec -notmatch '^(libsvtav1|av1_nvenc|av1_amf)$' -and $pixFmt -match '(10[lb]e|12[lb]e|p010|yuv420p10)') {
                 Write-Warning "Detected potential HDR pixel format ($pixFmt). Only AV1 encoders fully support HDR preservation in this script. Output might not be HDR."
             }
@@ -881,14 +874,13 @@ begin {
             $h_str = "$TargetResolutionH"
 
             if ($ScaleFactor -gt 0.0) {
-                # Calculate absolute dimensions based on scale factor
                 $calcW = [math]::Round($inputW * $ScaleFactor)
                 $calcH = [math]::Round($inputH * $ScaleFactor)
-                
-                # Enforce Mod2 (Even numbers) for codec compatibility
+
+                # Enforce Mod2 (even numbers) for codec compatibility
                 if ($calcW % 2 -ne 0) { $calcW++ }
                 if ($calcH % 2 -ne 0) { $calcH++ }
-                
+
                 $w_str = "$calcW"
                 $h_str = "$calcH"
                 Write-Verbose "Using scale factor $ScaleFactor. Calculated resolution: ${w_str}x${h_str}"
@@ -1044,7 +1036,7 @@ begin {
                 } else {
                     if ($result.ExitCode -ne -2) { Write-Warning "Failed to get subtitle arguments from set-track-priority.ps1 (Exit Code: $($result.ExitCode)). Subtitle handling may be incorrect." }
                 }
-                
+
                 if (-not $allowOutputSubs -and -not $Concise) { Write-Host "Skipping subtitle stream mapping due to output container limitations ($OutputExt), but extraction may still occur." }
             } elseif (-not $allowInputSubs) {
                 if (-not $Concise) { Write-Host "Skipping subtitle streams due to input container limitations ($inputExt)." }
@@ -1111,27 +1103,57 @@ begin {
                 $streamArgs += $attachmentMaps
             }
 
-            # --- Construct FFMPEG Command Arguments ---
-            # Start with -y for overwrite, then add logging based on $Concise
-            $ffmpegArgs = @('-y', '-stats')
-            if ($Concise) {
-                $ffmpegArgs += '-v', 'fatal'
-            } else {
-                $ffmpegArgs += '-v', 'warning'
+            $paramKeys = @{
+                'libx264' = '-x264-params'
+                'libx265' = '-x265-params'
+                'libsvtav1' = '-svtav1-params'
             }
-            $ffmpegArgs += $hwAccelParams # Add HWAccel params if any
-            $ffmpegArgs += '-i', "$inputFileFullPath" # Input file
-            $ffmpegArgs += '-init_hw_device', 'vulkan' # Libplacebo needs Vulkan
-            # The filtergraph needs careful quoting, especially the shader path
-            $filterGraph = "format=$pixFmt,hwupload,libplacebo=w=${w_str}:h=${h_str}:upscaler=bilinear:custom_shader_path='$escapedShaderPath',format=$pixFmt"
+
+            # --- Colorspace Preservation ---
+            $p_range = if ($videoStream.color_range) { $videoStream.color_range } else { "tv" }
+            $p_space = if ($videoStream.color_space) { $videoStream.color_space } else { "bt709" }
+            $p_prim  = if ($videoStream.color_primaries) { $videoStream.color_primaries } else { "bt709" }
+            $p_trans = if ($videoStream.color_transfer) { $videoStream.color_transfer } else { "bt709" }
+
+            $range_str = if ($p_range -match "tv|limited") { "limited" } else { "full" }
+            $x265ColorArgs = "range=${range_str}:colorprim=${p_prim}:transfer=${p_trans}:colormatrix=${p_space}"
+
+            $uploadFmt = $pixFmt
+            $outputFmt = "yuv420p10le"
+
+            # --- Construct FFMPEG Command Arguments ---
+            $ffmpegArgs = @('-y', '-stats')
+            if ($Concise) { $ffmpegArgs += '-v', 'fatal' } else { $ffmpegArgs += '-v', 'warning' }
+            $ffmpegArgs += $hwAccelParams
+            $ffmpegArgs += '-i', "$inputFileFullPath"
+            $ffmpegArgs += '-init_hw_device', 'vulkan' # libplacebo needs Vulkan
+
+            $filterGraph = "format=${uploadFmt},setparams=color_primaries=${p_prim}:color_trc=${p_trans}:colorspace=${p_space}:range=$range_str"
+            $filterGraph += ",hwupload,libplacebo=w=${w_str}:h=${h_str}:upscaler=bilinear:custom_shader_path='$escapedShaderPath'"
+            $filterGraph += ":dithering=none:tonemapping=clip:colorspace=${p_space}:color_primaries=${p_prim}:color_trc=${p_trans}:range=$range_str"
+            $filterGraph += ",hwdownload,format=${outputFmt}"
+
             $ffmpegArgs += '-vf', "$filterGraph"
-            $ffmpegArgs += $streamArgs # Add stream mapping args
-            $ffmpegArgs += '-c:v', $videoCodec # Video codec
-            $ffmpegArgs += '-qp', $CQP # Quality parameter
-            $ffmpegArgs += '-strict', '-2' # Allow experimental codecs (e.g., Opus)
-            if (-not [string]::IsNullOrWhiteSpace($presetParam)) { $ffmpegArgs += $presetParam.Split(' ') } # Preset
-            if (-not [string]::IsNullOrWhiteSpace($threadParam)) { $ffmpegArgs += $threadParam.Split(' ') } # Threads
-            $ffmpegArgs += "$outputFileFullPath" # Output file
+            $ffmpegArgs += $streamArgs
+            $ffmpegArgs += '-c:v', $videoCodec
+            $ffmpegArgs += '-qp', $CQP
+            $ffmpegArgs += '-strict', '-2' # Allow experimental codecs
+
+            # Add color params
+            if ($videoCodec -eq 'libx265') {
+                $encParams += $x265ColorArgs
+            } elseif ($videoCodec -match "nvenc|amf|qsv") {
+                $ffmpegArgs += "-color_primaries", $p_prim
+                $ffmpegArgs += "-color_trc", $p_trans
+                $ffmpegArgs += "-colorspace", $p_space
+                $ffmpegArgs += "-color_range", $p_range
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($presetParam)) { $ffmpegArgs += $presetParam.Split(' ') }
+            if (-not [string]::IsNullOrWhiteSpace($threadParam)) { $ffmpegArgs += $threadParam.Split(' ') }
+            if ($encParams.Count -gt 0) { $ffmpegArgs += $paramKeys[$videoCodec], ($encParams -join ':') }
+
+            $ffmpegArgs += "$outputFileFullPath"
 
             # --- Execute FFMPEG ---
             if (-not $Concise) { Write-Host "Starting FFmpeg..." }
