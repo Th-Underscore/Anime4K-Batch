@@ -562,6 +562,8 @@ vec4 hook() {
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+// Modified by Th-Underscore for FSR de-aliasing, darkening, and boundary protection
+
 //!DESC Anime4K-v3.2-Thin-(HQ)-Luma
 //!HOOK MAIN
 //!BIND HOOKED
@@ -625,7 +627,7 @@ vec4 hook() {
 //!SAVE LINESOBEL
 //!COMPONENTS 1
 
-#define SPATIAL_SIGMA (2.0 * float(HOOKED_size.y) / 1080.0) //Spatial window size, must be a positive real number.
+#define SPATIAL_SIGMA (3.0 * float(HOOKED_size.y) / 1080.0) //Spatial window size, must be a positive real number.
 
 #define KERNELSIZE (max(int(ceil(SPATIAL_SIGMA * 2.0)), 1) * 2 + 1) //Kernel size, must be an positive odd integer.
 #define KERNELHALFSIZE (int(KERNELSIZE/2)) //Half of the kernel size without remainder. Must be equal to trunc(KERNELSIZE/2).
@@ -665,7 +667,7 @@ vec4 hook() {
 //!SAVE LINESOBEL
 //!COMPONENTS 1
 
-#define SPATIAL_SIGMA (2.0 * float(HOOKED_size.y) / 1080.0) //Spatial window size, must be a positive real number.
+#define SPATIAL_SIGMA (3.0 * float(HOOKED_size.y) / 1080.0) //Spatial window size, must be a positive real number.
 
 #define KERNELSIZE (max(int(ceil(SPATIAL_SIGMA * 2.0)), 1) * 2 + 1) //Kernel size, must be an positive odd integer.
 #define KERNELHALFSIZE (int(KERNELSIZE/2)) //Half of the kernel size without remainder. Must be equal to trunc(KERNELSIZE/2).
@@ -707,11 +709,10 @@ vec4 hook() {
 	float l = LINESOBEL_texOff(vec2(-1.0, 0.0)).x;
 	float c = LINESOBEL_tex(LINESOBEL_pos).x;
 	float r = LINESOBEL_texOff(vec2(1.0, 0.0)).x;
-	
+
 	float xgrad = (-l + r);
 	float ygrad = (l + c + c + r);
-	
-	// PASS-THROUGH: Save line intensity 'c' into Z channel
+
 	return vec4(xgrad, ygrad, c, 0.0);
 }
 
@@ -726,16 +727,15 @@ vec4 hook() {
 	float tx = LINESOBEL_texOff(vec2(0.0, -1.0)).x;
 	float cx = LINESOBEL_tex(LINESOBEL_pos).x;
 	float bx = LINESOBEL_texOff(vec2(0.0, 1.0)).x;
-	
+
 	float ty = LINESOBEL_texOff(vec2(0.0, -1.0)).y;
 	float by = LINESOBEL_texOff(vec2(0.0, 1.0)).y;
-	
+
 	float xgrad = (tx + cx + cx + bx) / 8.0;
 	float ygrad = (-ty + by) / 8.0;
-	
-	// PASS-THROUGH: Z channel data
+
 	float line_mask = LINESOBEL_tex(LINESOBEL_pos).z;
-	
+
 	return vec4(xgrad, ygrad, line_mask, 0.0);
 }
 
@@ -744,32 +744,53 @@ vec4 hook() {
 //!BIND HOOKED
 //!BIND LINESOBEL
 
-#define STRENGTH 0.2 //Strength of warping for each iteration
+#define STRENGTH 0.16 //Strength of warping for each iteration
 #define ITERATIONS 3 //Number of iterations for the forwards solver, decreasing strength and increasing iterations improves quality at the cost of speed.
 
-#define DARKEN_STRENGTH 0.8  // 0.0 to 1.0
+#define DARKEN_STRENGTH 0.8 // 0.0 to 1.0
 #define MIN_LUMA 0.5        // Only darken pixels darker than this (0.0=black, 1.0=white)
+
+float get_luma(vec4 rgba) {
+	return dot(vec4(0.299, 0.587, 0.114, 0.0), rgba);
+}
 
 vec4 hook() {
 	vec2 d = HOOKED_pt;
 	float relstr = HOOKED_size.y / 1080.0 * STRENGTH;
 
-	vec2 pos = HOOKED_pos;
+	vec2 original_pos = HOOKED_pos;
+	vec2 pos = original_pos;
+
+    // Gradient vector for validation later
+    vec2 gradient_vec = vec2(0.0);
+
 	for (int i=0; i<ITERATIONS; i++) {
-		vec2 dn = LINESOBEL_tex(pos).xy; // .xy contains the vectors
+		vec2 dn = LINESOBEL_tex(pos).xy;
+        if (i == 0) gradient_vec = dn; // Capture primary direction
 		vec2 dd = (dn / (length(dn) + 0.01)) * d * relstr; //Quasi-normalization for large vectors, avoids divide by zero
 		pos -= dd;
 	}
 
 	vec4 c = HOOKED_tex(pos);
 
-	// --- Darkening ---
 	float line_intensity = LINESOBEL_tex(HOOKED_pos).z;
-
-	// The Gaussian pass can produce low values for textures
 	float darken_mask = smoothstep(0.05, 0.4, line_intensity);
 
-	float luma = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+    // Find the perpendicular direction of the edge
+    vec2 dir = normalize(gradient_vec + 0.0001) * HOOKED_pt * 1.5;
+
+    float luma_center = get_luma(HOOKED_tex(original_pos));
+    float luma_pos = get_luma(HOOKED_tex(original_pos + dir));
+    float luma_neg = get_luma(HOOKED_tex(original_pos - dir));
+
+    // Line = Luma is lower in center than both sides
+    float diff_pos = luma_pos - luma_center;
+    float diff_neg = luma_neg - luma_center;
+
+    float is_valley = smoothstep(0.0, 0.05, diff_pos) * smoothstep(0.0, 0.05, diff_neg);
+    darken_mask *= is_valley;
+
+	float luma = get_luma(c);
 	float darkness_weight = 1.0 - smoothstep(0.0, MIN_LUMA, luma);
 
 	c.rgb -= c.rgb * darken_mask * darkness_weight * DARKEN_STRENGTH;
