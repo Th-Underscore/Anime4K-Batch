@@ -1115,7 +1115,7 @@ begin {
             $x265ColorArgs = "range=${range_str}:colorprim=${p_prim}:transfer=${p_trans}:colormatrix=${p_space}"
 
             $uploadFmt = $pixFmt
-            $outputFmt = "yuv420p10le"
+            $outputFmt = $pixFmt # TODO: Force 10-bit
 
             # --- Construct FFMPEG Command Arguments ---
             $ffmpegArgs = @('-y', '-stats')
