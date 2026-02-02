@@ -525,7 +525,7 @@ begin {
 
         # Add the default stream first
         $mapArgs += '-map', "0:$($defaultStream.Index)"
-        $mapArgs += "-disposition:$targetFlag`:$0", 'default'
+        $mapArgs += "-disposition:$targetFlag`:0", 'default'
 
         # Add remaining streams of target type
         $i = 0
