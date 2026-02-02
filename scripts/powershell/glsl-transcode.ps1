@@ -663,7 +663,7 @@ begin {
             [switch]$Whitelist, # If present, select only matching. Default is to remove matching (blacklist).
 
             [Parameter()]
-            [switch]$Regex # Use regex for matching filter values
+            [switch]$Regex
         )
         $i = 0
         $max = $ArgumentList.Count
@@ -677,18 +677,15 @@ begin {
             }
 
             $isMatch = $false
-            # Create a string to test against, e.g., "-param value" or just "-param"
             $testString = if ($null -ne $value) { "$param $value" } else { $param }
 
             foreach ($f in $Filter) {
                 if ($Regex.IsPresent) {
-                    # With regex, we test against the combined "param value" string
                     if ($testString -match $f) {
                         $isMatch = $true
                         break
                     }
                 } else {
-                    # Without regex, we only test the parameter name for an exact match
                     if ($param -eq $f) {
                         $isMatch = $true
                         break
@@ -706,7 +703,6 @@ begin {
                 }
             }
 
-            # Advance index past parameter and value if it exists
             if ($null -ne $value) {
                 $i += 2
             } else {
@@ -841,7 +837,7 @@ begin {
 
                     $videoStream = $probeData.streams | Where-Object { $_.codec_type -eq 'video' } | Select-Object -First 1
                     if ($videoStream) {
-                        Write-Verbose "Detected video stream: $($videoStream | ConvertTo-Json -Depth 10)"
+                        # Write-Verbose "Detected video stream: $($videoStream | ConvertTo-Json -Depth 10)"
                         $inputW = $videoStream.width
                         $inputH = $videoStream.height
                         if ($videoStream.pix_fmt) { $pixFmt = $videoStream.pix_fmt }
@@ -1139,7 +1135,6 @@ begin {
             $ffmpegArgs += '-qp', $CQP
             $ffmpegArgs += '-strict', '-2' # Allow experimental codecs
 
-            # Add color params
             if ($videoCodec -eq 'libx265') {
                 $encParams += $x265ColorArgs
             } elseif ($videoCodec -match "nvenc|amf|qsv") {
@@ -1152,6 +1147,8 @@ begin {
             if (-not [string]::IsNullOrWhiteSpace($presetParam)) { $ffmpegArgs += $presetParam.Split(' ') }
             if (-not [string]::IsNullOrWhiteSpace($threadParam)) { $ffmpegArgs += $threadParam.Split(' ') }
             if ($encParams.Count -gt 0) { $ffmpegArgs += $paramKeys[$videoCodec], ($encParams -join ':') }
+
+            if ($OutputExt -eq '.mp4') { $ffmpegArgs += '-movflags', '+faststart' }
 
             $ffmpegArgs += "$outputFileFullPath"
 

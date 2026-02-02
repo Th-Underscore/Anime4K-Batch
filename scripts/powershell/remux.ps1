@@ -357,6 +357,7 @@ begin {
         }
         $ffmpegArgs += '-i', "$inputFileFullPath"
         $ffmpegArgs += $mapArgs
+        if ($OutputExt -eq '.mp4') { $ffmpegArgs += '-movflags', '+faststart' }
         $ffmpegArgs += "$outputFileFullPath"
 
         # --- Execute FFMPEG ---
