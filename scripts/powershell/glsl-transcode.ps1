@@ -1000,7 +1000,7 @@ begin {
                     if ($audioArgs.Count -gt 0) {
                         Write-Verbose "Overriding remux audio arguments. New args: $($audioArgs -join ' ')"
                         # Remove all previous audio-related arguments
-                        $audioFilter = '^-c:a .*', '^-disposition:a.* .+', '^-b:a.* .+', '^-ac.* .+', '^-ar .*', '^-af .*'
+                        $audioFilter = '^-c:a.* .+', '^-disposition:a.* .+', '^-b:a.* .+', '^-ac.* .+', '^-ar .*', '^-af .*'
                         $audioMapArgs = Select-ParameterPairs -ArgumentList $audioArgs -Filter '^-map 0:\d+' -Regex -Whitelist
                         if ($audioMapArgs.Count -gt 0) {
                             $audioFilter = (,'^-map 0:a.*') + $audioFilter
