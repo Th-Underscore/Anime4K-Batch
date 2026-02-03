@@ -44,6 +44,10 @@ Path to ffprobe executable. Auto-detected if not provided.
 .PARAMETER Concise
 Concise output (only progress shown).
 
+.PARAMETER StreamInfoB64
+Optional: Base64 encoded JSON string containing ffprobe output for the file.
+If provided, the script skips running ffprobe itself to improve performance when called from a parent script.
+
 .PARAMETER PassThru
 Returns the ffmpeg command arguments instead of executing them. Useful for compiling commands for later execution.
 
@@ -105,6 +109,9 @@ param(
     [string]$ConfigPath = '',
 
     [Parameter()]
+    [string]$StreamInfoB64 = '',
+
+    [Parameter()]
     [switch]$PassThru
 )
 
@@ -131,6 +138,35 @@ begin {
         } catch { Write-Warning "Failed to load or parse configuration file '$effectiveConfigPath': $($_.Exception.Message)" }
     } else { if (-not [string]::IsNullOrEmpty($ConfigPath)) { Write-Warning "Specified configuration file not found at '$ConfigPath'." } else { Write-Verbose "Default configuration file '$effectiveConfigPath' not found." } }
 
+    # --- Generic Helpers ---
+    function ConvertFrom-JsonHash {
+        param([Parameter(ValueFromPipeline = $true)][string]$json)
+        if ($PSVersionTable.PSVersion.Major -ge 6) { return ($json | ConvertFrom-Json -AsHashtable) }
+        else {
+            if (-not ("System.Web.Script.Serialization.JavaScriptSerializer" -as [type])) { Add-Type -AssemblyName System.Web.Extensions }
+            $serializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer; $serializer.MaxJsonLength = [int32]::MaxValue
+            return $serializer.Deserialize($json, [System.Collections.Hashtable])
+        }
+    }
+
+    function Get-ChannelCount {
+        param([string]$layout)
+        $channelMap = @{
+            'mono'   = 1;
+            'stereo' = 2;
+            '5.1'    = 6;
+            '6.1'    = 7;
+            '7.1'    = 8
+        }
+        $lookupChannel = $layout.ToLowerInvariant()
+        if ($channelMap.ContainsKey($lookupChannel)) { return $channelMap[$lookupChannel] }
+        $outInt = 0
+        if (-not [int]::TryParse($layout, [ref]$outInt)) {
+            Write-Warning "Invalid Channels value '$layout'. It must be an integer or a known layout (e.g., '5.1', 'stereo'). Defaulting to 'auto'."
+        }
+        return $outInt
+    }
+
     # --- Script Status Tracking ---
     $script:fatalErrorOccurred = $false
     $script:anyFileTranscoded = $false
@@ -142,24 +178,7 @@ begin {
     # --- Process Channels Parameter ---
     $ffmpegChannels = 0
     if (-not ([string]::IsNullOrWhiteSpace($Channels) -or $Channels -eq '0')) {
-        $channelMap = @{
-            'mono'   = 1;
-            'stereo' = 2;
-            '5.1'    = 6;
-            '6.1'    = 7;
-            '7.1'    = 8
-        }
-        $lookupChannel = $Channels.ToLowerInvariant()
-        if ($channelMap.ContainsKey($lookupChannel)) {
-            $ffmpegChannels = $channelMap[$lookupChannel]
-        } else {
-            if ([int]::TryParse($Channels, [ref]$outInt)) {
-                $ffmpegChannels = $outInt
-            } else {
-                Write-Warning "Invalid Channels value '$Channels'. It must be an integer or a known layout (e.g., '5.1', 'stereo'). Defaulting to 'auto'."
-                $ffmpegChannels = 0
-            }
-        }
+        $ffmpegChannels = Get-ChannelCount $Channels
     }
     if ($ffmpegChannels -gt 0) { Write-Verbose "Processed Channels parameter: '$Channels' -> $ffmpegChannels" }
 
@@ -256,9 +275,8 @@ begin {
             Write-Host "`n-----------------------------------------------------"
             Write-Host "Processing Audio for: $inputFileFullPath"
             Write-Host "Target Codec: $Codec, Bitrate: $($Bitrate | ForEach-Object {if ([string]::IsNullOrWhiteSpace($_)) {'auto'} else {$_}}), Channels: $(if ([string]::IsNullOrWhiteSpace($Channels) -or $Channels -eq '0') {'auto'} else {$Channels})"
-            Write-Host "Action: $CurrentFileAction (0=Suffix, 1=Delete, 2=Replace)"
+            Write-Host "Action: $CurrentFileAction (0=Suffix, 1=Delete, 2=Replace) Force: $ForceProcessing"
             if ($CurrentFileAction -ne 2) { Write-Host "Suffix: $OutputSuffix" }
-            Write-Host "Force: $ForceProcessing"
             Write-Host "-----------------------------------------------------`n"
         }
 
@@ -267,111 +285,121 @@ begin {
         if ($CurrentFileAction -eq 2) { # Replace mode
             $ffmpegTargetFile = Join-Path $inputPath ($inputName + $tempSuffix + $inputExt)
             $finalOutputFile = $inputFileFullPath
-            Write-Verbose "Action: Replace original. Temp file: '$ffmpegTargetFile'"
         } else { # Suffix or Delete mode
             $ffmpegTargetFile = Join-Path $inputPath ($inputName + $OutputSuffix + $inputExt)
             $finalOutputFile = $ffmpegTargetFile
-            Write-Verbose "Action: Create new file. Target: '$ffmpegTargetFile'"
         }
 
-        # --- Check if FINAL target exists ---
         if ($CurrentFileAction -ne 2 -and (Test-Path -LiteralPath $finalOutputFile) -and (-not $ForceProcessing)) {
             Write-Warning "Skipping transcode, output file '$finalOutputFile' already exists. Use -Force to overwrite."
             return
         }
 
-        # --- Check if audio is already in the target format to avoid needless work ---
-        if (-not $Concise) { Write-Host "Probing audio streams to check current codecs..." }
+        # --- Get Stream Info (Probe or B64) ---
+        $probeData = $null
         try {
-            $ffprobeArgs = @('-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=codec_name', '-of', 'json', "$inputFileFullPath")
-            Write-Verbose "Running: $ffprobe $($ffprobeArgs -join ' ')"
-            $jsonOutput = & $ffprobe @ffprobeArgs
-            if ($LASTEXITCODE -ne 0) { Write-Warning "ffprobe failed for '$inputFileFullPath'. Skipping codec check."; throw "ffprobe failed" }
+            if (-not [string]::IsNullOrEmpty($StreamInfoB64)) {
+                Write-Verbose "Using provided Base64 stream info."
+                try {
+                    $jsonBytes = [Convert]::FromBase64String($StreamInfoB64)
+                    $jsonStr = [Text.Encoding]::UTF8.GetString($jsonBytes)
+                    $probeData = $jsonStr | ConvertFrom-JsonHash
+                } catch { Write-Warning "Failed to decode provided stream info. Falling back to local ffprobe." }
+            }
 
-            $probeData = $jsonOutput | ConvertFrom-Json -ErrorAction SilentlyContinue
-            if ($probeData.streams.Count -eq 0) {
-                if (-not $Concise) { Write-Host "No audio streams found. Skipping file." };
-                if (-not $PassThru) { return }
+            if ($null -eq $probeData) {
+                if (-not $Concise) { Write-Host "Probing streams..." }
+                $ffprobeArgs = @('-v', 'fatal', '-show_streams', '-print_format', 'json', "$inputFileFullPath")
+                Write-Verbose "Running: $ffprobe $($ffprobeArgs -join ' ')"
+                $jsonOutput = & $ffprobe @ffprobeArgs 2>&1
+                if ($LASTEXITCODE -ne 0) { Write-Warning "ffprobe failed."; return }
+                $probeData = [string]$jsonOutput | ConvertFrom-JsonHash
             }
-            $streamsToConvert = $probeData.streams | Where-Object { $_.codec_name -ne $Codec.ToLower() }
-            if ($streamsToConvert.Count -eq 0) {
-                if (-not $Concise) { Write-Host "All audio streams are already in '$Codec' format. No transcoding needed. Skipping." }
-                if (-not $PassThru) { return }
-            }
-            if (-not $Concise) { Write-Host "Found $($streamsToConvert.Count) audio stream(s) that need transcoding." }
-        } catch { Write-Warning "Could not determine audio codecs for '$inputFileFullPath'. Proceeding with transcode attempt. Error: $($_.Exception.Message)" }
+        } catch { Write-Warning "Error getting stream info: $($_.Exception.Message)"; return }
+
+        if (-not $probeData -or -not $probeData.streams) { Write-Warning "No stream info available."; return }
+
+        # --- Analyze Audio Streams ---
+        $audioStreams = $probeData.streams | Where-Object { $_.codec_type -eq 'audio' }
+        if ($audioStreams.Count -eq 0) {
+            if (-not $Concise) { Write-Host "No audio streams found. Skipping file." }; if (-not $PassThru) { return }
+        }
+
+        # Check if already in target codec
+        $streamsToConvert = $audioStreams | Where-Object { $_.codec_name -ne $Codec.ToLower() }
+        if ($streamsToConvert.Count -eq 0) {
+            if (-not $Concise) { Write-Host "All audio streams are already in '$Codec' format. No transcoding needed. Skipping." }
+            if (-not $PassThru) { return }
+        }
 
         # --- Construct FFMPEG Command ---
-        $ffmpegArgs = @(
-            '-map', '0',     # Map all streams from input 0
-            '-c:v', 'copy',  # Copy video stream(s)
-            '-c:s', 'copy',  # Copy subtitle stream(s)
-            '-c:a', $Codec,  # Transcode audio stream(s) to target codec
-            '-strict', '-2'  # Allow experimental codecs (e.g., Opus)
-        )
-        if (-not [string]::IsNullOrWhiteSpace($Bitrate)) { $ffmpegArgs += '-b:a', $Bitrate }
-        if ($ffmpegChannels -gt 0) { $ffmpegArgs += '-ac', $ffmpegChannels }
+        # Map all streams, copy video/subs by default
+        $ffmpegArgs = @('-map', '0', '-c:v', 'copy', '-c:s', 'copy', '-strict', '-2')
+        
+        # Build per-stream audio arguments
+        $audioIdx = 0
+        foreach ($stream in $audioStreams) {
+            $ffmpegArgs += "-c:a:$audioIdx", $Codec
 
-        # --- PassThru Mode: Return arguments instead of executing ---
-        if ($PassThru) {
-            Write-Verbose "PassThru enabled. Returning ffmpeg arguments as a single string."
-            return $ffmpegArgs
+            if (-not [string]::IsNullOrWhiteSpace($Bitrate)) { $ffmpegArgs += "-b:a:$audioIdx", $Bitrate }
+            if ($ffmpegChannels -gt 0) { $ffmpegArgs += "-ac:a:$audioIdx", $ffmpegChannels } else { $ffmpegArgs += "-ac:a:$audioIdx", "$(Get-ChannelCount $stream.channels)" }
+
+            $audioIdx++
         }
 
-        # --- Construct Full FFMPEG Command for Execution ---
-        $fullFfmpegArgs = @('-y', '-stats') # Overwrite output without asking (already checked with -Force)
-        if ($Concise) { # Logging level and progress
-            $fullFfmpegArgs += '-v', 'fatal'
-        } else {
-            $fullFfmpegArgs += '-v', 'warning'
-        }
+        if ($PassThru) { return $ffmpegArgs }
+
+        # --- Construct Full Command and Execute ---
+        $fullFfmpegArgs = @('-y', '-stats')
+        if ($Concise) { $fullFfmpegArgs += '-v', 'fatal' } else { $fullFfmpegArgs += '-v', 'warning' }
         $fullFfmpegArgs += '-i', "$inputFileFullPath"
         $fullFfmpegArgs += $ffmpegArgs
         $fullFfmpegArgs += "$ffmpegTargetFile"
 
-        # --- Check Temporary File in Replace Mode ---
         if ($CurrentFileAction -eq 2 -and (Test-Path -LiteralPath $ffmpegTargetFile) -and (-not $ForceProcessing)) {
-            Write-Warning "Temporary file '$ffmpegTargetFile' already exists. Use -Force to overwrite it."
+            Write-Warning "Temporary file '$ffmpegTargetFile' already exists. Use -Force to overwrite."
             return
         }
 
-        # --- Execute FFMPEG ---
-        if (-not $Concise) { Write-Host "Starting ffmpeg transcode command:`n$ffmpeg $($fullFfmpegArgs -join ' ')" }
+        if (-not $Concise) { Write-Host "Starting ffmpeg transcode..." }
 
-        if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Transcode audio to $Codec (Output: $ffmpegTargetFile)")) {
+        if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Transcode audio to $Codec")) {
             $success = $false
             try {
+                Write-Verbose "Command: $ffmpeg $($fullFfmpegArgs -join ' ')"
                 & $ffmpeg @fullFfmpegArgs
                 if (-not $Concise) { Write-Host "" }
                 if ($LASTEXITCODE -ne 0) {
-                    Write-Error "ffmpeg process failed (Exit Code: $LASTEXITCODE) for '$inputFileFullPath'."
+                    Write-Error "ffmpeg failed (Exit Code: $LASTEXITCODE)."
                     $script:fatalErrorOccurred = $true; $script:ffmpegFailureCode = $LASTEXITCODE
                 } else {
-                    if (-not $Concise) { Write-Host "Successfully transcoded audio into '$ffmpegTargetFile'." }
                     $success = $true; $script:anyFileTranscoded = $true
                 }
-            } catch { Write-Error "Error executing ffmpeg for '$inputFileFullPath': $($_.Exception.Message)"; $script:fatalErrorOccurred = $true }
+            } catch { Write-Error "Error executing ffmpeg: $($_.Exception.Message)"; $script:fatalErrorOccurred = $true }
 
             # --- Post-processing File Actions ---
             if ($success) {
                 if ($CurrentFileAction -eq 1) { # Delete Original
                     if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Delete original")) {
-                        try { Remove-Item -LiteralPath $inputFileFullPath -Force -ErrorAction Stop; if (-not $Concise) { Write-Host "Successfully deleted original." } }
-                        catch { Write-Warning "Failed to delete original '$inputFileFullPath': $($_.Exception.Message)" }
-                    } else { Write-Warning "Skipping deletion of original due to -WhatIf." }
+                        try { Remove-Item -LiteralPath $inputFileFullPath -Force -ErrorAction Stop }
+                        catch { Write-Warning "Failed to delete original: $($_.Exception.Message)" }
+                    }
                 } elseif ($CurrentFileAction -eq 2) { # Replace Original
                     if ($PSCmdlet.ShouldProcess($inputFileFullPath, "Replace with processed file")) {
-                        try { Move-Item -LiteralPath $ffmpegTargetFile -Destination $inputFileFullPath -Force -ErrorAction Stop; if (-not $Concise) { Write-Host "Successfully replaced original." } }
-                        catch { Write-Error "Failed to replace original file. Temp file '$ffmpegTargetFile' may still exist. Error: $($_.Exception.Message)" }
-                    } else { Write-Warning "Skipping replacement of original due to -WhatIf. Temp file '$ffmpegTargetFile' may remain." }
+                        try {
+                            Move-Item -LiteralPath $ffmpegTargetFile -Destination $inputFileFullPath -Force -ErrorAction Stop
+                        } catch {
+                            Write-Error "Failed to replace original file. Temp file '$ffmpegTargetFile' may still exist."
+                        }
+                    }
                 }
             } else { # ffmpeg failed
-                if (Test-Path -LiteralPath $ffmpegTargetFile) {
-                    Write-Warning "Attempting to remove failed/incomplete output file: $ffmpegTargetFile"
+                if (Test-Path -LiteralPath $ffmpegTargetFile -PathType Leaf) {
                     Remove-Item -LiteralPath $ffmpegTargetFile -Force -ErrorAction SilentlyContinue
                 }
+                # TODO: Cleanup
             }
-        } else { Write-Warning "Skipping ffmpeg execution due to -WhatIf."; $script:anyFileTranscoded = $true }
+        }
     } # End Function Convert-AudioTracks
 } # End Begin block
 

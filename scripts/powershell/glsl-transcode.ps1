@@ -963,10 +963,10 @@ begin {
                             Concise     = $true
                             Verbose     = $false
                             PassThru    = $true
+                            StreamInfoB64   = $probeDataB64
                         }
-                        # Audio Transcoding script still needs to probe internally if not updated, but we pass paths.
                         $transcodeResult = Invoke-ExternalScript -ScriptPath $transcodeAudioScript -Parameters $transcodeParams -TaskDescription "Retrieving audio transcode args" -CaptureOutput
-                        if ($transcodeResult.ExitCode -eq 0 -and $transcodeResult.Output) {
+                        if (($transcodeResult.ExitCode -eq 0 -or $transcodeResult.ExitCode -eq -2) -and $transcodeResult.Output) {
                             $transcodeAudioArgs = $transcodeResult.Output
                         } else {
                             if ($transcodeResult.ExitCode -ne -2) { Write-Warning "Failed to get audio transcode args (Exit Code: $($transcodeResult.ExitCode))." }
@@ -988,7 +988,7 @@ begin {
                             StreamInfoB64   = $probeDataB64
                         }
                         $priorityResult = Invoke-ExternalScript -ScriptPath $setTrackPriorityScript -Parameters $priorityParams -TaskDescription "Retrieving audio disposition args" -CaptureOutput
-                        if ($priorityResult.ExitCode -eq 0 -and $priorityResult.Output) {
+                        if (($priorityResult.ExitCode -eq 0 -or $priorityResult.ExitCode -eq -2) -and $priorityResult.Output) {
                             $priorityDispositionArgs = $priorityResult.Output
                         } else {
                             if ($priorityResult.ExitCode -ne -2) { Write-Warning "Failed to get audio disposition args (Exit Code: $($priorityResult.ExitCode))." }
@@ -1000,7 +1000,7 @@ begin {
                     if ($audioArgs.Count -gt 0) {
                         Write-Verbose "Overriding remux audio arguments. New args: $($audioArgs -join ' ')"
                         # Remove all previous audio-related arguments
-                        $audioFilter = '^-c:a .*', '^-disposition:a.* .+', '^-b:a .*', '^-ac .*', '^-ar .*', '^-af .*'
+                        $audioFilter = '^-c:a .*', '^-disposition:a.* .+', '^-b:a.* .+', '^-ac.* .+', '^-ar .*', '^-af .*'
                         $audioMapArgs = Select-ParameterPairs -ArgumentList $audioArgs -Filter '^-map 0:\d+' -Regex -Whitelist
                         if ($audioMapArgs.Count -gt 0) {
                             $audioFilter = (,'^-map 0:a.*') + $audioFilter
