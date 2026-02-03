@@ -291,12 +291,12 @@ begin {
             $probeData = $jsonOutput | ConvertFrom-Json -ErrorAction SilentlyContinue
             if ($probeData.streams.Count -eq 0) {
                 if (-not $Concise) { Write-Host "No audio streams found. Skipping file." };
-                return
+                if (-not $PassThru) { return }
             }
             $streamsToConvert = $probeData.streams | Where-Object { $_.codec_name -ne $Codec.ToLower() }
             if ($streamsToConvert.Count -eq 0) {
                 if (-not $Concise) { Write-Host "All audio streams are already in '$Codec' format. No transcoding needed. Skipping." }
-                return
+                if (-not $PassThru) { return }
             }
             if (-not $Concise) { Write-Host "Found $($streamsToConvert.Count) audio stream(s) that need transcoding." }
         } catch { Write-Warning "Could not determine audio codecs for '$inputFileFullPath'. Proceeding with transcode attempt. Error: $($_.Exception.Message)" }
