@@ -953,11 +953,12 @@ vec4 hook() {
 //!BIND LINESOBEL
 
 // --- USER SETTINGS ---
-#define STRENGTH 0.16
+#define STRENGTH 0.11
 #define ITERATIONS 3
 #define DARKEN_STRENGTH 0.4
 #define MAX_LUMA 0.5
 #define DEALIAS_STRENGTH 0.4
+#define LINE_SENSITIVITY 0.8  // [0.0 to 1.0] Higher = protects glows more, but might miss very faint lines
 // --------------------
 
 vec4 hook() {
@@ -967,24 +968,33 @@ vec4 hook() {
 
     float structure_mask = LINESOBEL_tex(pos).z;
 
+    // 1. Warping / Thinning
     for (int i=0; i<ITERATIONS; i++) {
         vec2 dn = LINESOBEL_tex(pos).xy;
         vec2 dd = (dn / (length(dn) + 0.01)) * d * relstr;
         pos -= dd;
     }
 
+    // 2. De-aliasing & Neighbor Sampling
     vec2 d_aa = d * DEALIAS_STRENGTH;
-    vec4 c = HOOKED_tex(pos);
-    c += HOOKED_tex(pos + vec2(d_aa.x, 0.0));
-    c += HOOKED_tex(pos - vec2(d_aa.x, 0.0));
-    c += HOOKED_tex(pos + vec2(0.0, d_aa.y));
-    c += HOOKED_tex(pos - vec2(0.0, d_aa.y));
-    c /= 5.0;
+    vec4 c_center = HOOKED_tex(pos);
+    vec4 c_l = HOOKED_tex(pos - vec2(d_aa.x, 0.0));
+    vec4 c_r = HOOKED_tex(pos + vec2(d_aa.x, 0.0));
+    vec4 c_t = HOOKED_tex(pos - vec2(0.0, d_aa.y));
+    vec4 c_b = HOOKED_tex(pos + vec2(0.0, d_aa.y));
+    
+    vec4 c = (c_center + c_l + c_r + c_t + c_b) / 5.0; // Average color for AA
 
-    float luma = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+    // 3. Luma Calculations
+    float luma_center = dot(c_center.rgb, vec3(0.299, 0.587, 0.114));
+    float luma_avg = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+
+    float is_line = clamp((luma_avg - luma_center) * 20.0 * LINE_SENSITIVITY, 0.0, 1.0);
+
     float is_structure = smoothstep(0.05, 0.25, structure_mask);
-    float is_dark = smoothstep(MAX_LUMA, MAX_LUMA * 0.6, luma);
+    float is_dark = smoothstep(MAX_LUMA, MAX_LUMA * 0.6, luma_center);
 
-    c.rgb -= c.rgb * is_structure * is_dark * DARKEN_STRENGTH;
+    c.rgb -= c.rgb * is_structure * is_dark * is_line * DARKEN_STRENGTH;
+    
     return c;
 }
