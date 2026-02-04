@@ -1,7 +1,7 @@
 {
     // --- Input/Output ---
-    "Codec": "ac3", // Audio codec to transcode to (e.g., "aac", "mp3", "flac", "opus", etc.).
-    "Bitrate": "", // Optional: Bitrate for the output audio file (e.g., "128k", "192k", "320k", etc.). Default bitrate is used if empty or omitted.
+    "Codec": "ac3", // Audio codec to transcode to (e.g., "aac", "mp3", "flac", "libopus", etc.).
+    "Bitrate": "", // Optional: Bitrate for EACH CHANNEl of each stream for the output audio (e.g., "640k" = 1280kbps for stereo, "96k" = 576kbps for 5.1ch). Default bitrate is used if empty or omitted.
     "Channels": "", // Optional: Number of audio channels (e.g., "1" for mono, "2" for stereo, "6" for 5.1, etc.). Original channels are used if empty or omitted.
     "Suffix": "_atranscoded", // Suffix for the output filename when not using -Replace. Ignored if -Replace is true.
     "Recurse": false, // Process folders recursively.

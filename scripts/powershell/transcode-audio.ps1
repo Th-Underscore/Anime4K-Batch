@@ -15,7 +15,7 @@ One or more input video file paths or directory paths to process.
 The target audio codec for transcoding. Examples: 'ac3', 'aac', 'eac3', 'dts'. Default: 'ac3'.
 
 .PARAMETER Bitrate
-The target audio bitrate (e.g., '640k', '384k'). If not specified, ffmpeg's default for the codec will be used.
+The target audio bitrate for EACH CHANNEL of each stream (e.g., '640k' = 1280kbps for stereo, '96k' = 576kbps for 5.1ch). If not specified, ffmpeg's default for the codec will be used.
 
 .PARAMETER Channels
 The number of audio channels for the output (e.g., 6 or '5.1' for 5.1 surround). If not specified, channels will not be changed.
@@ -52,7 +52,7 @@ If provided, the script skips running ffprobe itself to improve performance when
 Returns the ffmpeg command arguments instead of executing them. Useful for compiling commands for later execution.
 
 .EXAMPLE
-.\transcode-audio.ps1 -Path "C:\videos\movie.mkv" -Codec ac3 -Bitrate 640k -Channels 6 -Replace
+.\transcode-audio.ps1 -Path "C:\videos\movie.mkv" -Codec ac3 -Bitrate 96k -Channels 6 -Replace
 
 .EXAMPLE
 .\transcode-audio.ps1 -Path "C:\videos\series_folder" -Recurse -Suffix "_ac3" -Delete
@@ -341,8 +341,14 @@ begin {
         foreach ($stream in $audioStreams) {
             $ffmpegArgs += "-c:a:$audioIdx", $Codec
 
-            if (-not [string]::IsNullOrWhiteSpace($Bitrate)) { $ffmpegArgs += "-b:a:$audioIdx", $Bitrate }
-            if ($ffmpegChannels -gt 0) { $ffmpegArgs += "-ac:a:$audioIdx", $ffmpegChannels } else { $ffmpegArgs += "-ac:a:$audioIdx", "$(Get-ChannelCount $stream.channels)" }
+            $ch = if ($ffmpegChannels -gt 0) { $ffmpegChannels } else { Get-ChannelCount $stream.channels }
+            $ffmpegArgs += "-ac:a:$audioIdx", $ch
+
+            if (-not [string]::IsNullOrWhiteSpace($Bitrate) -and $Bitrate -match '^([0-9]+)([a-zA-Z]+)$') {
+                $bitrateNum = [int]$Matches[1]
+                $bitrateUnit = $Matches[2]
+                $ffmpegArgs += "-b:a:$audioIdx", "$($bitrateNum * $ch)$bitrateUnit"
+            }
 
             $audioIdx++
         }

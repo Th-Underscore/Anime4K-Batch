@@ -79,7 +79,7 @@ Comma-separated audio title priority list for -SetAudioPriority (e.g., "Commenta
 Audio codec for transcoding (e.g., 'aac', 'ac3', 'flac'). Defaults to the original value (copied).
 
 .PARAMETER AudioBitrate
-Audio bitrate for transcoding (e.g., '192k', '256k'). Defaults to the original value. Only applies if AudioCodec is specified.
+Audio bitrate PER CHANNEL for transcoding (e.g., '640k' = 1280kbps for stereo, '96k' = 576kbps for 5.1ch). Defaults to the original value. Only applies if AudioCodec is specified.
 
 .PARAMETER AudioChannels
 Number of audio channels (e.g., '2' for stereo, '6' or '5.1' for 5.1). Defaults to the original value. Only applies if AudioCodec is specified.
@@ -958,7 +958,7 @@ begin {
             # --- Handle Audio Overrides ---
             $allowAudio = -not ($inputLimitations -contains 'no_audio' -or $outputLimitations -contains 'no_audio')
             if ($allowAudio) {
-                $transcodeAudioRequested = (-not [string]::IsNullOrWhiteSpace($AudioCodecForTranscode))
+                $transcodeAudioRequested = -not [string]::IsNullOrWhiteSpace($AudioCodecForTranscode)
                 if ($transcodeAudioRequested -or $DoSetAudioPriority) {
                     $transcodeAudioArgs = @()
                     $priorityDispositionArgs = @()
