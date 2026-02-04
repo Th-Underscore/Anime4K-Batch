@@ -41,6 +41,7 @@ if /i "%~1"=="-codec-prof"          ( set "PS_ARGS=%PS_ARGS% -EncoderProfile '%A
 if /i "%~1"=="-preset"              ( set "PS_ARGS=%PS_ARGS% -EncoderPreset '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-faststart"           ( set "PS_ARGS=%PS_ARGS% -FastStart '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-cqp"                 ( set "PS_ARGS=%PS_ARGS% -CQP '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-crf"                 ( set "PS_ARGS=%PS_ARGS% -CRF '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-pt"                  ( set "PS_ARGS=%PS_ARGS% -PreserveTexture '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-container"           ( set "PS_ARGS=%PS_ARGS% -Container '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-suffix"              ( set "PS_ARGS=%PS_ARGS% -Suffix '%ARG_VAL%'" & shift & shift & goto :arg_loop )

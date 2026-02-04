@@ -41,8 +41,11 @@ NOT CURRENTLY IMPLEMENTED.
 .PARAMETER CQP
 Constant Quantization Parameter (0-51, lower is better). Default: 24.
 
+.PARAMETER CRF
+Constant Rate Factor (0-51, lower is better), overrides CQP. Default: -1.
+
 .PARAMETER PreserveTexture
-Texture quality (0-3, higher is better - greater file size). Default: 0.
+Texture quality (0-5, higher is better - greater file size). Default: 0.
 
 .PARAMETER Container
 Output container format (e.g., 'mkv', 'mp4'). Default: 'mkv'.
@@ -165,7 +168,11 @@ param(
     [int]$CQP = 24,
 
     [Parameter()]
-    [ValidateSet(0, 1, 2, 3)]
+    [ValidateRange(-1, 63)]
+    [int]$CRF = -1,
+
+    [Parameter()]
+    [ValidateSet(0, 1, 2, 3, 4, 5)]
     [int]$PreserveTexture = 0,
 
     [Parameter()]
@@ -530,28 +537,33 @@ begin {
         Write-Verbose "Applying Texture Preservation Level: $PreserveTexture"
 
         if ($videoCodec -eq 'libx265') {
-            # $encParams += "profile=main10"
+            $encParams += "sao=0", "strong-intra-smoothing=0"
 
-            $encParams += "sao=0" # Level 1: Disable SAO
             switch ($PreserveTexture) {
                 2 { $encParams += "psy-rd=1.0", "psy-rdoq=1.0", "aq-mode=1" } # Level 2: Moderate grain retention
-                3 { $encParams += "psy-rd=2.0", "psy-rdoq=1.0", "aq-mode=3", "deblock=-1\:-1" } # Level 3: Maximum grain retention
+                3 { $encParams += "psy-rd=2.0", "psy-rdoq=1.0", "aq-mode=3", "deblock=-1\:-1" } # Level 3: High grain retention
+                4 { # Level 4: Higher grain retention
+                    $presetParam += " -tune grain"
+                    $encParams += "psy-rd=2.0", "psy-rdoq=2.0", "rdoq-level=2", "aq-mode=3", "deblock=-1\:-1", "cutree=0"
+                }
+                5 { # Level 5: Maximum grain retention
+                    $presetParam += " -tune grain"
+                    $encParams += "psy-rd=2.0", "psy-rdoq=2.0", "rdoq-level=2", "aq-mode=3", "deblock=-2\:-2", "qcomp=0.8", "cutree=0"
+                }
             }
         } elseif ($videoCodec -match 'nvenc') {
-            # Older cards (Pascal/Maxwell) or specific driver versions may fail with Temporal AQ
-            if ($EncoderProfile -notmatch 'legacy') {
-                $presetParam += " -temporal_aq 1"
-            } else {
-                Write-Verbose "Legacy NVIDIA profile detected: Skipping Temporal AQ."
-            }
+            if ($EncoderProfile -notmatch 'legacy') { $presetParam += " -temporal_aq 1" }
             switch($PreserveTexture) {
-                2 { $presetParam += " -aq-strength 12" } # Level 2: Increase Spatial AQ Strength
-                3 { $presetParam += " -aq-strength 15 -rc-lookahead 32" } # Level 3: High AQ + Goldilocks options
+                2 { $presetParam += " -aq-strength 8" }
+                3 { $presetParam += " -aq-strength 12 -rc-lookahead 32 -spatial-aq 1" }
+                4 { $presetParam += " -aq-strength 15 -rc-lookahead 60 -spatial-aq 1 -multipass 2" }
+                5 { $presetParam += " -aq-strength 15 -rc-lookahead 60 -spatial-aq 1 -multipass 2" }
             }
         } elseif ($videoCodec -eq 'libx264') {
             $presetParam += " -tune grain"
         }
     }
+
 
     Write-Host "Using Encoder: $videoCodec"
     if ($hwAccelParams.Count -gt 0) { Write-Host "Using HWAccel: $($hwAccelParams -join ' ')" }
@@ -803,7 +815,7 @@ begin {
             $processingFile = Join-Path $tempDir $tempName
             Write-Verbose "FastStart Level 1: Transcoding to local temp '$processingFile' before move."
         }
-        
+
         $outputFileFullPath = $ffmpegTargetFile # Use ffmpegTargetFile for processing
 
         if (-not $Concise) {
@@ -1137,11 +1149,11 @@ begin {
             $x265ColorArgs = "range=${range_str}:colorprim=${p_prim}:transfer=${p_trans}:colormatrix=${p_space}"
 
             $uploadFmt = $pixFmt
-            $outputFmt = $pixFmt # TODO: Force 10-bit
+            $outputFmt = "yuv420p10le"
 
             # --- Construct FFMPEG Command Arguments ---
             $ffmpegArgs = @('-y', '-stats')
-            if ($Concise) { $ffmpegArgs += '-v', 'fatal' } else { $ffmpegArgs += '-v', 'warning' }
+            $ffmpegArgs += if ($Concise) { '-v', 'fatal' } else { '-v', 'warning' }
             $ffmpegArgs += $hwAccelParams
             $ffmpegArgs += '-i', "$inputFileFullPath"
             $ffmpegArgs += '-init_hw_device', 'vulkan' # libplacebo needs Vulkan
@@ -1150,11 +1162,12 @@ begin {
             $filterGraph += ",hwupload,libplacebo=format=${outputFmt}:w=${w_str}:h=${h_str}:upscaler=bilinear:custom_shader_path='$escapedShaderPath'"
             $filterGraph += ":dithering=none:tonemapping=clip:colorspace=${p_space}:color_primaries=${p_prim}:color_trc=${p_trans}:range=$range_str"
             $filterGraph += ",hwdownload,format=${outputFmt}"
+            $ffmpegArgs += '-pix_fmt', $outputFmt
 
             $ffmpegArgs += '-vf', "$filterGraph"
             $ffmpegArgs += $streamArgs
             $ffmpegArgs += '-c:v', $videoCodec
-            $ffmpegArgs += '-qp', $CQP
+            $ffmpegArgs += if ($CRF -ge 0) { '-crf', $CRF } else { '-qp', $CQP }
             $ffmpegArgs += '-strict', '-2' # Allow experimental codecs
 
             if ($videoCodec -eq 'libx265') {
