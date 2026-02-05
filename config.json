@@ -18,7 +18,7 @@
     "EncoderPreset": "", // Optional: Encoder preset (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow). Some profiles have different presets. Defaults to 'slow' for CPU, Intel, VA-API; 'p7' for NVENC; if empty or omitted.
     "CQP": 24, // Constant Quantization Parameter (0-51 for H.264/H.265, 0-63 for AV1; lower is better quality).
     "CRF": -1, // Constant Rate Factor (0-51 for H.264/H.265, 0-63 for AV1; lower is better quality). Not all profiles support CRF. Leave -1 to use CQP.
-    "PreserveTexture": 1, // Preserve texture level (0-3; higher is better quality).
+    "PreserveTexture": 1, // Preserve texture level (0-5; higher is better quality).
   
     // --- Sub-Scripts ---
     "SetSubsPriority": false, // Set default subtitle track on the output file during transcoding.
@@ -30,7 +30,7 @@
     "AudioLangPriority": "jpn,eng", // Comma-separated audio language priority list for -SetAudioPriority (e.g., "jpn,chi,kor,eng").
     "AudioTitlePriority": "", // Comma-separated audio title priority list (e.g., "Commentary,Surround").
     "AudioCodec": "", // Audio codec for transcoding (e.g., 'aac', 'ac3', 'flac'). If not specified, audio will be copied.
-    "AudioBitrate": "", // Audio bitrate for transcoding (e.g., '192k', '256k'). Only applies if AudioCodec is specified.
+    "AudioBitrate": "", // Audio bitrate for EACH CHANNEL of each stream during transcoding (e.g., '192k' = 382kbps for stereo, '256k'). Only applies if AudioCodec is specified.
     "AudioChannels": "", // Number of audio channels (e.g., '2' for stereo, '6' for 5.1). Only applies if AudioCodec is specified.
   
     // --- Executable Paths (Optional) ---

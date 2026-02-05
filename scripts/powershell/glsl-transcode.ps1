@@ -541,16 +541,17 @@ begin {
 
             switch ($PreserveTexture) {
                 2 { $encParams += "psy-rd=1.0", "psy-rdoq=1.0", "aq-mode=1" } # Level 2: Moderate grain retention
-                3 { $encParams += "psy-rd=2.0", "psy-rdoq=1.0", "aq-mode=3", "deblock=-1\:-1" } # Level 3: High grain retention
+                3 { $encParams += "psy-rd=1.5", "psy-rdoq=1.0", "aq-mode=3", "deblock=-1\:-1" } # Level 3: High grain retention
                 4 { # Level 4: Higher grain retention
                     $presetParam += " -tune grain"
-                    $encParams += "psy-rd=2.0", "psy-rdoq=2.0", "rdoq-level=2", "aq-mode=3", "deblock=-1\:-1", "cutree=0"
+                    $encParams += "psy-rd=2.0", "psy-rdoq=1.5", "rdoq-level=2", "aq-mode=3", "deblock=-1\:-1"
                 }
                 5 { # Level 5: Maximum grain retention
                     $presetParam += " -tune grain"
                     $encParams += "psy-rd=2.0", "psy-rdoq=2.0", "rdoq-level=2", "aq-mode=3", "deblock=-2\:-2", "qcomp=0.8", "cutree=0"
                 }
             }
+            Write-Verbose "New encoder params w/ PreserveTexture: $encParams"
         } elseif ($videoCodec -match 'nvenc') {
             if ($EncoderProfile -notmatch 'legacy') { $presetParam += " -temporal_aq 1" }
             switch($PreserveTexture) {
@@ -1146,7 +1147,7 @@ begin {
             $p_trans = if ($videoStream.color_transfer) { $videoStream.color_transfer } else { "bt709" }
 
             $range_str = if ($p_range -match "tv|limited") { "limited" } else { "full" }
-            $x265ColorArgs = "range=${range_str}:colorprim=${p_prim}:transfer=${p_trans}:colormatrix=${p_space}"
+            $x265ColorArgs = "range=${range_str}", "colorprim=${p_prim}", "transfer=${p_trans}", "colormatrix=${p_space}"
 
             $uploadFmt = $pixFmt
             $outputFmt = "yuv420p10le"
@@ -1171,7 +1172,7 @@ begin {
             $ffmpegArgs += '-strict', '-2' # Allow experimental codecs
 
             if ($videoCodec -eq 'libx265') {
-                $encParams += $x265ColorArgs
+                $encParams = $encParams + $x265ColorArgs
             } elseif ($videoCodec -match "nvenc|amf|qsv") {
                 $ffmpegArgs += "-color_primaries", $p_prim
                 $ffmpegArgs += "-color_trc", $p_trans
