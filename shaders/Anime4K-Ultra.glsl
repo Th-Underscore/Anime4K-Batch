@@ -1,93 +1,22 @@
+// =============================================================================
+// Shader: Anime4K-Ultra
+// Compiled by: Th-Underscore (2026)
+//
+// FEATURES:
+// - Combines FSR v1.0.2 and Custom Anime4K_Thin w/ De-Aliasing + Deblur
+// - Designed specifically to preserve film grain and fine textures
+// - Significantly lighter performance than Anime4K (Fast)
+//
+// CREDITS:
+//  - agilyd, for porting FSR to GLSL
+// =============================================================================
+// THIRD-PARTY LICENSES:
+//
+// 1. Anime4K (MIT) - Copyright (c) 2019-2021 bloc97
+// 2. FidelityFX FSR (MIT) - Copyright (c) 2021 Advanced Micro Devices, Inc.
+// 3. Anime4K-Ultra (MIT) - Copyright (c) 2026 Th-Underscore
+// =============================================================================
 // MIT License
-
-// Copyright (c) 2019-2021 bloc97
-// All rights reserved.
-
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-
-//!DESC Anime4K-v4.0-De-Ring-Compute-Statistics
-//!HOOK MAIN
-//!BIND HOOKED
-//!SAVE STATSMAX
-//!COMPONENTS 1
-
-#define KERNELSIZE 5 //Kernel size, must be an positive odd integer.
-#define KERNELHALFSIZE 2 //Half of the kernel size without remainder. Must be equal to trunc(KERNELSIZE/2).
-
-float get_luma(vec4 rgba) {
-	return dot(vec4(0.299, 0.587, 0.114, 0.0), rgba);
-}
-
-vec4 hook() {
-
-	float gmax = 0.0;
-	
-	for (int i=0; i<KERNELSIZE; i++) {
-		float g = get_luma(MAIN_texOff(vec2(i - KERNELHALFSIZE, 0)));
-		
-		gmax = max(g, gmax);
-	}
-	
-	return vec4(gmax, 0.0, 0.0, 0.0);
-}
-
-//!DESC Anime4K-v4.0-De-Ring-Compute-Statistics
-//!HOOK MAIN
-//!BIND HOOKED
-//!BIND STATSMAX
-//!SAVE STATSMAX
-//!COMPONENTS 1
-
-#define KERNELSIZE 5 //Kernel size, must be an positive odd integer.
-#define KERNELHALFSIZE 2 //Half of the kernel size without remainder. Must be equal to trunc(KERNELSIZE/2).
-
-vec4 hook() {
-
-	float gmax = 0.0;
-	
-	for (int i=0; i<KERNELSIZE; i++) {
-		float g = STATSMAX_texOff(vec2(0, i - KERNELHALFSIZE)).x;
-		
-		gmax = max(g, gmax);
-	}
-	
-	return vec4(gmax, 0.0, 0.0, 0.0);
-}
-
-//!DESC Anime4K-v4.0-De-Ring-Clamp
-//!HOOK PREKERNEL
-//!BIND HOOKED
-//!BIND STATSMAX
-
-float get_luma(vec4 rgba) {
-	return dot(vec4(0.299, 0.587, 0.114, 0.0), rgba);
-}
-
-vec4 hook() {
-
-	float current_luma = get_luma(HOOKED_tex(HOOKED_pos));
-	float new_luma = min(current_luma, STATSMAX_tex(HOOKED_pos).x);
-	
-	//This trick is only possible if the inverse Y->RGB matrix has 1 for every row... (which is the case for BT.709)
-	//Otherwise we would need to convert RGB to YUV, modify Y then convert back to RGB.
-    return HOOKED_tex(HOOKED_pos) - (current_luma - new_luma); 
-}// Copyright (c) 2021 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -101,24 +30,17 @@ vec4 hook() {
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// =============================================================================
 
-// FidelityFX FSR v1.0.2 by AMD
-// ported to mpv by agyild
 
-// Changelog
-// Made it compatible with pre-OpenGL 4.0 renderers
-// Made it directly operate on LUMA plane, since the original shader was operating on LUMA by deriving it from RGB. This should cause a major increase in performance, especially on OpenGL 4.0+ renderers (4+2 texture lookups vs. 12+5)
-// Removed transparency preservation mechanism since the alpha channel is a separate source plane than LUMA
-// Added optional performance-saving lossy optimizations to EASU (Credit: atyuwen, https://atyuwen.github.io/posts/optimizing-fsr/)
-// 
-// Notes
-// Per AMD's guidelines only upscales content up to 4x (e.g., 1080p -> 2160p, 720p -> 1440p etc.) and everything else in between,
-// that means FSR will scale up to 4x at maximum, and any further scaling will be processed by mpv's scalers
+// =============================================================================
+// COMPONENT: FSR-Ani.glsl
+// =============================================================================
 
 //!HOOK LUMA
 //!BIND HOOKED
@@ -457,7 +379,7 @@ vec4 hook() {
 //!COMPONENTS 1
 
 // User variables - RCAS
-#define SHARPNESS 0.2 // Controls the amount of sharpening. The scale is {0.0 := maximum, to N>0, where N is the number of stops (halving) of the reduction of sharpness}. 0.0 to 2.0.
+#define SHARPNESS 0.8 // Controls the amount of sharpening. The scale is {0.0 := maximum, to N>0, where N is the number of stops (halving) of the reduction of sharpness}. 0.0 to 2.0.
 #define FSR_RCAS_DENOISE 1 // If set to 1, lessens the sharpening on noisy areas. Can be disabled for better performance. 0 or 1.
 #define FSR_PQ 0 // Whether the source content has PQ gamma or not. Needs to be set to the same value for both passes. 0 or 1.
 
@@ -539,288 +461,12 @@ vec4 hook() {
 #endif
 
 	return pix;
-}// The MIT License(MIT)
-//
-// Copyright(c) 2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy of
-// this software and associated documentation files(the "Software"), to deal in
-// the Software without restriction, including without limitation the rights to
-// use, copy, modify, merge, publish, distribute, sublicense, and / or sell copies of
-// the Software, and to permit persons to whom the Software is furnished to do so,
-// subject to the following conditions :
-//
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-// NVIDIA Image Scaling v1.0.2 by NVIDIA
-// ported to mpv by agyild
-
-// Changelog
-// Made it directly operate on LUMA plane, since the original shader was operating
-// on LUMA by deriving it from RGB.
-
-//!HOOK LUMA
-//!BIND HOOKED
-//!DESC NVIDIA Image Sharpening v1.0.2
-//!COMPUTE 32 32 256 1
-//!WHEN OUTPUT.w OUTPUT.h * LUMA.w LUMA.h * / 1.0 > ! OUTPUT.w OUTPUT.h * LUMA.w LUMA.h * / 1.0 < ! *
-
-// User variables
-#define SHARPNESS 0.04 // Amount of sharpening. 0.0 to 1.0.
-#define NIS_THREAD_GROUP_SIZE 256 // May be set to 128 for better performance on NVIDIA hardware, otherwise set to 256. Don't forget to modify the COMPUTE directive accordingly as well (e.g., COMPUTE 32 32 128 1).
-#define NIS_HDR_MODE 0 // Must be set to 1 for content with PQ colorspace. 0 or 1.
-
-// Constant variables
-#define NIS_BLOCK_WIDTH 32
-#define NIS_BLOCK_HEIGHT 32
-#define kSupportSize 5
-#define kNumPixelsX (NIS_BLOCK_WIDTH + kSupportSize + 1)
-#define kNumPixelsY (NIS_BLOCK_HEIGHT + kSupportSize + 1)
-const float sharpen_slider = clamp(SHARPNESS, 0.0f, 1.0f) - 0.5f;
-const float MaxScale = (sharpen_slider >= 0.0f) ? 1.25f : 1.75f;
-const float MinScale = (sharpen_slider >= 0.0f) ? 1.25f : 1.0f;
-const float LimitScale = (sharpen_slider >= 0.0f) ? 1.25f : 1.0f;
-const float kDetectRatio = 2 * 1127.f / 1024.f;
-const float kDetectThres = (bool(NIS_HDR_MODE) ? 32.0f : 64.0f) / 1024.0f;
-const float kMinContrastRatio = bool(NIS_HDR_MODE) ? 1.5f : 2.0f;
-const float kMaxContrastRatio = bool(NIS_HDR_MODE) ? 5.0f : 10.0f;
-const float kSharpStartY = bool(NIS_HDR_MODE) ? 0.35f : 0.45f;
-const float kSharpEndY = bool(NIS_HDR_MODE) ? 0.55f : 0.9f;
-const float kSharpStrengthMin = max(0.0f, 0.4f + sharpen_slider * MinScale * (bool(NIS_HDR_MODE) ? 1.1f : 1.2));
-const float kSharpStrengthMax = ((bool(NIS_HDR_MODE) ? 2.2f : 1.6f) + sharpen_slider * MaxScale * 1.8f);
-const float kSharpLimitMin = max((bool(NIS_HDR_MODE) ? 0.06f :0.1f), (bool(NIS_HDR_MODE) ? 0.1f : 0.14f) + sharpen_slider * LimitScale * (bool(NIS_HDR_MODE) ? 0.28f : 0.32f)); //
-const float kSharpLimitMax = ((bool(NIS_HDR_MODE) ? 0.6f : 0.5f) + sharpen_slider * LimitScale * 0.6f);
-const float kRatioNorm = 1.0f / (kMaxContrastRatio - kMinContrastRatio);
-const float kSharpScaleY = 1.0f / (kSharpEndY - kSharpStartY);
-const float kSharpStrengthScale = kSharpStrengthMax - kSharpStrengthMin;
-const float kSharpLimitScale = kSharpLimitMax - kSharpLimitMin;
-const float kContrastBoost = 0.3f;
-const float kEps = 1.0f / 255.0f;
-#define kSrcNormX HOOKED_pt.x
-#define kSrcNormY HOOKED_pt.y
-#define kDstNormX kSrcNormX
-#define kDstNormY kSrcNormY
-
-// HLSL to GLSL macros
-#define saturate(x) clamp(x, 0, 1)
-#define lerp(a, b, x) mix(a, b, x)
-
-// CS Shared variables
-shared float shPixelsY[kNumPixelsY][kNumPixelsX];
-
-// Shader code
-
-vec4 GetEdgeMap(float p[5][5], int i, int j) {
-	const float g_0 = abs(p[0 + i][0 + j] + p[0 + i][1 + j] + p[0 + i][2 + j] - p[2 + i][0 + j] - p[2 + i][1 + j] - p[2 + i][2 + j]);
-	const float g_45 = abs(p[1 + i][0 + j] + p[0 + i][0 + j] + p[0 + i][1 + j] - p[2 + i][1 + j] - p[2 + i][2 + j] - p[1 + i][2 + j]);
-	const float g_90 = abs(p[0 + i][0 + j] + p[1 + i][0 + j] + p[2 + i][0 + j] - p[0 + i][2 + j] - p[1 + i][2 + j] - p[2 + i][2 + j]);
-	const float g_135 = abs(p[1 + i][0 + j] + p[2 + i][0 + j] + p[2 + i][1 + j] - p[0 + i][1 + j] - p[0 + i][2 + j] - p[1 + i][2 + j]);
-
-	const float g_0_90_max = max(g_0, g_90);
-	const float g_0_90_min = min(g_0, g_90);
-	const float g_45_135_max = max(g_45, g_135);
-	const float g_45_135_min = min(g_45, g_135);
-
-	float e_0_90 = 0;
-	float e_45_135 = 0;
-
-    if (g_0_90_max + g_45_135_max == 0)
-    {
-        return vec4(0, 0, 0, 0);
-    }
-
-    e_0_90 = min(g_0_90_max / (g_0_90_max + g_45_135_max), 1.0f);
-    e_45_135 = 1.0f - e_0_90;
-
-    bool c_0_90 = (g_0_90_max > (g_0_90_min * kDetectRatio)) && (g_0_90_max > kDetectThres) && (g_0_90_max > g_45_135_min);
-    bool c_45_135 = (g_45_135_max > (g_45_135_min * kDetectRatio)) && (g_45_135_max > kDetectThres) && (g_45_135_max > g_0_90_min);
-    bool c_g_0_90 = g_0_90_max == g_0;
-    bool c_g_45_135 = g_45_135_max == g_45;
-
-    float f_e_0_90 = (c_0_90 && c_45_135) ? e_0_90 : 1.0f;
-    float f_e_45_135 = (c_0_90 && c_45_135) ? e_45_135 : 1.0f;
-
-    float weight_0 = (c_0_90 && c_g_0_90) ? f_e_0_90 : 0.0f;
-    float weight_90 = (c_0_90 && !c_g_0_90) ? f_e_0_90 : 0.0f;
-    float weight_45 = (c_45_135 && c_g_45_135) ? f_e_45_135 : 0.0f;
-    float weight_135 = (c_45_135 && !c_g_45_135) ? f_e_45_135 : 0.0f;
-
-	return vec4(weight_0, weight_90, weight_45, weight_135);
 }
 
-float CalcLTIFast(const float y[5]) {
-	const float a_min = min(min(y[0], y[1]), y[2]);
-	const float a_max = max(max(y[0], y[1]), y[2]);
 
-	const float b_min = min(min(y[2], y[3]), y[4]);
-	const float b_max = max(max(y[2], y[3]), y[4]);
-
-	const float a_cont = a_max - a_min;
-	const float b_cont = b_max - b_min;
-
-	const float cont_ratio = max(a_cont, b_cont) / (min(a_cont, b_cont) + kEps);
-	return (1.0f - saturate((cont_ratio - kMinContrastRatio) * kRatioNorm)) * kContrastBoost;
-}
-
-float EvalUSM(const float pxl[5], const float sharpnessStrength, const float sharpnessLimit) {
-	// USM profile
-	float y_usm = -0.6001f * pxl[1] + 1.2002f * pxl[2] - 0.6001f * pxl[3];
-	// boost USM profile
-	y_usm *= sharpnessStrength;
-	// clamp to the limit
-	y_usm = min(sharpnessLimit, max(-sharpnessLimit, y_usm));
-	// reduce ringing
-	y_usm *= CalcLTIFast(pxl);
-
-	return y_usm;
-}
-
-vec4 GetDirUSM(const float p[5][5]) {
-	// sharpness boost & limit are the same for all directions
-	const float scaleY = 1.0f - saturate((p[2][2] - kSharpStartY) * kSharpScaleY);
-	// scale the ramp to sharpen as a function of luma
-	const float sharpnessStrength = scaleY * kSharpStrengthScale + kSharpStrengthMin;
-	// scale the ramp to limit USM as a function of luma
-	const float sharpnessLimit = (scaleY * kSharpLimitScale + kSharpLimitMin) * p[2][2];
-
-	vec4 rval;
-	// 0 deg filter
-	float interp0Deg[5];
-	{
-		for (int i = 0; i < 5; ++i)
-		{
-			interp0Deg[i] = p[i][2];
-		}
-	}
-
-	rval.x = EvalUSM(interp0Deg, sharpnessStrength, sharpnessLimit);
-
-	// 90 deg filter
-	float interp90Deg[5];
-	{
-		for (int i = 0; i < 5; ++i)
-		{
-			interp90Deg[i] = p[2][i];
-		}
-	}
-
-	rval.y = EvalUSM(interp90Deg, sharpnessStrength, sharpnessLimit);
-
-	//45 deg filter
-	float interp45Deg[5];
-	interp45Deg[0] = p[1][1];
-	interp45Deg[1] = lerp(p[2][1], p[1][2], 0.5f);
-	interp45Deg[2] = p[2][2];
-	interp45Deg[3] = lerp(p[3][2], p[2][3], 0.5f);
-	interp45Deg[4] = p[3][3];
-
-	rval.z = EvalUSM(interp45Deg, sharpnessStrength, sharpnessLimit);
-
-	//135 deg filter
-	float interp135Deg[5];
-	interp135Deg[0] = p[3][1];
-	interp135Deg[1] = lerp(p[3][2], p[2][1], 0.5f);
-	interp135Deg[2] = p[2][2];
-	interp135Deg[3] = lerp(p[2][3], p[1][2], 0.5f);
-	interp135Deg[4] = p[1][3];
-
-	rval.w = EvalUSM(interp135Deg, sharpnessStrength, sharpnessLimit);
-	return rval;
-}
-
-void hook() {
-	uvec2 blockIdx = gl_WorkGroupID.xy;
-	uint threadIdx = gl_LocalInvocationID.x;
-
-	const int dstBlockX = int(NIS_BLOCK_WIDTH * blockIdx.x);
-	const int dstBlockY = int(NIS_BLOCK_HEIGHT * blockIdx.y);
-
-	// fill in input luma tile in batches of 2x2 pixels
-	// we use texture gather to get extra support necessary
-	// to compute 2x2 edge map outputs too
-	const float kShift = 0.5f - kSupportSize / 2;
-
-	for (int i = int(threadIdx) * 2; i < kNumPixelsX * kNumPixelsY / 2; i += NIS_THREAD_GROUP_SIZE * 2) {
-		uvec2 pos = uvec2(uint(i) % uint(kNumPixelsX), uint(i) / uint(kNumPixelsX) * 2);
-
-		for (int dy = 0; dy < 2; dy++) {
-			for (int dx = 0; dx < 2; dx++) {
-				const float tx = (dstBlockX + pos.x + dx + kShift) * kSrcNormX;
-				const float ty = (dstBlockY + pos.y + dy + kShift) * kSrcNormY;
-				const float px = HOOKED_tex(vec2(tx, ty)).r;
-				shPixelsY[pos.y + dy][pos.x + dx] = px;
-			}
-		}
-	}
-
-	groupMemoryBarrier();
-	barrier();
-
-	for (int k = int(threadIdx); k < NIS_BLOCK_WIDTH * NIS_BLOCK_HEIGHT; k += NIS_THREAD_GROUP_SIZE)
-	{
-		const ivec2 pos = ivec2(uint(k) % uint(NIS_BLOCK_WIDTH), uint(k) / uint(NIS_BLOCK_WIDTH));
-
-		// load 5x5 support to regs
-		float p[5][5];
-
-		for (int i = 0; i < 5; ++i)
-		{
-			for (int j = 0; j < 5; ++j)
-			{
-				p[i][j] = shPixelsY[pos.y + i][pos.x + j];
-			}
-		}
-
-		// get directional filter bank output
-		vec4 dirUSM = GetDirUSM(p);
-
-		// generate weights for directional filters
-		vec4 w = GetEdgeMap(p, kSupportSize / 2 - 1, kSupportSize / 2 - 1);
-
-		// final USM is a weighted sum filter outputs
-		const float usmY = (dirUSM.x * w.x + dirUSM.y * w.y + dirUSM.z * w.z + dirUSM.w * w.w);
-
-		// do bilinear tap and correct luma texel so it produces new sharpened luma
-		const int dstX = dstBlockX + pos.x;
-		const int dstY = dstBlockY + pos.y;
-
-		vec4 op = HOOKED_tex(vec2((dstX + 0.5f) * kDstNormX, (dstY + 0.5f) * kDstNormY));
-		op.x += usmY;
-
-		imageStore(out_image, ivec2(dstX, dstY), op);
-	}
-}
-// MIT License
-
-// Copyright (c) 2019-2021 bloc97
-// Copyright (c) 2026 Th-Underscore
-// All rights reserved.
-
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
+// =============================================================================
+// COMPONENT: Anime4K_Thin_AA.glsl
+// =============================================================================
 
 //!DESC Anime4K-v3.2-Thin-AA-Luma
 //!HOOK MAIN
@@ -873,8 +519,8 @@ vec4 hook() {
 //!SAVE LINESOBEL
 //!COMPONENTS 1
 
-#define SPATIAL_SIGMA (1.5 * float(HOOKED_size.y) / 1080.0)
-#define KERNELSIZE (max(int(ceil(SPATIAL_SIGMA * 2.0)), 1) * 2 + 1)
+#define SPATIAL_SIGMA (1.5 * float(HOOKED_size.y) / 1080.0) //Spatial window size, must be a positive real number.
+#define KERNELSIZE (max(int(ceil(SPATIAL_SIGMA * 2.0)), 1) * 2 + 1) //Kernel size, must be an positive odd integer.
 
 float gaussian(float x, float s) {
     return exp(-0.5 * (x/s) * (x/s));
@@ -899,8 +545,8 @@ vec4 hook() {
 //!SAVE LINESOBEL
 //!COMPONENTS 1
 
-#define SPATIAL_SIGMA (1.5 * float(HOOKED_size.y) / 1080.0)
-#define KERNELSIZE (max(int(ceil(SPATIAL_SIGMA * 2.0)), 1) * 2 + 1)
+#define SPATIAL_SIGMA (1.5 * float(HOOKED_size.y) / 1080.0) //Spatial window size, must be a positive real number.
+#define KERNELSIZE (max(int(ceil(SPATIAL_SIGMA * 2.0)), 1) * 2 + 1) //Kernel size, must be an positive odd integer
 
 float gaussian(float x, float s) {
     return exp(-0.5 * (x/s) * (x/s));
@@ -953,48 +599,53 @@ vec4 hook() {
 //!BIND LINESOBEL
 
 // --- USER SETTINGS ---
-#define STRENGTH 0.11
-#define ITERATIONS 3
-#define DARKEN_STRENGTH 0.4
-#define MAX_LUMA 0.5
-#define DEALIAS_STRENGTH 0.4
-#define LINE_SENSITIVITY 0.8  // [0.0 to 1.0] Higher = protects glows more, but might miss very faint lines
+#define STRENGTH 0.12 // Strength of warping for each iteration
+#define ITERATIONS 3  // Number of iterations for the forwards solver, decreasing strength and increasing iterations improves quality at the cost of speed
+#define DARKEN_STRENGTH 0.7    // [0.0 to 1.0]
+#define DEALIAS_STRENGTH 0.5   // [0.0 to 2.0]
+#define MIN_EDGE_STRENGTH 0.01 // [0.0 to 1.0] Higher = protects glows more, but might miss very faint lines
 // --------------------
 
 vec4 hook() {
     vec2 d = HOOKED_pt;
     float relstr = HOOKED_size.y / 1080.0 * STRENGTH;
     vec2 pos = HOOKED_pos;
-
-    float structure_mask = LINESOBEL_tex(pos).z;
-
-    // 1. Warping / Thinning
+    
+    // Thinning / Warping
     for (int i=0; i<ITERATIONS; i++) {
         vec2 dn = LINESOBEL_tex(pos).xy;
-        vec2 dd = (dn / (length(dn) + 0.01)) * d * relstr;
-        pos -= dd;
+        float mag = length(dn);
+        if (mag > MIN_EDGE_STRENGTH) {
+            vec2 dd = (dn / (mag + 0.01)) * d * relstr;
+            pos -= dd;
+        } else {
+            break;
+        }
     }
 
-    // 2. De-aliasing & Neighbor Sampling
-    vec2 d_aa = d * DEALIAS_STRENGTH;
-    vec4 c_center = HOOKED_tex(pos);
+    vec4 c_final = HOOKED_tex(pos);
+
+    // Dark line detection (5-tap average)
+    vec2 d_aa = d * 0.5;
     vec4 c_l = HOOKED_tex(pos - vec2(d_aa.x, 0.0));
     vec4 c_r = HOOKED_tex(pos + vec2(d_aa.x, 0.0));
     vec4 c_t = HOOKED_tex(pos - vec2(0.0, d_aa.y));
     vec4 c_b = HOOKED_tex(pos + vec2(0.0, d_aa.y));
+    vec4 c_avg = (c_final + c_l + c_r + c_t + c_b) / 5.0;
+
+    // Inline Luma Calculation (Standard Rec.601)
+    float l_center = dot(vec3(0.299, 0.587, 0.114), c_final.rgb);
+    float l_avg    = dot(vec3(0.299, 0.587, 0.114), c_avg.rgb);
+    float valley_depth = clamp((l_avg - l_center) * 10.0, 0.0, 1.0); // Positive if center is darker than neighbors
     
-    vec4 c = (c_center + c_l + c_r + c_t + c_b) / 5.0; // Average color for AA
+    float structure = LINESOBEL_tex(pos).z;
+    float structure_mask = smoothstep(0.05, 0.15, structure);
 
-    // 3. Luma Calculations
-    float luma_center = dot(c_center.rgb, vec3(0.299, 0.587, 0.114));
-    float luma_avg = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+    float darken_mask = valley_depth * structure_mask;
 
-    float is_line = clamp((luma_avg - luma_center) * 20.0 * LINE_SENSITIVITY, 0.0, 1.0);
+    // Apply
+    c_final = mix(c_final, c_avg, darken_mask * DEALIAS_STRENGTH);
+    c_final.rgb -= c_final.rgb * darken_mask * (1.0 - l_center) * DARKEN_STRENGTH;
 
-    float is_structure = smoothstep(0.05, 0.25, structure_mask);
-    float is_dark = smoothstep(MAX_LUMA, MAX_LUMA * 0.6, luma_center);
-
-    c.rgb -= c.rgb * is_structure * is_dark * is_line * DARKEN_STRENGTH;
-    
-    return c;
+    return c_final;
 }

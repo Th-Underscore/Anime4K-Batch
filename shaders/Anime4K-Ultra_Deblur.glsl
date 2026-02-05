@@ -1,93 +1,22 @@
+// =============================================================================
+// Shader: Anime4K-Ultra
+// Compiled by: Th-Underscore (2026)
+//
+// FEATURES:
+// - Combines FSR v1.0.2 and Custom Anime4K_Thin w/ De-Aliasing + Deblur
+// - Designed specifically to preserve film grain and fine textures
+// - Significantly lighter performance than Anime4K (Fast)
+//
+// CREDITS:
+//  - agilyd, for porting FSR to GLSL
+// =============================================================================
+// THIRD-PARTY LICENSES:
+//
+// 1. Anime4K (MIT) - Copyright (c) 2019-2021 bloc97
+// 2. FidelityFX FSR (MIT) - Copyright (c) 2021 Advanced Micro Devices, Inc.
+// 3. Anime4K-Ultra (MIT) - Copyright (c) 2026 Th-Underscore
+// =============================================================================
 // MIT License
-
-// Copyright (c) 2019-2021 bloc97
-// All rights reserved.
-
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-
-//!DESC Anime4K-v4.0-De-Ring-Compute-Statistics
-//!HOOK MAIN
-//!BIND HOOKED
-//!SAVE STATSMAX
-//!COMPONENTS 1
-
-#define KERNELSIZE 5 //Kernel size, must be an positive odd integer.
-#define KERNELHALFSIZE 2 //Half of the kernel size without remainder. Must be equal to trunc(KERNELSIZE/2).
-
-float get_luma(vec4 rgba) {
-	return dot(vec4(0.299, 0.587, 0.114, 0.0), rgba);
-}
-
-vec4 hook() {
-
-	float gmax = 0.0;
-	
-	for (int i=0; i<KERNELSIZE; i++) {
-		float g = get_luma(MAIN_texOff(vec2(i - KERNELHALFSIZE, 0)));
-		
-		gmax = max(g, gmax);
-	}
-	
-	return vec4(gmax, 0.0, 0.0, 0.0);
-}
-
-//!DESC Anime4K-v4.0-De-Ring-Compute-Statistics
-//!HOOK MAIN
-//!BIND HOOKED
-//!BIND STATSMAX
-//!SAVE STATSMAX
-//!COMPONENTS 1
-
-#define KERNELSIZE 5 //Kernel size, must be an positive odd integer.
-#define KERNELHALFSIZE 2 //Half of the kernel size without remainder. Must be equal to trunc(KERNELSIZE/2).
-
-vec4 hook() {
-
-	float gmax = 0.0;
-	
-	for (int i=0; i<KERNELSIZE; i++) {
-		float g = STATSMAX_texOff(vec2(0, i - KERNELHALFSIZE)).x;
-		
-		gmax = max(g, gmax);
-	}
-	
-	return vec4(gmax, 0.0, 0.0, 0.0);
-}
-
-//!DESC Anime4K-v4.0-De-Ring-Clamp
-//!HOOK PREKERNEL
-//!BIND HOOKED
-//!BIND STATSMAX
-
-float get_luma(vec4 rgba) {
-	return dot(vec4(0.299, 0.587, 0.114, 0.0), rgba);
-}
-
-vec4 hook() {
-
-	float current_luma = get_luma(HOOKED_tex(HOOKED_pos));
-	float new_luma = min(current_luma, STATSMAX_tex(HOOKED_pos).x);
-	
-	//This trick is only possible if the inverse Y->RGB matrix has 1 for every row... (which is the case for BT.709)
-	//Otherwise we would need to convert RGB to YUV, modify Y then convert back to RGB.
-    return HOOKED_tex(HOOKED_pos) - (current_luma - new_luma); 
-}// Copyright (c) 2021 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -101,24 +30,17 @@ vec4 hook() {
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// =============================================================================
 
-// FidelityFX FSR v1.0.2 by AMD
-// ported to mpv by agyild
 
-// Changelog
-// Made it compatible with pre-OpenGL 4.0 renderers
-// Made it directly operate on LUMA plane, since the original shader was operating on LUMA by deriving it from RGB. This should cause a major increase in performance, especially on OpenGL 4.0+ renderers (4+2 texture lookups vs. 12+5)
-// Removed transparency preservation mechanism since the alpha channel is a separate source plane than LUMA
-// Added optional performance-saving lossy optimizations to EASU (Credit: atyuwen, https://atyuwen.github.io/posts/optimizing-fsr/)
-// 
-// Notes
-// Per AMD's guidelines only upscales content up to 4x (e.g., 1080p -> 2160p, 720p -> 1440p etc.) and everything else in between,
-// that means FSR will scale up to 4x at maximum, and any further scaling will be processed by mpv's scalers
+// =============================================================================
+// COMPONENT: FSR-Ani.glsl
+// =============================================================================
 
 //!HOOK LUMA
 //!BIND HOOKED
@@ -457,7 +379,7 @@ vec4 hook() {
 //!COMPONENTS 1
 
 // User variables - RCAS
-#define SHARPNESS 0.2 // Controls the amount of sharpening. The scale is {0.0 := maximum, to N>0, where N is the number of stops (halving) of the reduction of sharpness}. 0.0 to 2.0.
+#define SHARPNESS 0.8 // Controls the amount of sharpening. The scale is {0.0 := maximum, to N>0, where N is the number of stops (halving) of the reduction of sharpness}. 0.0 to 2.0.
 #define FSR_RCAS_DENOISE 1 // If set to 1, lessens the sharpening on noisy areas. Can be disabled for better performance. 0 or 1.
 #define FSR_PQ 0 // Whether the source content has PQ gamma or not. Needs to be set to the same value for both passes. 0 or 1.
 
@@ -539,31 +461,14 @@ vec4 hook() {
 #endif
 
 	return pix;
-}// MIT License
+}
 
-// Copyright (c) 2019-2021 bloc97
-// Copyright (c) 2026 Th-Underscore
-// All rights reserved.
 
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
+// =============================================================================
+// COMPONENT: Anime4K_Thin_AA_Deblur.glsl
+// =============================================================================
 
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-
-//!DESC Anime4K-v3.2-Thin-AA-Luma
+//!DESC Anime4K-v3.2-Thin-AA-Deblur-Luma
 //!HOOK MAIN
 //!BIND HOOKED
 //!SAVE LINELUMA
@@ -577,7 +482,7 @@ vec4 hook() {
     return vec4(get_luma(HOOKED_tex(HOOKED_pos)), 0.0, 0.0, 0.0);
 }
 
-//!DESC Anime4K-v3.2-Thin-AA-Sobel-X
+//!DESC Anime4K-v3.2-Thin-AA-Deblur-Sobel-X
 //!HOOK MAIN
 //!BIND LINELUMA
 //!SAVE LINESOBEL
@@ -590,7 +495,7 @@ vec4 hook() {
     return vec4(-l + r, l + c + c + r, 0.0, 0.0);
 }
 
-//!DESC Anime4K-v3.2-Thin-AA-Sobel-Y
+//!DESC Anime4K-v3.2-Thin-AA-Deblur-Sobel-Y
 //!HOOK MAIN
 //!BIND LINESOBEL
 //!SAVE LINESOBEL
@@ -607,15 +512,15 @@ vec4 hook() {
     return vec4(pow(sqrt(xgrad * xgrad + ygrad * ygrad), 0.7));
 }
 
-//!DESC Anime4K-v3.2-Thin-AA-Gaussian-X
+//!DESC Anime4K-v3.2-Thin-AA-Deblur-Gaussian-X
 //!HOOK MAIN
 //!BIND HOOKED
 //!BIND LINESOBEL
 //!SAVE LINESOBEL
 //!COMPONENTS 1
 
-#define SPATIAL_SIGMA (1.5 * float(HOOKED_size.y) / 1080.0)
-#define KERNELSIZE (max(int(ceil(SPATIAL_SIGMA * 2.0)), 1) * 2 + 1)
+#define SPATIAL_SIGMA (1.5 * float(HOOKED_size.y) / 1080.0) //Spatial window size, must be a positive real number.
+#define KERNELSIZE (max(int(ceil(SPATIAL_SIGMA * 2.0)), 1) * 2 + 1) //Kernel size, must be an positive odd integer.
 
 float gaussian(float x, float s) {
     return exp(-0.5 * (x/s) * (x/s));
@@ -633,15 +538,15 @@ vec4 hook() {
     return vec4(g / gn, 0.0, 0.0, 0.0);
 }
 
-//!DESC Anime4K-v3.2-Thin-AA-Gaussian-Y
+//!DESC Anime4K-v3.2-Thin-AA-Deblur-Gaussian-Y
 //!HOOK MAIN
 //!BIND HOOKED
 //!BIND LINESOBEL
 //!SAVE LINESOBEL
 //!COMPONENTS 1
 
-#define SPATIAL_SIGMA (1.5 * float(HOOKED_size.y) / 1080.0)
-#define KERNELSIZE (max(int(ceil(SPATIAL_SIGMA * 2.0)), 1) * 2 + 1)
+#define SPATIAL_SIGMA (1.5 * float(HOOKED_size.y) / 1080.0) //Spatial window size, must be a positive real number.
+#define KERNELSIZE (max(int(ceil(SPATIAL_SIGMA * 2.0)), 1) * 2 + 1) //Kernel size, must be an positive odd integer
 
 float gaussian(float x, float s) {
     return exp(-0.5 * (x/s) * (x/s));
@@ -659,7 +564,7 @@ vec4 hook() {
     return vec4(g / gn, 0.0, 0.0, 0.0);
 }
 
-//!DESC Anime4K-v3.2-Thin-AA-Kernel-X
+//!DESC Anime4K-v3.2-Thin-AA-Deblur-Kernel-X
 //!HOOK MAIN
 //!BIND LINESOBEL
 //!SAVE LINESOBEL
@@ -672,7 +577,7 @@ vec4 hook() {
     return vec4(-l + r, l + c + c + r, c, 0.0);
 }
 
-//!DESC Anime4K-v3.2-Thin-AA-Kernel-Y
+//!DESC Anime4K-v3.2-Thin-AA-Deblur-Kernel-Y
 //!HOOK MAIN
 //!BIND LINESOBEL
 //!SAVE LINESOBEL
@@ -688,18 +593,19 @@ vec4 hook() {
     return vec4((tx + cx + cx + bx) / 8.0, (-ty + by) / 8.0, line_mask, 0.0);
 }
 
-//!DESC Anime4K-v3.2-Thin-AA-Warp-Final
+//!DESC Anime4K-v3.2-Thin-AA-Deblur-Warp-Final
 //!HOOK MAIN
 //!BIND HOOKED
 //!BIND LINESOBEL
 
 // --- USER SETTINGS ---
-#define STRENGTH 0.11
-#define ITERATIONS 3
-#define DARKEN_STRENGTH 0.4
-#define MAX_LUMA 0.5
-#define DEALIAS_STRENGTH 0.4
-#define LINE_SENSITIVITY 0.8  // [0.0 to 1.0] Higher = protects glows more, but might miss very faint lines
+#define STRENGTH 0.20 // Strength of warping for each iteration
+#define ITERATIONS 3  // Number of iterations for the forwards solver, decreasing strength and increasing iterations improves quality at the cost of speed
+#define MIN_EDGE_STRENGTH 0.01  // [0.0 to 1.0] Higher = protects glows more, but might miss very faint lines
+#define DEBLUR_STRENGTH 1.2     // [0.0 to 2.0]
+#define DARKEN_STRENGTH 0.7     // [0.0 to 1.0]
+#define DEALIAS_STRENGTH 0.8    // [0.0 to 2.0]
+#define TEXTURE_THRESHOLD 0.045 // [0.0 to 0.5] Higher = protects textures more, but might miss faint lines
 // --------------------
 
 vec4 hook() {
@@ -707,35 +613,54 @@ vec4 hook() {
     float relstr = HOOKED_size.y / 1080.0 * STRENGTH;
     vec2 pos = HOOKED_pos;
 
-    float structure_mask = LINESOBEL_tex(pos).z;
-
-    // 1. Warping / Thinning
+    // Thinning / warping loop
     for (int i=0; i<ITERATIONS; i++) {
-        vec2 dn = LINESOBEL_tex(pos).xy;
-        vec2 dd = (dn / (length(dn) + 0.01)) * d * relstr;
-        pos -= dd;
+        vec2 dn_warp = LINESOBEL_tex(pos).xy;
+        float mag_warp = length(dn_warp);
+        if (mag_warp > MIN_EDGE_STRENGTH) {
+            vec2 dd = (dn_warp / (mag_warp + 0.01)) * d * relstr;
+            pos -= dd;
+        } else { break; }
     }
 
-    // 2. De-aliasing & Neighbor Sampling
-    vec2 d_aa = d * DEALIAS_STRENGTH;
-    vec4 c_center = HOOKED_tex(pos);
-    vec4 c_l = HOOKED_tex(pos - vec2(d_aa.x, 0.0));
-    vec4 c_r = HOOKED_tex(pos + vec2(d_aa.x, 0.0));
-    vec4 c_t = HOOKED_tex(pos - vec2(0.0, d_aa.y));
-    vec4 c_b = HOOKED_tex(pos + vec2(0.0, d_aa.y));
-    
-    vec4 c = (c_center + c_l + c_r + c_t + c_b) / 5.0; // Average color for AA
+    // Sample line data at the warped position
+    vec3 line_data = LINESOBEL_tex(pos).xyz;
+    vec2 dn = line_data.xy;
 
-    // 3. Luma Calculations
-    float luma_center = dot(c_center.rgb, vec3(0.299, 0.587, 0.114));
-    float luma_avg = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+    // Dilated mask
+    float structure = line_data.z;
+    structure = max(structure, LINESOBEL_tex(pos + vec2(d.x, 0)).z);
+    structure = max(structure, LINESOBEL_tex(pos - vec2(d.x, 0)).z);
+    structure = max(structure, LINESOBEL_tex(pos + vec2(0, d.y)).z);
+    structure = max(structure, LINESOBEL_tex(pos - vec2(0, d.y)).z);
 
-    float is_line = clamp((luma_avg - luma_center) * 20.0 * LINE_SENSITIVITY, 0.0, 1.0);
+    float line_mask = smoothstep(TEXTURE_THRESHOLD, TEXTURE_THRESHOLD * 2.0, structure);
 
-    float is_structure = smoothstep(0.05, 0.25, structure_mask);
-    float is_dark = smoothstep(MAX_LUMA, MAX_LUMA * 0.6, luma_center);
+    vec4 c_final = HOOKED_tex(pos);
+    if (line_mask <= 0.0) return c_final;
 
-    c.rgb -= c.rgb * is_structure * is_dark * is_line * DARKEN_STRENGTH;
-    
-    return c;
+    // Valley detection (5-tap average where center is darker than surroundings)
+    vec2 d_aa = d * 1.5;
+    vec4 c_avg = (c_final + HOOKED_tex(pos-vec2(d_aa.x,0)) + HOOKED_tex(pos+vec2(d_aa.x,0)) +
+                            HOOKED_tex(pos-vec2(0,d_aa.y)) + HOOKED_tex(pos+vec2(0,d_aa.y))) / 5.0;
+
+    float l_center = dot(vec3(0.299, 0.587, 0.114), c_final.rgb);
+    float l_avg    = dot(vec3(0.299, 0.587, 0.114), c_avg.rgb);
+    float valley = clamp((l_avg - l_center) * 15.0, 0.0, 1.0);
+
+    // "Ink" darkening
+    float effect_factor = valley * line_mask;
+    float l_min = min(l_center, l_avg);
+    float target_luma = mix(l_center, l_min * 0.8, effect_factor * DARKEN_STRENGTH);
+    c_final.rgb *= (target_luma / (l_center + 0.001));
+
+    // De-blur & de-alias
+    vec2 tangent = vec2(dn.y, -dn.x) * d * 0.8;
+    vec4 c_tangent_avg = (c_final + HOOKED_tex(pos + tangent) + HOOKED_tex(pos - tangent)) / 3.0;
+    c_final = mix(c_final, c_tangent_avg, DEALIAS_STRENGTH * line_mask);
+
+    // Subtle DoG sharpening to keep the thinned line crisp
+    c_final += (c_final - c_avg) * DEBLUR_STRENGTH * effect_factor;
+
+    return c_final;
 }
