@@ -605,25 +605,48 @@ vec4 hook() {
 #define DEBLUR_STRENGTH 1.2     // [0.0 to 2.0]
 #define DARKEN_STRENGTH 0.7     // [0.0 to 1.0]
 #define DEALIAS_STRENGTH 0.8    // [0.0 to 2.0]
+
 #define TEXTURE_THRESHOLD 0.045 // [0.0 to 0.5] Higher = protects textures more, but might miss faint lines
+#define SHRINK_PROTECTION 0.8 // [0.0 to 1.0] Protection for light shapes against dark backgrounds
+#define HIGHLIGHT_PROTECTION 1.0 // [0.0 to 1.0] Protection for tiny highlights (iris catchlights, etc)
 // --------------------
 
 vec4 hook() {
     vec2 d = HOOKED_pt;
-    float relstr = HOOKED_size.y / 1080.0 * STRENGTH;
     vec2 pos = HOOKED_pos;
 
-    // Thinning / warping loop
-    for (int i=0; i<ITERATIONS; i++) {
-        vec2 dn_warp = LINESOBEL_tex(pos).xy;
-        float mag_warp = length(dn_warp);
-        if (mag_warp > MIN_EDGE_STRENGTH) {
-            vec2 dd = (dn_warp / (mag_warp + 0.01)) * d * relstr;
-            pos -= dd;
-        } else { break; }
+    // Dual-gate check
+    vec4 c_orig = HOOKED_tex(pos);
+    float l_c = dot(vec3(0.299, 0.587, 0.114), c_orig.rgb);
+    
+    // Neighborhood average for peak/valley detection
+    float l_s = (dot(vec3(0.299, 0.587, 0.114), HOOKED_tex(pos + vec2(d.x, 0)).rgb) +
+                 dot(vec3(0.299, 0.587, 0.114), HOOKED_tex(pos - vec2(d.x, 0)).rgb) +
+                 dot(vec3(0.299, 0.587, 0.114), HOOKED_tex(pos + vec2(0, d.y)).rgb) +
+                 dot(vec3(0.299, 0.587, 0.114), HOOKED_tex(pos - vec2(0, d.y)).rgb)) * 0.25;
+
+    // Dark line (surroundings > center)
+    float valley_gate = clamp((l_s - l_c) * 15.0, 0.0, 1.0);
+    // Bright highlight (center > surroundings)
+    float peak_gate = clamp((l_c - l_s) * 31.0, 0.0, 1.0); // 31.0 to catch tiny 1-pixel dots
+
+    float warp_multiplier = mix(1.0, valley_gate, SHRINK_PROTECTION);
+    warp_multiplier *= (1.0 - (peak_gate * HIGHLIGHT_PROTECTION));
+
+    // Thinning loop (double-gated)
+    float relstr = HOOKED_size.y / 1080.0 * STRENGTH * warp_multiplier;
+    if (relstr > 0.001) {
+        for (int i=0; i<ITERATIONS; i++) {
+            vec2 dn_warp = LINESOBEL_tex(pos).xy;
+            float mag_warp = length(dn_warp);
+            if (mag_warp > MIN_EDGE_STRENGTH) {
+                vec2 dd = (dn_warp / (mag_warp + 0.01)) * d * relstr;
+                pos -= dd;
+            } else { break; }
+        }
     }
 
-    // Sample line data at the warped position
+    // Sample at warped position
     vec3 line_data = LINESOBEL_tex(pos).xyz;
     vec2 dn = line_data.xy;
 
@@ -639,27 +662,23 @@ vec4 hook() {
     vec4 c_final = HOOKED_tex(pos);
     if (line_mask <= 0.0) return c_final;
 
-    // Valley detection (5-tap average where center is darker than surroundings)
+    // Local stats
     vec2 d_aa = d * 1.5;
     vec4 c_avg = (c_final + HOOKED_tex(pos-vec2(d_aa.x,0)) + HOOKED_tex(pos+vec2(d_aa.x,0)) +
                             HOOKED_tex(pos-vec2(0,d_aa.y)) + HOOKED_tex(pos+vec2(0,d_aa.y))) / 5.0;
 
     float l_center = dot(vec3(0.299, 0.587, 0.114), c_final.rgb);
-    float l_avg    = dot(vec3(0.299, 0.587, 0.114), c_avg.rgb);
-    float valley = clamp((l_avg - l_center) * 15.0, 0.0, 1.0);
+    float l_avg = dot(vec3(0.299, 0.587, 0.114), c_avg.rgb);
+    float effect_factor = clamp((l_avg - l_center) * 15.0, 0.0, 1.0) * line_mask;
 
     // "Ink" darkening
-    float effect_factor = valley * line_mask;
-    float l_min = min(l_center, l_avg);
-    float target_luma = mix(l_center, l_min * 0.8, effect_factor * DARKEN_STRENGTH);
+    float target_luma = mix(l_center, min(l_center, l_avg) * 0.85, effect_factor * DARKEN_STRENGTH);
     c_final.rgb *= (target_luma / (l_center + 0.001));
 
     // De-blur & de-alias
     vec2 tangent = vec2(dn.y, -dn.x) * d * 0.8;
     vec4 c_tangent_avg = (c_final + HOOKED_tex(pos + tangent) + HOOKED_tex(pos - tangent)) / 3.0;
-    c_final = mix(c_final, c_tangent_avg, DEALIAS_STRENGTH * line_mask);
-
-    // Subtle DoG sharpening to keep the thinned line crisp
+    c_final = mix(c_final, c_tangent_avg, DEALIAS_STRENGTH * effect_factor);
     c_final += (c_final - c_avg) * DEBLUR_STRENGTH * effect_factor;
 
     return c_final;
