@@ -278,7 +278,7 @@ $episodeOffset = 0
 if ($PSBoundParameters.ContainsKey('FirstEpisode')) {
     $episodeOffset = $FirstEpisode - 1
     Write-Host "Using manual episode offset from -FirstEpisode: $episodeOffset" -ForegroundColor Yellow
-} elseif (-not $NoDetectFirstEpisode) {
+} elseif (-not $NoDetectFirstEpisode -and -not $OrderByAlphabet) {
     $sortedFilesForDetection = $fileQueue | Sort-Object NameToParse
     foreach ($item in $sortedFilesForDetection) {
         if ($item.NameToParse -match $regexToUse -or $item.NameToParse -match $looseRegex) {
@@ -300,33 +300,33 @@ foreach ($item in $fileQueue) {
     $trailingText = ""
 
     if ($OrderByAlphabet) {
-        $episodeString = $episodeCounter++
-        $trailingText = "" # No trailing text in alphabet mode
+        $episodeString = "$episodeCounter"
+        $episodeCounter++
     } elseif ($nameToParse -match $regexToUse -or $nameToParse -match $looseRegex) {
         $episodeString = $matches[1]
-
-        if ($CombineData) {
-            $getTrailingText = {
-                param($text, $regex, $looseRegex)
-                if ($text -match $regex -or $text -match $looseRegex) {
-                    return $matches[2]
-                }
-                return ""
-            }
-            $trailingText_filename = & $getTrailingText -text $item.FilenameText -regex $regexToUse -looseRegex $looseRegex
-            $trailingText_title = & $getTrailingText -text $item.TitleText -regex $regexToUse -looseRegex $looseRegex
-            $trailingText = "$($trailingText_filename)$($trailingText_title)"
-        } else {
-            $trailingText = $matches[2]
-        }
-
-        if ($episodeOffset -ne 0) {
-            $episodeNumber = [decimal]$episodeString - $episodeOffset
-            $episodeString = $episodeNumber.ToString()
-        }
     } else {
         Write-Warning "Could not find an episode number in '$($nameToParse)' for file '$($file.Name)'. Skipping."
         continue
+    }
+
+    if ($CombineData) {
+        $getTrailingText = {
+            param($text, $regex, $looseRegex)
+            if ($text -match $regex -or $text -match $looseRegex) {
+                return $matches[2]
+            }
+            return ""
+        }
+        $trailingText_filename = & $getTrailingText -text $item.FilenameText -regex $regexToUse -looseRegex $looseRegex
+        $trailingText_title = & $getTrailingText -text $item.TitleText -regex $regexToUse -looseRegex $looseRegex
+        $trailingText = "$($trailingText_filename)$($trailingText_title)"
+    } else {
+        $trailingText = $matches[2]
+    }
+
+    if ($episodeOffset -ne 0) {
+        $episodeNumber = [decimal]$episodeString - $episodeOffset
+        $episodeString = $episodeNumber.ToString()
     }
 
     $source = ""
