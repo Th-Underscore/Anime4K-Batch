@@ -173,7 +173,7 @@ param(
 
     [Parameter()]
     [ValidateSet(0, 1, 2, 3, 4, 5)]
-    [int]$PreserveTexture = 0,
+    [int]$PreserveTexture = 1,
 
     [Parameter()]
     [ValidateSet('mkv', 'mp4', 'avi', 'mov', 'gif')] # Add more if needed
@@ -536,33 +536,91 @@ begin {
     if ($PreserveTexture -gt 0) {
         Write-Verbose "Applying Texture Preservation Level: $PreserveTexture"
 
-        if ($videoCodec -eq 'libx265') {
-            $encParams += "sao=0", "strong-intra-smoothing=0"
+        if ($videoCodec -eq 'libx264') {
+            $encParams += "aq-mode=3"
 
             switch ($PreserveTexture) {
-                2 { $encParams += "psy-rd=1.0", "psy-rdoq=1.0", "aq-mode=1" } # Level 2: Moderate grain retention
-                3 { $encParams += "psy-rd=1.5", "psy-rdoq=1.0", "aq-mode=3", "deblock=-1\:-1" } # Level 3: High grain retention
-                4 { # Level 4: Higher grain retention
-                    $presetParam += " -tune grain"
-                    $encParams += "psy-rd=2.0", "psy-rdoq=1.5", "rdoq-level=2", "aq-mode=3", "deblock=-1\:-1"
+                1 { # Clean - standard upscale output, minimal intervention
+                    $encParams += "psy-rd=1.0:0.10"
                 }
-                5 { # Level 5: Maximum grain retention
+                2 { # Balanced - preserve some texture without fighting the upscaler
+                    $encParams += "aq-strength=0.9", "psy-rd=1.2:0.15", "deblock=-1:-1"
+                }
+                3 { # Good retention - daily driver for most upscaled anime
+                    $encParams += "aq-strength=1.0", "psy-rd=1.4:0.20", "trellis=2", "deblock=-1:-1"
+                }
+                4 { # Heavy grain / classic anime / strong stylization
                     $presetParam += " -tune grain"
-                    $encParams += "psy-rd=2.0", "psy-rdoq=2.0", "rdoq-level=2", "aq-mode=3", "deblock=-2\:-2", "qcomp=0.8", "cutree=0"
+                    $encParams += "aq-strength=0.8", "psy-rd=1.7:0.30", "trellis=2", "deblock=-2:-2", "qcomp=0.8"
+                }
+                5 { # Archival
+                    $presetParam += " -tune grain"
+                    $encParams += "aq-strength=0.8", "psy-rd=2.0:0.40", "trellis=2", "deblock=-2:-2", "qcomp=0.8", "mbtree=0"
                 }
             }
-            Write-Verbose "New encoder params w/ PreserveTexture: $encParams"
+        } elseif ($videoCodec -eq 'libx265') {
+            $encParams += "sao=0", "strong-intra-smoothing=0", "aq-mode=3"
+
+            switch ($PreserveTexture) {
+                1 { # Clean
+                    $encParams += "psy-rd=1.0", "psy-rdoq=1.0"
+                }
+                2 { # Balanced
+                    $encParams += "aq-strength=0.9", "psy-rd=1.2", "psy-rdoq=1.5", "deblock=-1\:-1"
+                }
+                3 { # Good retention
+                    $encParams += "aq-strength=1.0", "psy-rd=1.4", "psy-rdoq=2.5", "deblock=-1\:-1"
+                }
+                4 { # Heavy grain
+                    $presetParam += " -tune grain"
+                    $encParams += "tskip=1", "psy-rd=1.7", "psy-rdoq=4.0", "rdoq-level=2", "deblock=-2\:-2", "qg-size=32"
+                }
+                5 { # Archival
+                    $presetParam += " -tune grain"
+                    $encParams += "tskip=1", "psy-rd=2.0", "psy-rdoq=6.0", "rdoq-level=2", "deblock=-2\:-2", "qcomp=0.8", "cutree=0", "qg-size=32"
+                }
+            }
+        } elseif ($videoCodec -eq 'libsvtav1') {
+            $encParams += "tune=0", "enable-qm=1"
+
+            switch ($PreserveTexture) {
+                1 { # Clean
+                    $encParams += "qm-min=8"
+                }
+                2 { # Balanced
+                    $encParams += "qm-min=4", "sharpness=1", "variance-boost-strength=2", "variance-octile=6"
+                }
+                3 { # Good retention
+                    $encParams += "qm-min=0", "sharpness=2", "variance-boost-strength=3", "variance-octile=5", "enable-tf=0"
+                }
+                4 { # Heavy grain
+                    $encParams += "qm-min=0", "qm-max=8", "sharpness=3", "variance-boost-strength=4", "variance-octile=5", "enable-tf=0", "enable-cdef=0"
+                }
+                5 { # Archival
+                    $encParams += "qm-min=0", "qm-max=8", "sharpness=4", "variance-boost-strength=4", "variance-octile=4", "enable-tf=0", "enable-cdef=0", "enable-restoration=0"
+                }
+            }
         } elseif ($videoCodec -match 'nvenc') {
             if ($EncoderProfile -notmatch 'legacy') { $presetParam += " -temporal_aq 1" }
-            switch($PreserveTexture) {
-                2 { $presetParam += " -aq-strength 8" }
-                3 { $presetParam += " -aq-strength 12 -rc-lookahead 32 -spatial-aq 1" }
-                4 { $presetParam += " -aq-strength 15 -rc-lookahead 60 -spatial-aq 1 -multipass 2" }
-                5 { $presetParam += " -aq-strength 15 -rc-lookahead 60 -spatial-aq 1 -multipass 2" }
+
+            switch ($PreserveTexture) {
+                1 {}
+                2 { # Balanced
+                    $presetParam += " -spatial-aq 1 -aq-strength 8"
+                }
+                3 { # Good retention
+                    $presetParam += " -spatial-aq 1 -aq-strength 12 -rc-lookahead 32 -b_ref_mode 2 -multipass 1"
+                }
+                4 { # Heavy grain
+                    $presetParam += " -spatial-aq 1 -aq-strength 15 -rc-lookahead 53 -b_ref_mode 2 -weighted_pred 1 -multipass 1"
+                }
+                5 { # Maximum retention (NVENC)
+                    $presetParam += " -spatial-aq 1 -aq-strength 15 -rc-lookahead 53 -b_ref_mode 2 -weighted_pred 1 -multipass 2"
+                }
             }
-        } elseif ($videoCodec -eq 'libx264') {
-            $presetParam += " -tune grain"
+
         }
+        Write-Verbose "New encoder params w/ PreserveTexture: $encParams"
     }
 
 
@@ -1150,7 +1208,7 @@ begin {
             $x265ColorArgs = "range=${range_str}", "colorprim=${p_prim}", "transfer=${p_trans}", "colormatrix=${p_space}"
 
             $uploadFmt = $pixFmt
-            $outputFmt = "yuv420p10le"
+            $outputFmt = "yuv420p10le" # if ($EncoderProfile -match "nvidia") { "p010le" } else { "yuv420p10le" } breaks libplacebo
 
             # --- Construct FFMPEG Command Arguments ---
             $ffmpegArgs = @('-y', '-stats')
@@ -1168,7 +1226,7 @@ begin {
             $ffmpegArgs += '-vf', "$filterGraph"
             $ffmpegArgs += $streamArgs
             $ffmpegArgs += '-c:v', $videoCodec
-            $ffmpegArgs += if ($CRF -ge 0) { '-crf', $CRF } else { '-qp', $CQP }
+            $ffmpegArgs += if ($CRF -ge 0 -and $EncoderProfile -notmatch "nvidia") { '-crf', $CRF } else { '-qp', $CQP }
             $ffmpegArgs += '-strict', '-2' # Allow experimental codecs
 
             if ($videoCodec -eq 'libx265') {
