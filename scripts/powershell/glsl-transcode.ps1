@@ -440,7 +440,7 @@ begin {
     switch ($EncoderProfile.ToLower()) {
         'cpu_h264' {
             $videoCodec = 'libx264'
-            $presetParam = "-preset $EncoderPreset -profile:v high"
+            $presetParam = "-preset $EncoderPreset"
             if ($CpuThreads -ne 0) { $threadParam = "-threads $CpuThreads" }
         }
         'cpu_h265' {
@@ -544,18 +544,18 @@ begin {
                     $encParams += "psy-rd=1.0:0.10"
                 }
                 2 { # Balanced - preserve some texture without fighting the upscaler
-                    $encParams += "aq-strength=0.9", "psy-rd=1.2:0.15", "deblock=-1:-1"
+                    $encParams += "aq-strength=0.9", "psy-rd=1.2\:0.15", "deblock=-1:-1"
                 }
                 3 { # Good retention - daily driver for most upscaled anime
-                    $encParams += "aq-strength=1.0", "psy-rd=1.4:0.20", "trellis=2", "deblock=-1:-1"
+                    $encParams += "aq-strength=1.0", "psy-rd=1.4\:0.20", "trellis=2", "deblock=-1\:-1"
                 }
                 4 { # Heavy grain / classic anime / strong stylization
                     $presetParam += " -tune grain"
-                    $encParams += "aq-strength=0.8", "psy-rd=1.7:0.30", "trellis=2", "deblock=-2:-2", "qcomp=0.8"
+                    $encParams += "aq-strength=0.8", "psy-rd=1.7\:0.30", "trellis=2", "deblock=-2\:-2", "qcomp=0.8"
                 }
                 5 { # Archival
                     $presetParam += " -tune grain"
-                    $encParams += "aq-strength=0.8", "psy-rd=2.0:0.40", "trellis=2", "deblock=-2:-2", "qcomp=0.8", "mbtree=0"
+                    $encParams += "aq-strength=0.8", "psy-rd=2.0\:0.40", "trellis=2", "deblock=-2\:-2", "qcomp=0.8", "mbtree=0"
                 }
             }
         } elseif ($videoCodec -eq 'libx265') {
