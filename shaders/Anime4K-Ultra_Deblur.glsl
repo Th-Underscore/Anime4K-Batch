@@ -593,93 +593,178 @@ vec4 hook() {
     return vec4((tx + cx + cx + bx) / 8.0, (-ty + by) / 8.0, line_mask, 0.0);
 }
 
+//!DESC Anime4K-v3.2-Thin-AA-Deblur-Line-Confidence
+//!HOOK MAIN
+//!BIND HOOKED
+//!BIND LINESOBEL
+//!SAVE LINECONF
+//!COMPONENTS 2
+
+// .x = tangent-smoothed line confidence
+// .y = minimum luma along gradient normal
+
+#define TANGENT_TAPS  5
+#define TANGENT_SIGMA 2.0  // Wider = gaps filled but nearby parallel lines may merge
+#define NORMAL_TAPS   3    // Increase for low-res or heavily blurred sources
+
+float gaussian(float x, float s) {
+    return exp(-0.5 * (x / s) * (x / s));
+}
+
+float get_luma(vec4 c) {
+    return dot(vec3(0.299, 0.587, 0.114), c.rgb);
+}
+
+vec4 hook() {
+    vec3  sd             = LINESOBEL_tex(LINESOBEL_pos).xyz;
+    float mag            = length(sd.xy);
+    vec2  norm_dir       = (mag > 0.001) ? (sd.xy / mag) : vec2(1.0, 0.0);
+    vec2  tang_dir       = vec2(-norm_dir.y, norm_dir.x);
+    float base_structure = sd.z;
+
+    float conf_sum  = base_structure;
+    float conf_wsum = 1.0;
+    for (int i = 1; i <= TANGENT_TAPS; i++) {
+        float fi = float(i);
+        float w  = gaussian(fi, TANGENT_SIGMA);
+        conf_sum  += (LINESOBEL_texOff(tang_dir * fi).z + LINESOBEL_texOff(-tang_dir * fi).z) * w;
+        conf_wsum += 2.0 * w;
+    }
+
+    float min_luma = get_luma(HOOKED_tex(HOOKED_pos));
+    for (int i = 1; i <= NORMAL_TAPS; i++) {
+        float fi = float(i);
+        min_luma = min(min_luma, get_luma(HOOKED_texOff( norm_dir * fi)));
+        min_luma = min(min_luma, get_luma(HOOKED_texOff(-norm_dir * fi)));
+    }
+
+    return vec4(conf_sum / conf_wsum, min_luma, 0.0, 0.0);
+}
+
 //!DESC Anime4K-v3.2-Thin-AA-Deblur-Warp-Final
 //!HOOK MAIN
 //!BIND HOOKED
 //!BIND LINESOBEL
+//!BIND LINECONF
 
 // --- USER SETTINGS ---
-#define STRENGTH 0.20 // Strength of warping for each iteration
-#define ITERATIONS 3  // Number of iterations for the forwards solver, decreasing strength and increasing iterations improves quality at the cost of speed
-#define MIN_EDGE_STRENGTH 0.01  // [0.0 to 1.0] Higher = protects glows more, but might miss very faint lines
-#define DEBLUR_STRENGTH 1.2     // [0.0 to 2.0]
-#define DARKEN_STRENGTH 0.7     // [0.0 to 1.0]
-#define DEALIAS_STRENGTH 0.8    // [0.0 to 2.0]
+#define STRENGTH           0.12  // Warp magnitude per iteration toward line center
+#define ITERATIONS         3     // More iterations = finer thinning, diminishing returns past 4
+#define MIN_EDGE_STRENGTH  0.01  // Sobel magnitude threshold below which warp stops; prevents drift in flat regions
+#define DARKEN_STRENGTH    0.3   // [0.0-3.0] How much to pull line pixels toward black
+#define DARKEN_MAX_FRAC    0.28  // [0.0-1.0] Hard ceiling on fraction of luma removable; prevents black spikes regardless of other settings
+#define DEALIAS_STRENGTH   0.5   // [0.0-1.0] Bilateral tangent smoothing; higher values smooth more without streaking
+#define CONF_LOW           0.05  // Confidence below which the pass is skipped entirely
+#define CONF_HIGH          0.18  // Confidence at which full effect applies
 
-#define TEXTURE_THRESHOLD 0.045 // [0.0 to 0.5] Higher = protects textures more, but might miss faint lines
-#define SHRINK_PROTECTION 0.8 // [0.0 to 1.0] Protection for light shapes against dark backgrounds
-#define HIGHLIGHT_PROTECTION 1.0 // [0.0 to 1.0] Protection for tiny highlights (iris catchlights, etc)
-// --------------------
+// Debug: 0=off 1=raw_conf 2=smooth_conf 4=effect_mask
+//        5=valley_factor 7=darken_delta 8=warp_offset 9=diff
+#define DEBUG_MODE 0
+
+float get_luma(vec3 rgb) {
+    return dot(vec3(0.299, 0.587, 0.114), rgb);
+}
+
+// Bilateral symmetry check: returns 1.0 only if both sides along the local
+// gradient normal are brighter than the center. Contrast edges and thick shape
+// interiors return ~0.0 because one side fails the min().
+// max(r1, r2) per side lets the farther tap clear wide lines to reach background.
+float valley_at(vec2 p) {
+    vec3  sd  = LINESOBEL_tex(p).xyz;
+    float mag = length(sd.xy);
+    vec2  norm = (mag > 0.01) ? (sd.xy / mag) : vec2(1.0, 0.0);
+
+    float l_c   = get_luma(HOOKED_tex(p).rgb);
+    float l_pos = max(get_luma(HOOKED_tex(p + norm * HOOKED_pt      ).rgb),
+                      get_luma(HOOKED_tex(p + norm * HOOKED_pt * 2.0).rgb));
+    float l_neg = max(get_luma(HOOKED_tex(p - norm * HOOKED_pt      ).rgb),
+                      get_luma(HOOKED_tex(p - norm * HOOKED_pt * 2.0).rgb));
+    return clamp((min(l_pos, l_neg) - l_c) * 8.0, 0.0, 1.0);
+}
 
 vec4 hook() {
-    vec2 d = HOOKED_pt;
+    vec2 d   = HOOKED_pt;
     vec2 pos = HOOKED_pos;
 
-    // Dual-gate check
-    vec4 c_orig = HOOKED_tex(pos);
-    float l_c = dot(vec3(0.299, 0.587, 0.114), c_orig.rgb);
-    
-    // Neighborhood average for peak/valley detection
-    float l_s = (dot(vec3(0.299, 0.587, 0.114), HOOKED_tex(pos + vec2(d.x, 0)).rgb) +
-                 dot(vec3(0.299, 0.587, 0.114), HOOKED_tex(pos - vec2(d.x, 0)).rgb) +
-                 dot(vec3(0.299, 0.587, 0.114), HOOKED_tex(pos + vec2(0, d.y)).rgb) +
-                 dot(vec3(0.299, 0.587, 0.114), HOOKED_tex(pos - vec2(0, d.y)).rgb)) * 0.25;
-
-    // Dark line (surroundings > center)
-    float valley_gate = clamp((l_s - l_c) * 15.0, 0.0, 1.0);
-    // Bright highlight (center > surroundings)
-    float peak_gate = clamp((l_c - l_s) * 31.0, 0.0, 1.0); // 31.0 to catch tiny 1-pixel dots
-
-    float warp_multiplier = mix(1.0, valley_gate, SHRINK_PROTECTION);
-    warp_multiplier *= (1.0 - (peak_gate * HIGHLIGHT_PROTECTION));
-
-    // Thinning loop (double-gated)
-    float relstr = HOOKED_size.y / 1080.0 * STRENGTH * warp_multiplier;
-    if (relstr > 0.001) {
-        for (int i=0; i<ITERATIONS; i++) {
-            vec2 dn_warp = LINESOBEL_tex(pos).xy;
-            float mag_warp = length(dn_warp);
-            if (mag_warp > MIN_EDGE_STRENGTH) {
-                vec2 dd = (dn_warp / (mag_warp + 0.01)) * d * relstr;
-                pos -= dd;
-            } else { break; }
-        }
+    float relstr = HOOKED_size.y / 1080.0 * STRENGTH;
+    for (int i = 0; i < ITERATIONS; i++) {
+        vec2  dn  = LINESOBEL_tex(pos).xy;
+        float mag = length(dn);
+        if (mag > MIN_EDGE_STRENGTH)
+            pos -= (dn / (mag + 0.01)) * d * relstr;
+        else
+            break;
     }
 
-    // Sample at warped position
-    vec3 line_data = LINESOBEL_tex(pos).xyz;
-    vec2 dn = line_data.xy;
+#if (DEBUG_MODE == 8)
+    return vec4(vec3(clamp(length((pos - HOOKED_pos) / d) * 20.0, 0.0, 1.0)), 1.0);
+#endif
 
-    // Dilated mask
-    float structure = line_data.z;
-    structure = max(structure, LINESOBEL_tex(pos + vec2(d.x, 0)).z);
-    structure = max(structure, LINESOBEL_tex(pos - vec2(d.x, 0)).z);
-    structure = max(structure, LINESOBEL_tex(pos + vec2(0, d.y)).z);
-    structure = max(structure, LINESOBEL_tex(pos - vec2(0, d.y)).z);
+    vec4 c_original = HOOKED_tex(HOOKED_pos);
+    vec4 c_final    = HOOKED_tex(pos);
 
-    float line_mask = smoothstep(TEXTURE_THRESHOLD, TEXTURE_THRESHOLD * 2.0, structure);
+    float smooth_conf = LINECONF_tex(HOOKED_pos).x;
+    float effect_mask = smoothstep(CONF_LOW, CONF_HIGH, smooth_conf);
 
-    vec4 c_final = HOOKED_tex(pos);
-    if (line_mask <= 0.0) return c_final;
+#if (DEBUG_MODE == 1)
+    return vec4(vec3(clamp(LINESOBEL_tex(HOOKED_pos).z, 0.0, 1.0)), 1.0);
+#endif
+#if (DEBUG_MODE == 2)
+    return vec4(vec3(clamp(smooth_conf, 0.0, 1.0)), 1.0);
+#endif
+#if (DEBUG_MODE == 4)
+    return vec4(vec3(effect_mask), 1.0);
+#endif
 
-    // Local stats
-    vec2 d_aa = d * 1.5;
-    vec4 c_avg = (c_final + HOOKED_tex(pos-vec2(d_aa.x,0)) + HOOKED_tex(pos+vec2(d_aa.x,0)) +
-                            HOOKED_tex(pos-vec2(0,d_aa.y)) + HOOKED_tex(pos+vec2(0,d_aa.y))) / 5.0;
+    if (effect_mask < 0.001) return c_final;
 
-    float l_center = dot(vec3(0.299, 0.587, 0.114), c_final.rgb);
-    float l_avg = dot(vec3(0.299, 0.587, 0.114), c_avg.rgb);
-    float effect_factor = clamp((l_avg - l_center) * 15.0, 0.0, 1.0) * line_mask;
+    // Bilateral tangent de-alias. Weight each tangent tap by luma similarity to
+    // the center: a tap that has crossed into bright background after the warp
+    // gets near-zero weight, preventing light streaks at line endpoints and curves.
+    vec3  sd_warp  = LINESOBEL_tex(pos).xyz;
+    float mag_warp = length(sd_warp.xy);
+    vec2  norm_warp = (mag_warp > 0.01) ? (sd_warp.xy / mag_warp) : vec2(1.0, 0.0);
+    vec2  tang_warp = vec2(-norm_warp.y, norm_warp.x);
 
-    // "Ink" darkening
-    float target_luma = mix(l_center, min(l_center, l_avg) * 0.85, effect_factor * DARKEN_STRENGTH);
-    c_final.rgb *= (target_luma / (l_center + 0.001));
+    vec4  c_t1 = HOOKED_tex(pos + tang_warp * d);
+    vec4  c_t2 = HOOKED_tex(pos - tang_warp * d);
+    float l_c  = get_luma(c_final.rgb);
+    float w_t1 = exp(-abs(get_luma(c_t1.rgb) - l_c) * 20.0);
+    float w_t2 = exp(-abs(get_luma(c_t2.rgb) - l_c) * 20.0);
+    c_final = mix(c_final,
+                  (c_final + c_t1 * w_t1 + c_t2 * w_t2) / (1.0 + w_t1 + w_t2),
+                  DEALIAS_STRENGTH * effect_mask);
 
-    // De-blur & de-alias
-    vec2 tangent = vec2(dn.y, -dn.x) * d * 0.8;
-    vec4 c_tangent_avg = (c_final + HOOKED_tex(pos + tangent) + HOOKED_tex(pos - tangent)) / 3.0;
-    c_final = mix(c_final, c_tangent_avg, DEALIAS_STRENGTH * effect_factor);
-    c_final += (c_final - c_avg) * DEBLUR_STRENGTH * effect_factor;
+    // Tangent max-pool of valley_factor. A pixel with weak local evidence
+    // (e.g. mild compression, slight tone variation within a stroke) inherits
+    // valley confirmation from its immediate tangent neighbors.
+    vec3  sd_orig  = LINESOBEL_tex(HOOKED_pos).xyz;
+    float mag_orig = length(sd_orig.xy);
+    vec2  norm_orig = (mag_orig > 0.01) ? (sd_orig.xy / mag_orig) : vec2(1.0, 0.0);
+    vec2  tang_orig = vec2(-norm_orig.y, norm_orig.x);
+
+    float valley_factor = max(valley_at(HOOKED_pos),
+                          max(valley_at(HOOKED_pos + tang_orig * d),
+                              valley_at(HOOKED_pos - tang_orig * d)));
+
+#if (DEBUG_MODE == 5)
+    return vec4(vec3(valley_factor), 1.0);
+#endif
+
+    float l_final      = get_luma(c_final.rgb);
+    float darken_delta = effect_mask * valley_factor * DARKEN_STRENGTH * l_final;
+    darken_delta       = min(darken_delta, l_final * DARKEN_MAX_FRAC);
+
+#if (DEBUG_MODE == 7)
+    return vec4(vec3(clamp(darken_delta * 10.0, 0.0, 1.0)), 1.0);
+#endif
+
+    float new_luma = max(0.0, l_final - darken_delta);
+    c_final.rgb   *= clamp(new_luma / max(l_final, 0.001), 0.0, 1.0);
+
+#if (DEBUG_MODE == 9)
+    return vec4(clamp(abs(c_final.rgb - c_original.rgb) * 10.0, 0.0, 1.0), 1.0);
+#endif
 
     return c_final;
 }
