@@ -451,7 +451,7 @@ begin {
         }
         'cpu_av1' {
             $videoCodec = 'libsvtav1'
-            # AV1 uses preset differently
+            $presetParam = "-preset $EncoderPreset"
             if ($CpuThreads -ne 0) { $encParams += "pin=$CpuThreads" }
         }
         'nvidia_h264' {
