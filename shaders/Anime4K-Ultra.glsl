@@ -468,7 +468,7 @@ vec4 hook() {
 // COMPONENT: Anime4K_Thin_AA.glsl
 // =============================================================================
 
-//!DESC Anime4K-v3.2-Thin-AA-Luma
+//!DESC Anime4K-Ultra-Thin-AA-Luma
 //!HOOK MAIN
 //!BIND HOOKED
 //!SAVE LINELUMA
@@ -482,7 +482,7 @@ vec4 hook() {
     return vec4(get_luma(HOOKED_tex(HOOKED_pos)), 0.0, 0.0, 0.0);
 }
 
-//!DESC Anime4K-v3.2-Thin-AA-Sobel-X
+//!DESC Anime4K-Ultra-Thin-AA-Sobel-X
 //!HOOK MAIN
 //!BIND LINELUMA
 //!SAVE LINESOBEL
@@ -495,7 +495,7 @@ vec4 hook() {
     return vec4(-l + r, l + c + c + r, 0.0, 0.0);
 }
 
-//!DESC Anime4K-v3.2-Thin-AA-Sobel-Y
+//!DESC Anime4K-Ultra-Thin-AA-Sobel-Y
 //!HOOK MAIN
 //!BIND LINESOBEL
 //!SAVE LINESOBEL
@@ -512,7 +512,7 @@ vec4 hook() {
     return vec4(pow(sqrt(xgrad * xgrad + ygrad * ygrad), 0.7));
 }
 
-//!DESC Anime4K-v3.2-Thin-AA-Gaussian-X
+//!DESC Anime4K-Ultra-Thin-AA-Gaussian-X
 //!HOOK MAIN
 //!BIND HOOKED
 //!BIND LINESOBEL
@@ -538,7 +538,7 @@ vec4 hook() {
     return vec4(g / gn, 0.0, 0.0, 0.0);
 }
 
-//!DESC Anime4K-v3.2-Thin-AA-Gaussian-Y
+//!DESC Anime4K-Ultra-Thin-AA-Gaussian-Y
 //!HOOK MAIN
 //!BIND HOOKED
 //!BIND LINESOBEL
@@ -564,7 +564,7 @@ vec4 hook() {
     return vec4(g / gn, 0.0, 0.0, 0.0);
 }
 
-//!DESC Anime4K-v3.2-Thin-AA-Kernel-X
+//!DESC Anime4K-Ultra-Thin-AA-Kernel-X
 //!HOOK MAIN
 //!BIND LINESOBEL
 //!SAVE LINESOBEL
@@ -577,7 +577,7 @@ vec4 hook() {
     return vec4(-l + r, l + c + c + r, c, 0.0);
 }
 
-//!DESC Anime4K-v3.2-Thin-AA-Kernel-Y
+//!DESC Anime4K-Ultra-Thin-AA-Kernel-Y
 //!HOOK MAIN
 //!BIND LINESOBEL
 //!SAVE LINESOBEL
@@ -593,22 +593,20 @@ vec4 hook() {
     return vec4((tx + cx + cx + bx) / 8.0, (-ty + by) / 8.0, line_mask, 0.0);
 }
 
-//!DESC Anime4K-v3.2-Thin-AA-Warp-Final
+//!DESC Anime4K-Ultra-Thin-AA-Warp-Final
 //!HOOK MAIN
 //!BIND HOOKED
 //!BIND LINESOBEL
 
-// --- USER SETTINGS ---
-#define STRENGTH 0.12 // Strength of warping for each iteration
-#define ITERATIONS 3  // Number of iterations for the forwards solver, decreasing strength and increasing iterations improves quality at the cost of speed
+#define THIN_STRENGTH 0.12 // Strength of warping for each iteration
+#define ITERATIONS 3       // Number of iterations for the forwards solver, decreasing strength and increasing iterations improves quality at the cost of speed
 #define DARKEN_STRENGTH 0.7    // [0.0 to 1.0]
 #define DEALIAS_STRENGTH 0.5   // [0.0 to 2.0]
 #define MIN_EDGE_STRENGTH 0.01 // [0.0 to 1.0] Higher = protects glows more, but might miss very faint lines
-// --------------------
 
 vec4 hook() {
     vec2 d = HOOKED_pt;
-    float relstr = HOOKED_size.y / 1080.0 * STRENGTH;
+    float relstr = HOOKED_size.y / 1080.0 * THIN_STRENGTH;
     vec2 pos = HOOKED_pos;
     
     // Thinning / Warping

@@ -468,69 +468,95 @@ vec4 hook() {
 // COMPONENT: Anime4K_Thin_AA_Deblur.glsl
 // =============================================================================
 
-//!DESC Anime4K-v3.2-Thin-AA-Deblur-Luma
+//!DESC Anime4K-v3.2-Thin-AA-Deblur-Luma-Sharp
 //!HOOK MAIN
-//!BIND HOOKED
-//!SAVE LINELUMA
+//!BIND EASUTEX
+//!SAVE LINELUMA_SHARP
+//!WIDTH EASUTEX.w
+//!HEIGHT EASUTEX.h
 //!COMPONENTS 1
 
-float get_luma(vec4 rgba) {
-    return dot(vec3(0.299, 0.587, 0.114), rgba.rgb);
-}
+#define LUMA_SHARP_AMOUNT 1.5 // Strength of unsharp masking (0.0 to ~3.0); >2.0 may cause oversharpening/ringing
 
 vec4 hook() {
-    return vec4(get_luma(HOOKED_tex(HOOKED_pos)), 0.0, 0.0, 0.0);
+    float c = EASUTEX_tex(EASUTEX_pos).x;
+    float blur = (
+        EASUTEX_texOff(vec2(-1,-1)).x + EASUTEX_texOff(vec2( 0,-1)).x + EASUTEX_texOff(vec2(1,-1)).x +
+        EASUTEX_texOff(vec2(-1, 0)).x + c                              + EASUTEX_texOff(vec2(1, 0)).x +
+        EASUTEX_texOff(vec2(-1, 1)).x + EASUTEX_texOff(vec2( 0, 1)).x + EASUTEX_texOff(vec2(1, 1)).x
+    ) / 9.0;
+    return vec4(clamp(c + (c - blur) * LUMA_SHARP_AMOUNT, 0.0, 1.0), 0.0, 0.0, 0.0);
 }
 
-//!DESC Anime4K-v3.2-Thin-AA-Deblur-Sobel-X
+// #define LUMA_SHARP_AMOUNT 1.5  // Strength of unsharp masking (0.0 to ~3.0); >2.0 may cause oversharpening/ringing
+// #define LUMA_NORM_FLOOR   0.08 // Minimum local range before normalization kicks in; prevents noise amplification in flat dark areas
+
+// vec4 hook() {
+//     float tl = EASUTEX_texOff(vec2(-1,-1)).x; float tc = EASUTEX_texOff(vec2( 0,-1)).x; float tr = EASUTEX_texOff(vec2(1,-1)).x;
+//     float ml = EASUTEX_texOff(vec2(-1, 0)).x; float c = EASUTEX_tex(EASUTEX_pos).x; float mr = EASUTEX_texOff(vec2(1, 0)).x;
+//     float bl = EASUTEX_texOff(vec2(-1, 1)).x; float bc = EASUTEX_texOff(vec2( 0, 1)).x; float br = EASUTEX_texOff(vec2(1, 1)).x;
+
+//     float lmin = min(min(min(tl,tc),min(tr,ml)),min(min(c,mr),min(bl,min(bc,br))));
+//     float lmax = max(max(max(tl,tc),max(tr,ml)),max(max(c,mr),max(bl,max(bc,br))));
+//     float range = max(lmax - lmin, LUMA_NORM_FLOOR);
+
+//     float cn = (c - lmin) / range;
+//     float blur = (tl+tc+tr+ml+c+mr+bl+bc+br) / 9.0;
+//     float bn = (blur - lmin) / range;
+//     return vec4(clamp(cn + (cn - bn) * LUMA_SHARP_AMOUNT, 0.0, 1.0), 0.0, 0.0, 0.0);
+// }
+
+//!DESC Anime4K-Ultra-Thin-AA-Sobel-X
 //!HOOK MAIN
-//!BIND LINELUMA
+//!BIND LINELUMA_SHARP
 //!SAVE LINESOBEL
+//!WIDTH LINELUMA_SHARP.w
+//!HEIGHT LINELUMA_SHARP.h
 //!COMPONENTS 2
 
 vec4 hook() {
-    float l = LINELUMA_texOff(vec2(-1.0, 0.0)).x;
-    float c = LINELUMA_tex(LINELUMA_pos).x;
-    float r = LINELUMA_texOff(vec2(1.0, 0.0)).x;
+    float l = LINELUMA_SHARP_texOff(vec2(-1, 0)).x;
+    float c = LINELUMA_SHARP_tex(LINELUMA_SHARP_pos).x;
+    float r = LINELUMA_SHARP_texOff(vec2( 1, 0)).x;
     return vec4(-l + r, l + c + c + r, 0.0, 0.0);
 }
 
-//!DESC Anime4K-v3.2-Thin-AA-Deblur-Sobel-Y
+//!DESC Anime4K-Ultra-Thin-AA-Sobel-Y
 //!HOOK MAIN
 //!BIND LINESOBEL
 //!SAVE LINESOBEL
+//!WIDTH LINESOBEL.w
+//!HEIGHT LINESOBEL.h
 //!COMPONENTS 1
 
 vec4 hook() {
-    float tx = LINESOBEL_texOff(vec2(0.0, -1.0)).x;
+    float tx = LINESOBEL_texOff(vec2(0,-1)).x;
     float cx = LINESOBEL_tex(LINESOBEL_pos).x;
-    float bx = LINESOBEL_texOff(vec2(0.0, 1.0)).x;
-    float ty = LINESOBEL_texOff(vec2(0.0, -1.0)).y;
-    float by = LINESOBEL_texOff(vec2(0.0, 1.0)).y;
-    float xgrad = (tx + cx + cx + bx) / 8.0;
-    float ygrad = (-ty + by) / 8.0;
-    return vec4(pow(sqrt(xgrad * xgrad + ygrad * ygrad), 0.7));
+    float bx = LINESOBEL_texOff(vec2(0, 1)).x;
+    float ty = LINESOBEL_texOff(vec2(0,-1)).y;
+    float by = LINESOBEL_texOff(vec2(0, 1)).y;
+    float gx = (tx + cx + cx + bx) / 8.0;
+    float gy = (-ty + by) / 8.0;
+    return vec4(pow(sqrt(gx * gx + gy * gy), 0.7));
 }
 
-//!DESC Anime4K-v3.2-Thin-AA-Deblur-Gaussian-X
+//!DESC Anime4K-Ultra-Thin-AA-Gaussian-X
 //!HOOK MAIN
-//!BIND HOOKED
 //!BIND LINESOBEL
 //!SAVE LINESOBEL
+//!WIDTH LINESOBEL.w
+//!HEIGHT LINESOBEL.h
 //!COMPONENTS 1
 
-#define SPATIAL_SIGMA (1.5 * float(HOOKED_size.y) / 1080.0) //Spatial window size, must be a positive real number.
-#define KERNELSIZE (max(int(ceil(SPATIAL_SIGMA * 2.0)), 1) * 2 + 1) //Kernel size, must be an positive odd integer.
+#define SPATIAL_SIGMA (1.5 * float(LINESOBEL_size.y) / 1080.0) // Base blur radius for edge detection (~0.5 to 3.0 by modifying the '1.5' multiplier)
+#define KERNELSIZE (max(int(ceil(SPATIAL_SIGMA * 2.0)), 1) * 2 + 1) // Auto-calculates kernel footprint size; do not modify manually
 
-float gaussian(float x, float s) {
-    return exp(-0.5 * (x/s) * (x/s));
-}
+float gaussian(float x, float s) { return exp(-0.5 * (x/s) * (x/s)); }
 
 vec4 hook() {
-    float g = 0.0;
-    float gn = 0.0;
-    for (int i=0; i<KERNELSIZE; i++) {
-        float di = float(i - int(KERNELSIZE/2));
+    float g = 0.0, gn = 0.0;
+    for (int i = 0; i < KERNELSIZE; i++) {
+        float di = float(i - KERNELSIZE / 2);
         float gf = gaussian(di, SPATIAL_SIGMA);
         g += LINESOBEL_texOff(vec2(di, 0.0)).x * gf;
         gn += gf;
@@ -538,25 +564,23 @@ vec4 hook() {
     return vec4(g / gn, 0.0, 0.0, 0.0);
 }
 
-//!DESC Anime4K-v3.2-Thin-AA-Deblur-Gaussian-Y
+//!DESC Anime4K-Ultra-Thin-AA-Gaussian-Y
 //!HOOK MAIN
-//!BIND HOOKED
 //!BIND LINESOBEL
 //!SAVE LINESOBEL
+//!WIDTH LINESOBEL.w
+//!HEIGHT LINESOBEL.h
 //!COMPONENTS 1
 
-#define SPATIAL_SIGMA (1.5 * float(HOOKED_size.y) / 1080.0) //Spatial window size, must be a positive real number.
-#define KERNELSIZE (max(int(ceil(SPATIAL_SIGMA * 2.0)), 1) * 2 + 1) //Kernel size, must be an positive odd integer
+#define SPATIAL_SIGMA (1.5 * float(LINESOBEL_size.y) / 1080.0) // Base blur radius for edge detection (~0.5 to 3.0 by modifying the '1.5' multiplier)
+#define KERNELSIZE (max(int(ceil(SPATIAL_SIGMA * 2.0)), 1) * 2 + 1) // Auto-calculates kernel footprint size; do not modify manually
 
-float gaussian(float x, float s) {
-    return exp(-0.5 * (x/s) * (x/s));
-}
+float gaussian(float x, float s) { return exp(-0.5 * (x/s) * (x/s)); }
 
 vec4 hook() {
-    float g = 0.0;
-    float gn = 0.0;
-    for (int i=0; i<KERNELSIZE; i++) {
-        float di = float(i - int(KERNELSIZE/2));
+    float g = 0.0, gn = 0.0;
+    for (int i = 0; i < KERNELSIZE; i++) {
+        float di = float(i - KERNELSIZE / 2);
         float gf = gaussian(di, SPATIAL_SIGMA);
         g += LINESOBEL_texOff(vec2(0.0, di)).x * gf;
         gn += gf;
@@ -564,207 +588,256 @@ vec4 hook() {
     return vec4(g / gn, 0.0, 0.0, 0.0);
 }
 
-//!DESC Anime4K-v3.2-Thin-AA-Deblur-Kernel-X
+//!DESC Anime4K-Ultra-Thin-AA-Kernel-X
 //!HOOK MAIN
 //!BIND LINESOBEL
 //!SAVE LINESOBEL
+//!WIDTH LINESOBEL.w
+//!HEIGHT LINESOBEL.h
 //!COMPONENTS 3
 
 vec4 hook() {
-    float l = LINESOBEL_texOff(vec2(-1.0, 0.0)).x;
+    float l = LINESOBEL_texOff(vec2(-1, 0)).x;
     float c = LINESOBEL_tex(LINESOBEL_pos).x;
-    float r = LINESOBEL_texOff(vec2(1.0, 0.0)).x;
+    float r = LINESOBEL_texOff(vec2( 1, 0)).x;
     return vec4(-l + r, l + c + c + r, c, 0.0);
 }
 
-//!DESC Anime4K-v3.2-Thin-AA-Deblur-Kernel-Y
+//!DESC Anime4K-Ultra-Thin-AA-Kernel-Y
 //!HOOK MAIN
 //!BIND LINESOBEL
 //!SAVE LINESOBEL
+//!WIDTH LINESOBEL.w
+//!HEIGHT LINESOBEL.h
 //!COMPONENTS 3
 
 vec4 hook() {
-    float tx = LINESOBEL_texOff(vec2(0.0, -1.0)).x;
+    float tx = LINESOBEL_texOff(vec2(0,-1)).x;
     float cx = LINESOBEL_tex(LINESOBEL_pos).x;
-    float bx = LINESOBEL_texOff(vec2(0.0, 1.0)).x;
-    float ty = LINESOBEL_texOff(vec2(0.0, -1.0)).y;
-    float by = LINESOBEL_texOff(vec2(0.0, 1.0)).y;
-    float line_mask = LINESOBEL_tex(LINESOBEL_pos).z;
-    return vec4((tx + cx + cx + bx) / 8.0, (-ty + by) / 8.0, line_mask, 0.0);
+    float bx = LINESOBEL_texOff(vec2(0, 1)).x;
+    float ty = LINESOBEL_texOff(vec2(0,-1)).y;
+    float by = LINESOBEL_texOff(vec2(0, 1)).y;
+    float mask = LINESOBEL_tex(LINESOBEL_pos).z;
+    return vec4((tx + cx + cx + bx) / 8.0, (-ty + by) / 8.0, mask, 0.0);
 }
 
 //!DESC Anime4K-v3.2-Thin-AA-Deblur-Line-Confidence
 //!HOOK MAIN
-//!BIND HOOKED
 //!BIND LINESOBEL
 //!SAVE LINECONF
-//!COMPONENTS 2
+//!WIDTH LINESOBEL.w
+//!HEIGHT LINESOBEL.h
+//!COMPONENTS 1
 
-// .x = tangent-smoothed line confidence
-// .y = minimum luma along gradient normal
+#define TANGENT_TAPS  5   // Samples along line tangent (int 1 to 10); higher bridges wider gaps but costs performance
+#define TANGENT_SIGMA 2.0 // Gaussian falloff for tangent tap weights (0.1 to ~5.0)
 
-#define TANGENT_TAPS  5
-#define TANGENT_SIGMA 2.0  // Wider = gaps filled but nearby parallel lines may merge
-#define NORMAL_TAPS   3    // Increase for low-res or heavily blurred sources
-
-float gaussian(float x, float s) {
-    return exp(-0.5 * (x / s) * (x / s));
-}
-
-float get_luma(vec4 c) {
-    return dot(vec3(0.299, 0.587, 0.114), c.rgb);
-}
+float gaussian(float x, float s) { return exp(-0.5 * (x/s) * (x/s)); }
 
 vec4 hook() {
-    vec3  sd             = LINESOBEL_tex(LINESOBEL_pos).xyz;
-    float mag            = length(sd.xy);
-    vec2  norm_dir       = (mag > 0.001) ? (sd.xy / mag) : vec2(1.0, 0.0);
-    vec2  tang_dir       = vec2(-norm_dir.y, norm_dir.x);
-    float base_structure = sd.z;
+    vec3 sd = LINESOBEL_tex(LINESOBEL_pos).xyz;
+    float mag = length(sd.xy);
+    vec2 tang = (mag > 0.001) ? vec2(-sd.y, sd.x) / mag : vec2(1.0, 0.0);
 
-    float conf_sum  = base_structure;
-    float conf_wsum = 1.0;
+    float csum = sd.z, cwsum = 1.0;
     for (int i = 1; i <= TANGENT_TAPS; i++) {
         float fi = float(i);
-        float w  = gaussian(fi, TANGENT_SIGMA);
-        conf_sum  += (LINESOBEL_texOff(tang_dir * fi).z + LINESOBEL_texOff(-tang_dir * fi).z) * w;
-        conf_wsum += 2.0 * w;
+        float w = gaussian(fi, TANGENT_SIGMA);
+        csum += (LINESOBEL_texOff( tang * fi).z + LINESOBEL_texOff(-tang * fi).z) * w;
+        cwsum += 2.0 * w;
     }
-
-    float min_luma = get_luma(HOOKED_tex(HOOKED_pos));
-    for (int i = 1; i <= NORMAL_TAPS; i++) {
-        float fi = float(i);
-        min_luma = min(min_luma, get_luma(HOOKED_texOff( norm_dir * fi)));
-        min_luma = min(min_luma, get_luma(HOOKED_texOff(-norm_dir * fi)));
-    }
-
-    return vec4(conf_sum / conf_wsum, min_luma, 0.0, 0.0);
+    return vec4(csum / cwsum, 0.0, 0.0, 0.0);
 }
 
-//!DESC Anime4K-v3.2-Thin-AA-Deblur-Warp-Final
+// #define TANGENT_TAPS  7   // Samples along line tangent (int 1 to 10); higher bridges wider gaps but costs performance
+// #define TANGENT_SIGMA 3.0 // Gaussian falloff for tangent tap weights (0.1 to ~5.0)
+
+// float gaussian(float x, float s) { return exp(-0.5 * (x/s) * (x/s)); }
+
+// vec4 hook() {
+//     vec3 sd = LINESOBEL_tex(LINESOBEL_pos).xyz;
+//     float mag = length(sd.xy);
+//     vec2 norm = (mag > 0.001) ? (sd.xy / mag) : vec2(1.0, 0.0);
+//     vec2 tang = vec2(-norm.y, norm.x);
+
+//     float conf = sd.z;
+//     for (int i = 1; i <= TANGENT_TAPS; i++) {
+//         float fi = float(i);
+//         float gw = gaussian(fi, TANGENT_SIGMA);
+
+//         vec3 sp = LINESOBEL_texOff( tang * fi).xyz;
+//         vec3 sn = LINESOBEL_texOff(-tang * fi).xyz;
+//         float mp = length(sp.xy);
+//         float mn = length(sn.xy);
+
+//         // Squared cosine: parallel lines → ~1, perpendicular (corners) → 0
+//         float dp = (mp > 0.001) ? max(0.0, dot(sp.xy / mp, norm)) : 0.0;
+//         float dn = (mn > 0.001) ? max(0.0, dot(sn.xy / mn, norm)) : 0.0;
+
+//         conf = max(conf, sp.z * dp * dp * gw);
+//         conf = max(conf, sn.z * dn * dn * gw);
+//     }
+//     return vec4(conf, 0.0, 0.0, 0.0);
+// }
+
+//!DESC Anime4K-Ultra-Thin-AA-Deblurring-Warp
 //!HOOK MAIN
 //!BIND HOOKED
 //!BIND LINESOBEL
 //!BIND LINECONF
+//!WIDTH LINESOBEL.w
+//!HEIGHT LINESOBEL.h
 
-// --- USER SETTINGS ---
-#define STRENGTH           0.12  // Warp magnitude per iteration toward line center
-#define ITERATIONS         3     // More iterations = finer thinning, diminishing returns past 4
-#define MIN_EDGE_STRENGTH  0.01  // Sobel magnitude threshold below which warp stops; prevents drift in flat regions
-#define DARKEN_STRENGTH    0.3   // [0.0-3.0] How much to pull line pixels toward black
-#define DARKEN_MAX_FRAC    0.28  // [0.0-1.0] Hard ceiling on fraction of luma removable; prevents black spikes regardless of other settings
-#define DEALIAS_STRENGTH   0.5   // [0.0-1.0] Bilateral tangent smoothing; higher values smooth more without streaking
-#define CONF_LOW           0.05  // Confidence below which the pass is skipped entirely
-#define CONF_HIGH          0.18  // Confidence at which full effect applies
+#define THIN_STRENGTH         0.06 // Base displacement step in output pixels per iteration (0.0 to ~0.2)
+#define ITERATIONS            3    // Number of coordinate warping passes to thin lines (int 0 to ~10)
+#define MIN_EDGE_STRENGTH     0.01 // Gradient magnitude threshold to abort warping early (0.0 to 1.0)
+#define CONF_LOW              0.05 // Minimum line confidence required to trigger any warping (0.0 to 1.0)
+#define BLURRY_DISP_THRESHOLD 0.4  // Max displacement (pixels) before triggering secondary blurry warp passes (0.0 to ~2.0)
+#define BLURRY_RELSTR_MULT    1.5  // Multiplier for THIN_STRENGTH during extra blurry iterations (1.0 to ~3.0)
+#define BLURRY_EDGE_MULT      0.4  // Multiplier for MIN_EDGE_STRENGTH during extra iterations (0.0 to 1.0)
+#define BLURRY_EXTRA_ITERS    2    // Extra loop iterations if blurry threshold is met (int 0 to ~5)
 
-// Debug: 0=off 1=raw_conf 2=smooth_conf 4=effect_mask
-//        5=valley_factor 7=darken_delta 8=warp_offset 9=diff
-#define DEBUG_MODE 0
+vec4 hook() {
+    if (LINECONF_tex(LINECONF_pos).x < CONF_LOW)
+        return HOOKED_tex(HOOKED_pos);
 
-float get_luma(vec3 rgb) {
-    return dot(vec3(0.299, 0.587, 0.114), rgb);
+    float relstr = float(LINESOBEL_size.y) / 1080.0 * THIN_STRENGTH;
+    vec2 d = LINESOBEL_pt;
+    vec2 offset = vec2(0.0);
+
+    for (int i = 0; i < ITERATIONS; i++) {
+        vec2 dn = LINESOBEL_tex(LINESOBEL_pos + offset).xy;
+        float mag = length(dn);
+        if (mag > MIN_EDGE_STRENGTH)
+            offset -= (dn / (mag + 0.01)) * d * relstr;
+        else break;
+    }
+
+    if (length(offset / d) < BLURRY_DISP_THRESHOLD) {
+        float weak_relstr = relstr * BLURRY_RELSTR_MULT;
+        float weak_threshold = MIN_EDGE_STRENGTH * BLURRY_EDGE_MULT;
+        for (int i = 0; i < BLURRY_EXTRA_ITERS; i++) {
+            vec2 dn = LINESOBEL_tex(LINESOBEL_pos + offset).xy;
+            float mag = length(dn);
+            if (mag > weak_threshold)
+                offset -= (dn / (mag + 0.01)) * d * weak_relstr;
+            else break;
+        }
+    }
+
+    return HOOKED_tex(HOOKED_pos + offset);
 }
 
-// Bilateral symmetry check: returns 1.0 only if both sides along the local
-// gradient normal are brighter than the center. Contrast edges and thick shape
-// interiors return ~0.0 because one side fails the min().
-// max(r1, r2) per side lets the farther tap clear wide lines to reach background.
-float valley_at(vec2 p) {
-    vec3  sd  = LINESOBEL_tex(p).xyz;
-    float mag = length(sd.xy);
-    vec2  norm = (mag > 0.01) ? (sd.xy / mag) : vec2(1.0, 0.0);
+//!DESC Anime4K-Ultra-Thin-AA-Deblurring-PW-Sobel-X
+//!HOOK MAIN
+//!BIND HOOKED
+//!SAVE PWSOBEL
+//!COMPONENTS 2
 
-    float l_c   = get_luma(HOOKED_tex(p).rgb);
-    float l_pos = max(get_luma(HOOKED_tex(p + norm * HOOKED_pt      ).rgb),
-                      get_luma(HOOKED_tex(p + norm * HOOKED_pt * 2.0).rgb));
-    float l_neg = max(get_luma(HOOKED_tex(p - norm * HOOKED_pt      ).rgb),
-                      get_luma(HOOKED_tex(p - norm * HOOKED_pt * 2.0).rgb));
-    return clamp((min(l_pos, l_neg) - l_c) * 8.0, 0.0, 1.0);
+float pw_luma(vec4 c) { return dot(vec3(0.299, 0.587, 0.114), c.rgb); }
+
+vec4 hook() {
+    float l = pw_luma(HOOKED_texOff(vec2(-1, 0)));
+    float c = pw_luma(HOOKED_tex(HOOKED_pos));
+    float r = pw_luma(HOOKED_texOff(vec2( 1, 0)));
+    return vec4(-l + r, l + c + c + r, 0.0, 0.0);
+}
+
+//!DESC Anime4K-Ultra-Thin-AA-Deblurring-PW-Sobel-Y
+//!HOOK MAIN
+//!BIND HOOKED
+//!BIND PWSOBEL
+//!SAVE PWSOBEL
+//!COMPONENTS 3
+
+vec4 hook() {
+    float tx = PWSOBEL_texOff(vec2(0,-1)).x;
+    float cx = PWSOBEL_tex(PWSOBEL_pos).x;
+    float bx = PWSOBEL_texOff(vec2(0, 1)).x;
+    float ty = PWSOBEL_texOff(vec2(0,-1)).y;
+    float by = PWSOBEL_texOff(vec2(0, 1)).y;
+    float gx = (tx + cx + cx + bx) / 8.0;
+    float gy = (-ty + by) / 8.0;
+    return vec4(gx, gy, sqrt(gx * gx + gy * gy), 0.0);
+}
+
+//!DESC Anime4K-Ultra-Thin-AA-Deblurring-Dealias-Deblur
+//!HOOK MAIN
+//!BIND HOOKED
+//!BIND PWSOBEL
+//!BIND LINECONF
+
+#define DEALIAS_STRENGTH 1.25 // Interpolation strength (0.0 to ~2.0); >1.0 mathematically extrapolates to aggressively force AA
+#define DEBLUR_AMOUNT    0.5  // Unsharp mask strength specifically over dealiased lines (0.0 to ~2.0)
+#define CONF_LOW         0.05 // Lower bound of the effect mask's smoothstep transition (0.0 to 1.0)
+#define CONF_HIGH        0.18 // Upper bound of the effect mask's smoothstep transition (0.0 to 1.0; must be > CONF_LOW)
+
+float get_luma(vec3 rgb) { return dot(vec3(0.299, 0.587, 0.114), rgb); }
+
+vec4 hook() {
+    float effect_mask = smoothstep(CONF_LOW, CONF_HIGH, LINECONF_tex(LINECONF_pos).x);
+    if (effect_mask < 0.001) return HOOKED_tex(HOOKED_pos);
+
+    vec4 c = HOOKED_tex(HOOKED_pos);
+    vec2 sd = PWSOBEL_tex(PWSOBEL_pos).xy;
+    float mag = length(sd);
+    vec2 tang = (mag > 0.01) ? vec2(-sd.y, sd.x) / mag : vec2(1.0, 0.0);
+
+    vec4 t1 = HOOKED_tex(HOOKED_pos + tang * HOOKED_pt);
+    vec4 t2 = HOOKED_tex(HOOKED_pos - tang * HOOKED_pt);
+    float lc = get_luma(c.rgb);
+    float w1 = exp(-abs(get_luma(t1.rgb) - lc) * 20.0);
+    float w2 = exp(-abs(get_luma(t2.rgb) - lc) * 20.0);
+    vec4 c_da = mix(c, (c + t1 * w1 + t2 * w2) / (1.0 + w1 + w2), DEALIAS_STRENGTH * effect_mask);
+
+    vec4 blur = (
+        HOOKED_texOff(vec2(-1,-1)) + HOOKED_texOff(vec2(0,-1)) + HOOKED_texOff(vec2(1,-1)) +
+        HOOKED_texOff(vec2(-1, 0)) + c + HOOKED_texOff(vec2(1, 0)) +
+        HOOKED_texOff(vec2(-1, 1)) + HOOKED_texOff(vec2(0, 1)) + HOOKED_texOff(vec2(1, 1))
+    ) / 9.0;
+    return clamp(c_da + (c - blur) * DEBLUR_AMOUNT * effect_mask, 0.0, 1.0);
+}
+
+//!DESC Anime4K-Ultra-Thin-AA-Deblurring-Darken
+//!HOOK MAIN
+//!BIND HOOKED
+//!BIND PWSOBEL
+//!BIND LINECONF
+
+#define DARKEN_STRENGTH 0.21 // Base multiplier for line darkening via local luma valleys (0.0 to ~1.0)
+#define DARKEN_MAX_FRAC 0.25 // Max fraction of luma to SUBTRACT (0.0 to 1.0); 0.25 means keeping at least 75% of original brightness
+#define CONF_LOW        0.05 // Lower bound of the effect mask's smoothstep transition (0.0 to 1.0)
+#define CONF_HIGH       0.18 // Upper bound of the effect mask's smoothstep transition (0.0 to 1.0; must be > CONF_LOW)
+
+float get_luma(vec3 rgb) { return dot(vec3(0.299, 0.587, 0.114), rgb); }
+
+float valley_at(vec2 p) {
+    vec2 gxy = PWSOBEL_tex(p).xy;
+    float mag = length(gxy);
+    vec2 norm = (mag > 0.01) ? (gxy / mag) : vec2(1.0, 0.0);
+    float lc = get_luma(HOOKED_tex(p).rgb);
+    float lpos = max(get_luma(HOOKED_tex(p + norm * HOOKED_pt).rgb),
+                     get_luma(HOOKED_tex(p + norm * HOOKED_pt * 2.0).rgb));
+    float lneg = max(get_luma(HOOKED_tex(p - norm * HOOKED_pt).rgb),
+                     get_luma(HOOKED_tex(p - norm * HOOKED_pt * 2.0).rgb));
+    return clamp((min(lpos, lneg) - lc) * 8.0, 0.0, 1.0);
 }
 
 vec4 hook() {
-    vec2 d   = HOOKED_pt;
-    vec2 pos = HOOKED_pos;
+    float effect_mask = smoothstep(CONF_LOW, CONF_HIGH, LINECONF_tex(LINECONF_pos).x);
+    if (effect_mask < 0.001) return HOOKED_tex(HOOKED_pos);
 
-    float relstr = HOOKED_size.y / 1080.0 * STRENGTH;
-    for (int i = 0; i < ITERATIONS; i++) {
-        vec2  dn  = LINESOBEL_tex(pos).xy;
-        float mag = length(dn);
-        if (mag > MIN_EDGE_STRENGTH)
-            pos -= (dn / (mag + 0.01)) * d * relstr;
-        else
-            break;
-    }
+    vec2 gxy = PWSOBEL_tex(PWSOBEL_pos).xy;
+    float mag = length(gxy);
+    vec2 tang = (mag > 0.01) ? vec2(-gxy.y, gxy.x) / mag : vec2(1.0, 0.0);
 
-#if (DEBUG_MODE == 8)
-    return vec4(vec3(clamp(length((pos - HOOKED_pos) / d) * 20.0, 0.0, 1.0)), 1.0);
-#endif
+    float valley = max(valley_at(HOOKED_pos),
+                   max(valley_at(HOOKED_pos + tang * HOOKED_pt),
+                       valley_at(HOOKED_pos - tang * HOOKED_pt)));
 
-    vec4 c_original = HOOKED_tex(HOOKED_pos);
-    vec4 c_final    = HOOKED_tex(pos);
-
-    float smooth_conf = LINECONF_tex(HOOKED_pos).x;
-    float effect_mask = smoothstep(CONF_LOW, CONF_HIGH, smooth_conf);
-
-#if (DEBUG_MODE == 1)
-    return vec4(vec3(clamp(LINESOBEL_tex(HOOKED_pos).z, 0.0, 1.0)), 1.0);
-#endif
-#if (DEBUG_MODE == 2)
-    return vec4(vec3(clamp(smooth_conf, 0.0, 1.0)), 1.0);
-#endif
-#if (DEBUG_MODE == 4)
-    return vec4(vec3(effect_mask), 1.0);
-#endif
-
-    if (effect_mask < 0.001) return c_final;
-
-    // Bilateral tangent de-alias. Weight each tangent tap by luma similarity to
-    // the center: a tap that has crossed into bright background after the warp
-    // gets near-zero weight, preventing light streaks at line endpoints and curves.
-    vec3  sd_warp  = LINESOBEL_tex(pos).xyz;
-    float mag_warp = length(sd_warp.xy);
-    vec2  norm_warp = (mag_warp > 0.01) ? (sd_warp.xy / mag_warp) : vec2(1.0, 0.0);
-    vec2  tang_warp = vec2(-norm_warp.y, norm_warp.x);
-
-    vec4  c_t1 = HOOKED_tex(pos + tang_warp * d);
-    vec4  c_t2 = HOOKED_tex(pos - tang_warp * d);
-    float l_c  = get_luma(c_final.rgb);
-    float w_t1 = exp(-abs(get_luma(c_t1.rgb) - l_c) * 20.0);
-    float w_t2 = exp(-abs(get_luma(c_t2.rgb) - l_c) * 20.0);
-    c_final = mix(c_final,
-                  (c_final + c_t1 * w_t1 + c_t2 * w_t2) / (1.0 + w_t1 + w_t2),
-                  DEALIAS_STRENGTH * effect_mask);
-
-    // Tangent max-pool of valley_factor. A pixel with weak local evidence
-    // (e.g. mild compression, slight tone variation within a stroke) inherits
-    // valley confirmation from its immediate tangent neighbors.
-    vec3  sd_orig  = LINESOBEL_tex(HOOKED_pos).xyz;
-    float mag_orig = length(sd_orig.xy);
-    vec2  norm_orig = (mag_orig > 0.01) ? (sd_orig.xy / mag_orig) : vec2(1.0, 0.0);
-    vec2  tang_orig = vec2(-norm_orig.y, norm_orig.x);
-
-    float valley_factor = max(valley_at(HOOKED_pos),
-                          max(valley_at(HOOKED_pos + tang_orig * d),
-                              valley_at(HOOKED_pos - tang_orig * d)));
-
-#if (DEBUG_MODE == 5)
-    return vec4(vec3(valley_factor), 1.0);
-#endif
-
-    float l_final      = get_luma(c_final.rgb);
-    float darken_delta = effect_mask * valley_factor * DARKEN_STRENGTH * l_final;
-    darken_delta       = min(darken_delta, l_final * DARKEN_MAX_FRAC);
-
-#if (DEBUG_MODE == 7)
-    return vec4(vec3(clamp(darken_delta * 10.0, 0.0, 1.0)), 1.0);
-#endif
-
-    float new_luma = max(0.0, l_final - darken_delta);
-    c_final.rgb   *= clamp(new_luma / max(l_final, 0.001), 0.0, 1.0);
-
-#if (DEBUG_MODE == 9)
-    return vec4(clamp(abs(c_final.rgb - c_original.rgb) * 10.0, 0.0, 1.0), 1.0);
-#endif
-
-    return c_final;
+    vec4 c = HOOKED_tex(HOOKED_pos);
+    float l = get_luma(c.rgb);
+    float delta = min(effect_mask * valley * DARKEN_STRENGTH * l, l * DARKEN_MAX_FRAC);
+    c.rgb *= clamp((l - delta) / max(l, 0.001), 0.0, 1.0);
+    return c;
 }
