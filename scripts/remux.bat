@@ -24,12 +24,15 @@ if /i "%~1"=="-f"                ( set "PS_ARGS=%PS_ARGS% -Force" & shift & goto
 if /i "%~1"=="-delete"           ( set "PS_ARGS=%PS_ARGS% -Delete" & shift & goto :arg_loop )
 if /i "%~1"=="-concise"          ( set "PS_ARGS=%PS_ARGS% -Concise" & shift & goto :arg_loop )
 if /i "%~1"=="-v"                ( set "PS_ARGS=%PS_ARGS% -Verbose" & shift & goto :arg_loop )
+if /i "%~1"=="-no-where"         ( set "PS_ARGS=%PS_ARGS% -DisableWhereSearch" & shift & goto :arg_loop )
 REM --- Handle Arguments with values ---
 REM Escape %~2 single quotes, then wrap in 'value'
 set "ARG_VAL=%~2"
 set "ARG_VAL=%ARG_VAL:'=''%"
 if /i "%~1"=="-container"        ( set "PS_ARGS=%PS_ARGS% -Container '%ARG_VAL%'" & shift & shift & goto :arg_loop )
-if /i "%~1"=="-config"        ( set "PS_ARGS=%PS_ARGS% -ConfigPath '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-ffmpeg"           ( set "PS_ARGS=%PS_ARGS% -FfmpegPath '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-ffprobe"          ( set "PS_ARGS=%PS_ARGS% -FfprobePath '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-config"           ( set "PS_ARGS=%PS_ARGS% -ConfigPath '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 
 :handle_path
 REM --- Assume it's a path ---

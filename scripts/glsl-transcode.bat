@@ -28,6 +28,8 @@ if /i "%~1"=="-delete"              ( set "PS_ARGS=%PS_ARGS% -Delete" & shift & 
 if /i "%~1"=="-replace"             ( set "PS_ARGS=%PS_ARGS% -Replace" & shift & goto :arg_loop )
 if /i "%~1"=="-concise"             ( set "PS_ARGS=%PS_ARGS% -Concise" & shift & goto :arg_loop )
 if /i "%~1"=="-v"                   ( set "PS_ARGS=%PS_ARGS% -Verbose" & shift & goto :arg_loop )
+if /i "%~1"=="-no-where"            ( set "PS_ARGS=%PS_ARGS% -DisableWhereSearch" & shift & goto :arg_loop )
+
 REM --- Handle Arguments with values ---
 REM Escape %~2 single quotes, then wrap in 'value'
 set "ARG_VAL=%~2"
@@ -47,13 +49,15 @@ if /i "%~1"=="-container"           ( set "PS_ARGS=%PS_ARGS% -Container '%ARG_VA
 if /i "%~1"=="-suffix"              ( set "PS_ARGS=%PS_ARGS% -Suffix '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-slang"               ( set "PS_ARGS=%PS_ARGS% -SubsLangPriority '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-stitle"              ( set "PS_ARGS=%PS_ARGS% -SubsTitlePriority '%ARG_VAL%'" & shift & shift & goto :arg_loop )
-if /i "%~1"=="-sub-format"          ( set "PS_ARGS=%PS_ARGS% -SubFormat '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-sformat"             ( set "PS_ARGS=%PS_ARGS% -SubFormat '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-alang"               ( set "PS_ARGS=%PS_ARGS% -AudioLangPriority '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-atitle"              ( set "PS_ARGS=%PS_ARGS% -AudioTitlePriority '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-acodec"              ( set "PS_ARGS=%PS_ARGS% -AudioCodec '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-abitrate"            ( set "PS_ARGS=%PS_ARGS% -AudioBitrate '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-achannels"           ( set "PS_ARGS=%PS_ARGS% -AudioChannels '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-threads"             ( set "PS_ARGS=%PS_ARGS% -CpuThreads '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-ffmpeg"              ( set "PS_ARGS=%PS_ARGS% -FfmpegPath '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-ffprobe"             ( set "PS_ARGS=%PS_ARGS% -FfprobePath '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-config"              ( set "PS_ARGS=%PS_ARGS% -ConfigPath '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 
 :handle_path
