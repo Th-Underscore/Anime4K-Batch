@@ -53,6 +53,7 @@ if /i "%~1"=="-atitle"              ( set "PS_ARGS=%PS_ARGS% -AudioTitlePriority
 if /i "%~1"=="-acodec"              ( set "PS_ARGS=%PS_ARGS% -AudioCodec '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-abitrate"            ( set "PS_ARGS=%PS_ARGS% -AudioBitrate '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-achannels"           ( set "PS_ARGS=%PS_ARGS% -AudioChannels '%ARG_VAL%'" & shift & shift & goto :arg_loop )
+if /i "%~1"=="-threads"             ( set "PS_ARGS=%PS_ARGS% -CpuThreads '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 if /i "%~1"=="-config"              ( set "PS_ARGS=%PS_ARGS% -ConfigPath '%ARG_VAL%'" & shift & shift & goto :arg_loop )
 
 :handle_path

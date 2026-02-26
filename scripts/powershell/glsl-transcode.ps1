@@ -243,8 +243,7 @@ param(
     [Parameter()]
     [switch]$Concise,
 
-    # Internal parameter for CPU threads, might expose later
-    [int]$CpuThreads = 0,
+    [string]$CpuThreads = "0",
 
     [Parameter()]
     [string]$ConfigPath = ''
@@ -425,6 +424,8 @@ begin {
     $presetParam = ''
     $threadParam = ''
     $encParams = @()
+    $threads = ($CpuThreads -split '[,: ]') | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' } | ForEach-Object { [int]$_ }
+    if (-not $threads) { $threads = (,0) }
 
     if ([string]::IsNullOrWhiteSpace(($EncoderPreset))) {
         switch ($EncoderProfile.ToLower()) {
@@ -441,18 +442,18 @@ begin {
         'cpu_h264' {
             $videoCodec = 'libx264'
             $presetParam = "-preset $EncoderPreset"
-            if ($CpuThreads -ne 0) { $threadParam = "-threads $CpuThreads" }
+            $threadParam = "-threads $($threads -join ',')"
         }
         'cpu_h265' {
             $videoCodec = 'libx265'
             $presetParam = "-preset $EncoderPreset"
-            if ($CpuThreads -ne 0) { $encParams += "pools=${CpuThreads}" }
+            $encParams += "pools=$($threads -join ',')"
             if ($Concise) { $encParams += "log-level=error" }
         }
         'cpu_av1' {
             $videoCodec = 'libsvtav1'
             $presetParam = "-preset $EncoderPreset"
-            if ($CpuThreads -ne 0) { $encParams += "pin=$CpuThreads" }
+            $encParams += "pin=$($threads -join ',')"
         }
         'nvidia_h264' {
             $videoCodec = 'h264_nvenc'
@@ -594,9 +595,13 @@ begin {
                     $encParams += "qm-min=0", "sharpness=2", "variance-boost-strength=3", "variance-octile=5", "enable-tf=0"
                 }
                 4 { # Heavy grain
+                    # TODO: Multipass? Complex to implement for SVT-AV1, should be its own arg
+                    # $presetParam += " -passes 2"
                     $encParams += "qm-min=0", "qm-max=8", "sharpness=3", "variance-boost-strength=4", "variance-octile=5", "enable-tf=0", "enable-cdef=0"
                 }
                 5 { # Archival
+                    # $presetParam += " -passes 2"
+                    
                     $encParams += "qm-min=0", "qm-max=8", "sharpness=4", "variance-boost-strength=4", "variance-octile=4", "enable-tf=0", "enable-cdef=0", "enable-restoration=0"
                 }
             }
@@ -652,6 +657,10 @@ begin {
     # Value: Array of strings ('no_video', 'no_audio', 'no_subs')
     $containerLimitations = @{
         '.gif' = @('no_audio', 'no_subs', 'no_ttf', 'no_data') # GIF needs video transcode, no audio/subs, no fonts, no data streams
+        '.png' = @('no_audio', 'no_subs', 'no_ttf', 'no_data')
+        '.webp' = @('no_audio', 'no_subs', 'no_ttf', 'no_data')
+        '.jpg' = @('no_audio', 'no_subs', 'no_ttf', 'no_data')
+        '.jpeg' = @('no_audio', 'no_subs', 'no_ttf', 'no_data')
         '.mp4' = @('no_subs', 'no_ttf') # MP4 subtitle copy is often problematic
         # !! TTF and Data filtering not yet implemented !!
         # Add more container rules as needed
@@ -1338,7 +1347,7 @@ process {
         try {
             Write-Verbose "PATH ----- $(Get-Item -LiteralPath $itemPath)"
             $item = Get-Item -LiteralPath $itemPath -ErrorAction Stop
-            $videoExtensions = @('.mkv', '.mp4', '.avi', '.mov', '.gif') # Add more if needed
+            $videoExtensions = @('.mkv', '.mp4', '.avi', '.mov', '.gif') #, '.png', '.webp', '.jpg', '.jpeg') # TODO: Arg to specify extensions to process
             if ($item -is [System.IO.DirectoryInfo]) {
                 if (-not $Concise) { Write-Host "`nProcessing directory: $($item.FullName) (Recursive: $Recurse)" }
                 # Filter out already processed files *before* counting
