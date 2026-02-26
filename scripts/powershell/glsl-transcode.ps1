@@ -1217,12 +1217,12 @@ begin {
             $ffmpegArgs += '-i', "$inputFileFullPath"
             $ffmpegArgs += '-init_hw_device', 'vulkan' # libplacebo needs Vulkan
 
-            $filterGraph = "format=${uploadFmt},setparams=color_primaries=${p_prim}:color_trc=${p_trans}:colorspace=${p_space}:range=$range_str"
-            $filterGraph += ",hwupload,libplacebo=format=${outputFmt}:w=${w_str}:h=${h_str}:upscaler=bilinear:custom_shader_path='$escapedShaderPath'"
-            $filterGraph += ":dithering=none:tonemapping=clip:colorspace=${p_space}:color_primaries=${p_prim}:color_trc=${p_trans}:range=$range_str"
+            $filterGraph = "format=${uploadFmt},hwupload"
+            $filterGraph += ",libplacebo=format=${outputFmt}:w=${w_str}:h=${h_str}:upscaler=bilinear:custom_shader_path='$escapedShaderPath'"
+            $filterGraph += ":disable_linear=1:dithering=none:tonemapping=clip:colorspace=${p_space}:color_primaries=${p_prim}:color_trc=${p_trans}:range=$range_str"
             $filterGraph += ",hwdownload,format=${outputFmt}"
-            $ffmpegArgs += '-pix_fmt', $outputFmt
 
+            $ffmpegArgs += '-pix_fmt', $outputFmt
             $ffmpegArgs += '-vf', "$filterGraph"
             $ffmpegArgs += $streamArgs
             $ffmpegArgs += '-c:v', $videoCodec
