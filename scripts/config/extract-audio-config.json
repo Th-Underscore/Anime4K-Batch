@@ -1,10 +1,11 @@
 {
-    // Config for extract-tracks.ps1 when -Type is 'Subtitle'.
+    // Config for extract-tracks.ps1 when -Type is 'Audio'.
     // --- Input/Output ---
-    "Format": "SOURCE.lang.title.dispo", // Output filename format string. Placeholders: SOURCE (base filename), lang (language code), title (stream title/tag), dispo (disposition i.e. 'default', 'forced').
-    "Suffix": "", // Suffix to append *after* the base filename (the SOURCE placeholder) but *before* language/title placeholders.
+    "Type": "Audio", // Track type to extract. 'Audio' or 'Subtitle'.
+    "Format": "SOURCE.lang.title.dispo", // Output filename format. Placeholders: SOURCE (base filename), lang (language code), title (stream title/tag), dispo (disposition i.e. 'default', 'forced').
+    "Suffix": "", // Suffix appended to the SOURCE placeholder in the output filename. Empty = no suffix.
+    "Force": false, // Force overwrite existing extracted files.
     "Recurse": false, // Process folders recursively.
-    "Force": false, // Force overwrite existing subtitle files.
 
     // --- Executable Paths (Optional) ---
     "FfmpegPath": "", // Optional: Path to ffmpeg.exe. Auto-detected if empty or omitted.

@@ -26,7 +26,7 @@ Shader filename located in the ShaderBasePath. Default: 'Anime4K_ModeA_A-fast.gl
 Path to the shaders folder. Default: Script's 'shaders' subdirectory.
 
 .PARAMETER EncoderProfile
-Encoder profile (e.g., 'nvidia_h265', 'intel_h265', 'cpu_av1'). Default: 'nvidia_h265'.
+Encoder profile (e.g., 'nvidia_h265', 'intel_h265', 'cpu_av1'). Default: 'nvidia_h265_legacy'.
 Options: cpu_h264, cpu_h265, cpu_av1, nvidia_h264, nvidia_h265, nvidia_av1, amd_h264, amd_h265, amd_av1, intel_h264, intel_h265, intel_av1, vulkan_h264, vulkan_h265, vaapi_h264, vaapi_h265, vaapi_av1.
 Any other value is treated as a custom codec name, and any extra arguments within (e.g., 'hevc_vaapi -hwaccel vaapi -hwaccel_output_format vaapi') are passed directly to ffmpeg.
 
@@ -50,24 +50,24 @@ Texture quality (0-5, higher is better - greater file size). Default: 0.
 .PARAMETER Container
 Output container format (e.g., 'mkv', 'mp4'). Default: 'mkv'.
 
+.PARAMETER Suffix
+Suffix to append to output filenames. Default: '_upscaled'.
+
 .PARAMETER FastStart
 Controls MP4 FastStart optimization (moov atom at beginning).
 0: Disabled.
 1: Write to local Temp folder first, then move to destination (best for network/NAS).
 2: Write directly to destination (best for local drives).
 
-.PARAMETER Suffix
-Suffix to append to output filenames. Default: '_upscaled'.
+.PARAMETER SubFormat
+Subtitle filename format for -ExtractSubs. Default: 'SOURCE.lang.title.dispo'.
+Placeholders: SOURCE (base filename), lang (language code), title (stream title/tag), dispo (disposition i.e. 'default', 'forced').
 
 .PARAMETER SubsLangPriority
 Comma-separated subtitle language priority list for -SetSubsPriority (e.g., "jpn,chi,kor,eng").
 
 .PARAMETER SubsTitlePriority
 Comma-separated subtitle title priority list for -SetSubsPriority (e.g., "Full,Signs").
-
-.PARAMETER SubFormat
-Subtitle filename format for -ExtractSubs. Default: 'SOURCE.lang.title.dispo'.
-Placeholders: SOURCE (base filename), lang (language code), title (stream title/tag), dispo (disposition i.e. 'default', 'forced').
 
 .PARAMETER AudioLangPriority
 Comma-separated audio language priority list for -SetAudioPriority (e.g., "jpn,eng"). Default: ''.
@@ -119,15 +119,33 @@ Disable searching for ffmpeg/ffprobe in PATH using 'where.exe' or 'Get-Command'.
 .PARAMETER Concise
 Concise output (only progress shown).
 
+.PARAMETER Verbose
+Verbose output (detailed progress and information).
+
+.PARAMETER CpuThreads
+Limit CPU threads for CPU encoders (0 = auto). Supports NUMA node syntax (e.g., '16:16' for 16 threads on each NUMA node). Default: 0.
+
 .PARAMETER ConfigPath
 Path to the config.json file. Default: `glsl-transcode-config.json`. Anime4K-Batch default: 'config.json' (script's root directory).
 
 
 .EXAMPLE
-.\glsl-transcode.ps1 -Path "C:\videos\input.mkv" -TargetResolutionW 1920 -TargetResolutionH 1080 -EncoderProfile cpu_h265 -CQP 28
+.\glsl-transcode.ps1 -Path "C:\videos\input.mkv" -TargetResolutionW 1920 -TargetResolutionH 1080 -EncoderProfile cpu_h265 -CQP 28 -PreserveTexture 2
 
 .EXAMPLE
 .\glsl-transcode.ps1 -Path "C:\videos\series_folder" -Recurse -ExtractSubs -SetAudioPriority -AudioLangPriority "jpn,eng" -Delete
+
+.EXAMPLE
+.\glsl-transcode.ps1 -Path "C:\videos\movie.mkv" -ScaleFactor 2.0 -EncoderProfile nvidia_av1 -CRF 30 -Container mp4 -FastStart 1
+
+.EXAMPLE
+.\glsl-transcode.ps1 -Path "C:\videos\series" -Recurse -SetSubsPriority -SubsLangPriority "eng" -SubsTitlePriority "Full,Honorific" -ExtractSubs -SubFormat "SOURCE.lang.title.dispo" -SetAudioPriority -AudioLangPriority "jpn,eng" -AudioTitlePriority "Commentary" -AudioCodec aac -AudioBitrate 192k -AudioChannels 2
+
+.EXAMPLE
+.\glsl-transcode.ps1 -Path "C:\videos\folder" -Recurse -EncoderProfile cpu_h265 -CpuThreads 8 -Suffix "_4K" -Replace -Verbose
+
+.EXAMPLE
+.\glsl-transcode.ps1 -Path "C:\videos\input.mkv" -EncoderProfile nvidia_h265 -EncoderPreset p5 -CQP 20 -ShaderFile "Anime4K_ModeA_A.glsl" -ShaderBasePath "$env:APPDATA\mpv\shaders" -Force
 
 .NOTES
 Requires ffmpeg and ffprobe. Hardware acceleration requires appropriate drivers and compatible hardware.
@@ -243,6 +261,7 @@ param(
     [Parameter()]
     [switch]$Concise,
 
+    [Parameter()]
     [string]$CpuThreads = "0",
 
     [Parameter()]

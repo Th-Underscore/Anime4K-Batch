@@ -6,21 +6,26 @@
 :: glsl-transcode.bat options (place BEFORE file/folder paths):
 ::   -w <width>         : Target output width
 ::   -h <height>        : Target output height
+::   -scale <factor>    : Scale factor multiplier (2 = double resolution i.e. 1080p -> 2160p, 0.5 = half resolution)
 ::   -shader <file>     : Shader filename
 ::   -shaderpath <path> : Path to shaders folder
 ::   -codec-prof <type> : Encoder profile (e.g., nvidia_h265, cpu_av1)
-::   -cqp <value>       : Constant Quantization Parameter (0-51, lower is better) (20 = virtually lossless, ~9 Mbps)
-::   -pt <value>        : Preserve texture quality (0-3, higher is better) (3 = slowest and greatest file size)
+::   -preset <type>     : Encoder preset (e.g., slow, veryfast, p5, p7). Some profiles have different presets
+::   -cqp <value>       : Constant Quantization Parameter (0-63, lower is better) (20 = virtually lossless, ~9 Mbps)
+::   -crf <value>       : Constant Rate Factor (0-63, lower is better), overrides CQP
+::   -pt <value>        : Preserve texture quality (0-5, higher is better) (3 = slowest and greatest file size)
 ::   -container <type>  : Output container format (avi, mkv, mp4)
 ::   -suffix <string>   : Suffix to append to output filenames
-::   -slang <list>      : Comma-separated subtitle language priority for -sprioritize.
-::   -stitle <list>     : Comma-separated subtitle title priority for -sprioritize.
-::   -sformat <string>  : Subtitle filename format for -extract-subs. Placeholders: SOURCE, lang, title, dispo.
-::   -alang <list>      : Comma-separated audio language priority for -aprioritize. MUST be quoted if contains commas.
-::   -atitle <list>     : Comma-separated audio title priority for -aprioritize.
-::   -acodec <type>     : Audio codec for transcoding (e.g., aac, ac3, flac). If not specified, audio will be copied.
-::   -abitrate <value>  : Audio bitrate for transcoding (e.g., 192k, 256k). Only applies if -acodec is specified.
-::   -achannels <value> : Number of audio channels (e.g., 2 for stereo, 6 for 5.1). Only applies if -acodec is specified.
+::   -faststart <value> : MP4 FastStart mode (0 = disabled, 1 = local temp, 2 = direct). Only applies to MP4 output
+::   -sformat <string>  : Subtitle filename format for -extract-subs. Placeholders: SOURCE, lang, title, dispo
+::   -slang <list>      : Comma-separated subtitle language priority for -sprioritize
+::   -stitle <list>     : Comma-separated subtitle title priority for -sprioritize
+::   -alang <list>      : Comma-separated audio language priority for -aprioritize. MUST be quoted if contains commas
+::   -atitle <list>     : Comma-separated audio title priority for -aprioritize
+::   -acodec <type>     : Audio codec for transcoding (e.g., aac, ac3, flac, libopus). If not specified, audio will be copied
+::   -abitrate <value>  : Audio bitrate for EACH CHANNEL of each stream during transcoding (e.g., 192k = 382kbps for stereo). Only applies if AudioCodec is specified
+::   -achannels <value> : Number of audio channels (e.g., 2 for stereo, 6 for 5.1). Only applies if -acodec is specified
+::   -threads <value>   : Limit CPU threads for CPU encoders (0 = auto). Supports NUMA (e.g., 16:16 for 16 threads on each NUMA node)
 :: glsl-transcode.bat flags (place BEFORE file/folder paths):
 ::   -r                 : Recursive search in folders
 ::   -f                 : Force overwrite existing output
@@ -30,7 +35,7 @@
 ::   -delete            : Delete original file after successful transcode (USE WITH CAUTION! Mutually exclusive with "-replace")
 ::   -replace           : Replace original file after successful transcode (USE WITH CAUTION! Mutually exclusive with "-delete")
 ::
-:: See the individual scripts for advanced settings and information. You can also edit the code in any way you'd like!
+:: See the individual PowerShell scripts for advanced settings and information. You can also edit the code in any way you'd like!
 ::
 :: --- Examples ---
 :: Config:
@@ -62,6 +67,20 @@
 :: Transcode audio to AAC with a bitrate of 192k and 2 channels, while upscaling to 4K:
 ::    - call "%~dp0\scripts\glsl-transcode.bat" -w 3840 -h 2160 -acodec aac -abitrate 192k -achannels 2 %* ^
 ::
+:: Set encoder profile to AMD AV1 with a custom preset, output to MKV with a custom suffix:
+::    - call "%~dp0\scripts\glsl-transcode.bat" -codec-prof amd_av1 -preset quality -suffix "_remux" -container mkv %* ^
+::
+:: Double the input resolution using scale factor, use CRF instead of CQP:
+::    - call "%~dp0\scripts\glsl-transcode.bat" -scale 2.0 -crf 26 %* ^
+::
+:: Upscale to 4K, use a custom encoder preset, preserve texture at maximum quality, enable MP4 FastStart for streaming:
+::    - call "%~dp0\scripts\glsl-transcode.bat" -w 3840 -h 2160 -preset slow -pt 5 -container mp4 -faststart 1 %* ^
+::
+:: Upscale recursively with verbose output and limit CPU threads (useful for CPU encoding):
+::    - call "%~dp0\scripts\glsl-transcode.bat" -r -codec-prof cpu_h265 -threads 8 -v %* ^
+::
+:: Upscale and replace the original file in-place (USE WITH CAUTION!):
+::    - call "%~dp0\scripts\glsl-transcode.bat" -replace %* ^
 :: --- Usage ---
 :: CLI (check the README for better usage recommendations):
 ::    - C:\path\to\Anime4K-Batch.bat "C:\path\to\folder" "C:\path\to\file1" "C:\path\to\file2" ...

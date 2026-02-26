@@ -23,10 +23,6 @@ Used as a tie-breaker for language matches, or as a primary selector if no langu
 .PARAMETER Suffix
 Suffix for the output filename when not using -Replace. Default: '_reordered'. Ignored if -Replace is used.
 
-.PARAMETER StreamInfoB64
-Optional: Base64 encoded JSON string containing ffprobe output for the file.
-If provided, the script skips running ffprobe itself to improve performance when called from a parent script.
-
 .PARAMETER Recurse
 Process folders recursively.
 
@@ -50,6 +46,10 @@ Disable searching for ffmpeg/ffprobe in PATH using 'where.exe' or 'Get-Command'.
 
 .PARAMETER Concise
 Concise output (only progress shown).
+
+.PARAMETER StreamInfoB64
+Optional: Base64 encoded JSON string containing ffprobe output for the file.
+If provided, the script skips running ffprobe itself to improve performance when called from a parent script.
 
 .PARAMETER PassThru
 Returns the ffmpeg command arguments instead of executing them. Useful for compiling commands for later execution.
@@ -95,9 +95,6 @@ param(
     [string]$Suffix = '_reordered', # Used only if -Replace is not specified
 
     [Parameter()]
-    [string]$StreamInfoB64 = '',
-
-    [Parameter()]
     [switch]$Recurse,
 
     [Parameter()]
@@ -123,6 +120,9 @@ param(
 
     [Parameter()]
     [string]$ConfigPath = '',
+
+    [Parameter()]
+    [string]$StreamInfoB64 = '',
 
     [Parameter()]
     [switch]$PassThru
