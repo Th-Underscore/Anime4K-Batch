@@ -467,7 +467,7 @@ begin {
             $videoCodec = 'libx265'
             $presetParam = "-preset $EncoderPreset"
             $encParams += "pools=$($threads -join ',')"
-            if ($Concise) { $encParams += "log-level=error" }
+            if ($Concise) { $encParams += "log-level=error" } else { $encParams += "log-level=info" }
         }
         'cpu_av1' {
             $videoCodec = 'libsvtav1'
@@ -620,7 +620,7 @@ begin {
                 }
                 5 { # Archival
                     # $presetParam += " -passes 2"
-                    
+
                     $encParams += "qm-min=0", "qm-max=8", "sharpness=4", "variance-boost-strength=4", "variance-octile=4", "enable-tf=0", "enable-cdef=0", "enable-restoration=0"
                 }
             }
@@ -1245,13 +1245,17 @@ begin {
             $ffmpegArgs += '-i', "$inputFileFullPath"
             $ffmpegArgs += '-init_hw_device', 'vulkan' # libplacebo needs Vulkan
 
-            $filterGraph = "format=${uploadFmt},hwupload"
+            $filterGraph = "format=${uploadFmt},setparams=color_primaries=${p_prim}:color_trc=${p_trans}:colorspace=${p_space}:range=$range_str"
+            $filterGraph += ",hwupload"
+            $filterGraph += ",setparams=color_primaries=${p_prim}:color_trc=${p_trans}:colorspace=${p_space}:range=$range_str"
             $filterGraph += ",libplacebo=format=${outputFmt}:w=${w_str}:h=${h_str}:upscaler=bilinear:custom_shader_path='$escapedShaderPath'"
             $filterGraph += ":disable_linear=1:dithering=none:tonemapping=clip:colorspace=${p_space}:color_primaries=${p_prim}:color_trc=${p_trans}:range=$range_str"
             $filterGraph += ",hwdownload,format=${outputFmt}"
+            $filterGraph += ",setparams=color_primaries=${p_prim}:color_trc=${p_trans}:colorspace=${p_space}:range=$range_str"
 
             $ffmpegArgs += '-pix_fmt', $outputFmt
             $ffmpegArgs += '-vf', "$filterGraph"
+
             $ffmpegArgs += $streamArgs
             $ffmpegArgs += '-c:v', $videoCodec
             $ffmpegArgs += if ($CRF -ge 0 -and $EncoderProfile -notmatch "nvidia") { '-crf', $CRF } else { '-qp', $CQP }
